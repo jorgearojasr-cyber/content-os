@@ -1,0 +1,57 @@
+import { notFound } from "next/navigation";
+import {
+  buscarContenidoRelacionado,
+  createBloque,
+  generarContenidoAction,
+  getActivos,
+  getIdentidad,
+  inferirConfiguracionAction,
+} from "@/lib/actions";
+import { identityHasContent } from "@/lib/identity-compiler";
+import { Card, SectionTitle } from "@/components/ui";
+import { IdentidadChecklist } from "@/components/identidad-checklist";
+import { CrearModos } from "./crear-modos";
+
+export default async function CrearPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: proyectoId } = await params;
+  const identidad = await getIdentidad(proyectoId);
+  if (!identidad) notFound();
+
+  const activos = await getActivos(proyectoId);
+  const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
+  const boundGenerar = generarContenidoAction.bind(null, proyectoId);
+  const boundCreate = createBloque.bind(null, proyectoId);
+  const tieneIdentidad = identityHasContent(identidad);
+
+  return (
+    <div className="space-y-5">
+      {!tieneIdentidad ? (
+        <p className="rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-3 text-[13px] text-text">
+          Esta identidad todavía está vacía. Complétala en la pestaña{" "}
+          <span className="font-semibold">Identidad</span> primero — la IA usa
+          automáticamente lo que hayas cargado ahí para generar contenido que
+          realmente suene a tu proyecto.
+        </p>
+      ) : null}
+
+      <CrearModos
+        proyectoId={proyectoId}
+        onInferir={boundInferir}
+        onGenerar={boundGenerar}
+        onGuardar={boundCreate}
+        onBuscarRelacionado={buscarContenidoRelacionado}
+      />
+
+      <Card>
+        <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que la IA usa automáticamente, sin que tengas que volver a seleccionarlo.">
+          Identidad activa
+        </SectionTitle>
+        <IdentidadChecklist identidad={identidad} activosCount={activos.length} />
+      </Card>
+    </div>
+  );
+}

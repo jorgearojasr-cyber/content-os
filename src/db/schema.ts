@@ -1,0 +1,138 @@
+import { sql } from "drizzle-orm";
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+/**
+ * Un Proyecto es el contenedor superior (OBRABIEN, INJAR, futuros).
+ * Todo lo demás cuelga de un proyecto y nunca se mezcla entre proyectos.
+ */
+export const proyectos = sqliteTable("proyectos", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  descripcion: text("descripcion").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+/**
+ * Identidad: el núcleo del producto. Una por proyecto (relación 1 a 1).
+ * Se divide en tres capas: Marca, Personaje, Estilo.
+ */
+export const identidades = sqliteTable("identidades", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .unique()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+
+  // Capa Marca
+  voz: text("voz").notNull().default(""),
+  reglas: text("reglas").notNull().default(""),
+  objetivo: text("objetivo").notNull().default(""),
+  // Avatar del cliente ideal, serializado como JSON (ver AvatarCliente en types.ts)
+  avatarJson: text("avatar_json").notNull().default("{}"),
+
+  // Capa Personaje
+  personajeNombre: text("personaje_nombre").notNull().default(""),
+  personajePersonalidad: text("personaje_personalidad").notNull().default(""),
+  fisica: text("fisica").notNull().default(""),
+  vestuario: text("vestuario").notNull().default(""),
+  vozDescrita: text("voz_descrita").notNull().default(""),
+  gestos: text("gestos").notNull().default(""),
+  muletillas: text("muletillas").notNull().default(""),
+  fotoUrl: text("foto_url").notNull().default(""),
+
+  // Capa Estilo
+  paleta: text("paleta").notNull().default(""),
+  tipografia: text("tipografia").notNull().default(""),
+  look: text("look").notNull().default(""),
+  camara: text("camara").notNull().default(""),
+  ritmo: text("ritmo").notNull().default(""),
+  estructuraCta: text("estructura_cta").notNull().default(""),
+
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+/**
+ * Bloque: una pieza de contenido guardada en la Biblioteca.
+ * En la Fase 1 se crean a mano (sin IA); guardamos también el bloque de
+ * identidad compilado en el momento de creación, como evidencia de que
+ * el Compilador se usó y de qué produjo exactamente.
+ */
+export const bloques = sqliteTable("bloques", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  formato: text("formato").notNull().default("manual"),
+  texto: text("texto").notNull(),
+  identidadCompilada: text("identidad_compilada").notNull().default(""),
+  // 'activo' | 'archivado' | 'papelera'
+  estado: text("estado").notNull().default("activo"),
+  // ISO string de cuándo se movió a la papelera; "" si no está eliminado
+  eliminadoAt: text("eliminado_at").notNull().default(""),
+  // Arreglo de Escena serializado (ver Escena en types.ts); null si el
+  // bloque no tiene desglose estructurado (creado a mano, o formato sin
+  // escenas). Permite editar y regenerar por escena más adelante.
+  escenasJson: text("escenas_json"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+/**
+ * Activos: recursos reutilizables de un proyecto (logos, fotos, videos,
+ * música, íconos, tipografías, colores, prompts, voz, documentos).
+ * `valor` guarda una ruta de archivo subido, una URL, o texto libre
+ * (hex de color, prompt, etc.) según el `tipo`.
+ */
+export const activos = sqliteTable("activos", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  nombre: text("nombre").notNull(),
+  valor: text("valor").notNull().default(""),
+  notas: text("notas").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+/**
+ * Segundo Cerebro: apuntes rápidos, de fricción cero — no requieren ni
+ * título ni proyecto. `proyectoId` es nullable a propósito: una idea se
+ * puede anotar antes de saber a qué proyecto pertenece, y vincularla
+ * después es siempre una acción manual del usuario (la IA nunca decide
+ * esto sola). Si el proyecto vinculado se borra, la nota no desaparece —
+ * solo se desvincula (onDelete: "set null").
+ */
+export const notas = sqliteTable("notas", {
+  id: text("id").primaryKey(),
+  texto: text("texto").notNull(),
+  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "set null" }),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+/**
+ * Base de Conocimiento: material de referencia por proyecto (a diferencia
+ * de las notas del Segundo Cerebro, siempre pertenece a un proyecto).
+ * Solo texto plano en esta fase — sin archivos adjuntos.
+ */
+export const conocimiento = sqliteTable("conocimiento", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  contenido: text("contenido").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
