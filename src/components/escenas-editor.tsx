@@ -97,6 +97,21 @@ function GenerarImagenControl({
 }
 
 /**
+ * Junta los campos con contenido real de una escena en un solo bloque de
+ * texto simple ("Etiqueta: valor" por línea), para el botón "Copiar todo".
+ * Mismo criterio que ya se usa para decidir qué mostrar: solo campos con
+ * contenido, nunca todos por defecto.
+ */
+function construirTextoEscena(e: Escena): string {
+  const partes: string[] = [];
+  if (e.descripcion.trim()) partes.push(`Descripción: ${e.descripcion.trim()}`);
+  if (e.textoEnPantalla.trim()) partes.push(`Texto en pantalla: ${e.textoEnPantalla.trim()}`);
+  if (e.promptImagen.trim()) partes.push(`Prompt imagen: ${e.promptImagen.trim()}`);
+  if (e.promptVideo.trim()) partes.push(`Prompt video: ${e.promptVideo.trim()}`);
+  return partes.join("\n");
+}
+
+/**
  * Editor de escenas por tarjeta — el mismo componente que se usa en la
  * pestaña "Escenas" al generar contenido y al editar manualmente un bloque
  * ya guardado en Biblioteca. `escenas` es la unidad estructural universal
@@ -133,18 +148,27 @@ export function EscenasEditor({
             <p className="font-display text-[14px]">
               {escenas.length > 1 ? `Escena ${e.numero}` : "Contenido"}
             </p>
-            {mostrarDuracion ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] text-text-muted">Duración (s)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={e.duracionSegundos}
-                  onChange={(ev) => updateEscena(i, "duracionSegundos", Number(ev.target.value))}
-                  className="w-16 rounded-lg border border-border bg-surface px-2 py-1 text-[13px] text-text"
-                />
-              </div>
-            ) : null}
+            <div className="flex items-center gap-3">
+              {mostrarDuracion ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] text-text-muted">Duración (s)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={e.duracionSegundos}
+                    onChange={(ev) => updateEscena(i, "duracionSegundos", Number(ev.target.value))}
+                    className="w-16 rounded-lg border border-border bg-surface px-2 py-1 text-[13px] text-text"
+                  />
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(construirTextoEscena(e))}
+                className="text-[12px] text-accent hover:underline"
+              >
+                Copiar todo
+              </button>
+            </div>
           </div>
           <Label>Descripción</Label>
           <Textarea
