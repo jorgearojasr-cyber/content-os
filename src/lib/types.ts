@@ -390,6 +390,15 @@ export const TIPOS_CONTENIDO = [
 
 export type TipoContenido = (typeof TIPOS_CONTENIDO)[number]["value"];
 
+const ICONO_POR_FORMATO = new Map(TIPOS_CONTENIDO.map((t) => [t.value as string, t.icono]));
+
+/** Ícono según formato de un Bloque — piezas hechas a mano (formato
+ * "manual") o cualquier otro valor libre caen al ícono genérico. Usado en
+ * Biblioteca y en "Contenido reciente" de Crear. */
+export function iconoFormato(formato: string): string {
+  return ICONO_POR_FORMATO.get(formato) ?? "📄";
+}
+
 export const TIPOS_PRODUCCION = [
   { value: "Persona hablando a cámara", icono: "👤" },
   { value: "Persona + apoyo visual (B-Roll)", icono: "👤" },

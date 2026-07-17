@@ -17,18 +17,10 @@ import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
 import { ConfirmDialog, PromptDialog, SelectDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
 import { formatearFechaChile } from "@/lib/fecha";
-import { TIPOS_CONTENIDO, type Bloque } from "@/lib/types";
+import { iconoFormato, type Bloque } from "@/lib/types";
 
 export type BloqueConDias = Bloque & { diasRestantes?: number };
 export type Vista = "activos" | "archivados" | "papelera";
-
-const ICONO_POR_FORMATO = new Map(TIPOS_CONTENIDO.map((t) => [t.value as string, t.icono]));
-
-/** Ícono según formato — piezas hechas a mano (formato "manual") o
- * cualquier otro valor libre caen al ícono genérico. */
-function iconoFormato(formato: string): string {
-  return ICONO_POR_FORMATO.get(formato) ?? "📄";
-}
 
 declare global {
   interface Window {

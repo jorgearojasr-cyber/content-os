@@ -20,11 +20,15 @@ const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
 
 type Modo = "rapido" | "guiado" | "profesional";
 
-const MODOS: { id: Modo; icono: string; etiqueta: string }[] = [
-  { id: "rapido", icono: "🚀", etiqueta: "Crear rápido" },
-  { id: "guiado", icono: "🎨", etiqueta: "Crear guiado" },
-  { id: "profesional", icono: "⚙️", etiqueta: "Modo profesional" },
+const MODOS: { id: Modo; icono: string; etiqueta: string; descripcion: string }[] = [
+  { id: "rapido", icono: "🚀", etiqueta: "Crear rápido", descripcion: "La IA decide por ti" },
+  { id: "guiado", icono: "🎨", etiqueta: "Crear guiado", descripcion: "Tú decides el formato y estilo" },
+  { id: "profesional", icono: "⚙️", etiqueta: "Modo profesional", descripcion: "Control total de cada detalle" },
 ];
+
+/** Límite visual de referencia para el contador de caracteres de la idea —
+ * no bloquea el envío, no existe un límite real en el backend. */
+const LIMITE_IDEA_VISUAL = 600;
 
 /** Se monta desde cero cada vez que empieza a cargar, así el contador
  * arranca en 0 sin necesitar resetear estado dentro de un efecto. */
@@ -389,19 +393,22 @@ export function CrearModos({
 
   return (
     <Card>
-      <div className="mb-5 flex flex-wrap gap-2 border-b border-border pb-4">
+      <div className="mb-5 grid grid-cols-1 gap-2 border-b border-border pb-5 sm:grid-cols-3">
         {MODOS.map((m) => (
           <button
             key={m.id}
             type="button"
             onClick={() => setModo(m.id)}
-            className={`rounded-xl px-3.5 py-2.5 text-[13.5px] transition-colors ${
+            className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
               modo === m.id
-                ? "bg-accent-soft font-semibold text-accent"
-                : "text-text-muted hover:bg-surface-2 hover:text-text"
+                ? "border-accent bg-accent-soft"
+                : "border-border bg-surface-2 hover:border-accent/50"
             }`}
           >
-            {m.icono} {m.etiqueta}
+            <span className={`text-[13.5px] font-semibold ${modo === m.id ? "text-accent" : "text-text"}`}>
+              {m.icono} {m.etiqueta}
+            </span>
+            <p className="mt-0.5 text-[12px] text-text-muted">{m.descripcion}</p>
           </button>
         ))}
       </div>
@@ -464,12 +471,17 @@ export function CrearModos({
               Describe la idea y la IA infiere el formato, la producción, la plataforma y la
               estructura — vas a poder confirmar o ajustar antes de generar el contenido final.
             </p>
-            <Textarea
-              value={idea}
-              onChange={(e) => setIdea(e.target.value)}
-              placeholder="Ej: Un reel mostrando 5 errores comunes al construir un radier"
-              className="min-h-[110px]"
-            />
+            <div className="relative">
+              <Textarea
+                value={idea}
+                onChange={(e) => setIdea(e.target.value)}
+                placeholder="Ej: Un reel mostrando 5 errores comunes al construir un radier"
+                className="min-h-[110px] pb-6"
+              />
+              <span className="pointer-events-none absolute bottom-2.5 right-3.5 text-[11px] text-text-muted">
+                {idea.length} / {LIMITE_IDEA_VISUAL}
+              </span>
+            </div>
             {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
             <Button type="button" className="mt-3" disabled={!idea.trim()} onClick={analizarIdea}>
               Analizar idea
