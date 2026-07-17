@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #fbfbfd;
+  --bg: #f7f6f2;
   --surface: #ffffff;
-  --surface-2: #f5f5f7;
-  --border: #e5e5ea;
-  --text: #1d1d1f;
-  --text-muted: #6e6e73;
-  --accent: #b8860b;
-  --accent-soft: rgba(184, 134, 11, 0.1);
+  --surface-2: #f1eee7;
+  --border: #e8e5de;
+  --text: #222222;
+  --text-muted: #666666;
+  --accent: #c99400;
+  --accent-hover: #b8860b;
+  --accent-soft: rgba(201, 148, 0, 0.12);
+  --success: #5b8c5a;
   --danger: #d70015;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 14px rgba(0, 0, 0, 0.05);
 
   --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -25,6 +27,9 @@
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
   --color-danger: var(--danger);
   --shadow-card: var(--shadow-card);
   --font-display: var(--font-display);
@@ -57,4 +62,46 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Fade-in y elevación suave para tarjetas del Dashboard — clases de
+ * utilidad genéricas, usadas hoy solo ahí, pero disponibles para
+ * cualquier pantalla que las necesite más adelante. */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in-up 0.45s ease-out both;
+}
+
+.hover-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
 }

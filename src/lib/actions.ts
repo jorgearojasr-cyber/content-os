@@ -760,11 +760,13 @@ export async function getDashboardData() {
   const todasIdentidades = await db.select().from(identidades);
   const identidadPorProyecto = new Map(todasIdentidades.map((i) => [i.proyectoId, i]));
 
-  const proyectosOrdenados = [...todosProyectos].sort((a, b) => {
-    const fechaA = identidadPorProyecto.get(a.id)?.updatedAt ?? a.createdAt;
-    const fechaB = identidadPorProyecto.get(b.id)?.updatedAt ?? b.createdAt;
-    return fechaA < fechaB ? 1 : -1;
-  });
+  function ultimaActividad(p: { id: string; createdAt: string }): string {
+    return identidadPorProyecto.get(p.id)?.updatedAt ?? p.createdAt;
+  }
+
+  const proyectosOrdenados = [...todosProyectos]
+    .sort((a, b) => (ultimaActividad(a) < ultimaActividad(b) ? 1 : -1))
+    .map((p) => ({ ...p, ultimaActividad: ultimaActividad(p) }));
 
   const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
   const bloquesActivos = await db.select().from(bloques).where(eq(bloques.estado, "activo"));

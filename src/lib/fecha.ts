@@ -33,3 +33,23 @@ export function formatearFechaChile(fecha: string): string {
   if (Number.isNaN(date.getTime())) return "";
   return FORMATO_CHILE.format(date);
 }
+
+/** Hora actual (0-23) en Chile — mismo criterio de zona horaria por nombre
+ * ("America/Santiago") que el resto de este archivo, nunca un offset fijo. */
+function horaActualChile(): number {
+  const horaTexto = new Intl.DateTimeFormat("es-CL", {
+    timeZone: "America/Santiago",
+    hour: "numeric",
+    hour12: false,
+  }).format(new Date());
+  return Number(horaTexto);
+}
+
+/** Saludo dinámico según la hora real en Chile ahora mismo — "Buenos días"
+ * antes de las 12, "Buenas tardes" hasta las 19, "Buenas noches" después. */
+export function saludoChile(): string {
+  const hora = horaActualChile();
+  if (hora < 12) return "Buenos días";
+  if (hora < 19) return "Buenas tardes";
+  return "Buenas noches";
+}

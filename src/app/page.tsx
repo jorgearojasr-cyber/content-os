@@ -1,38 +1,72 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/actions";
 import { Card, Chip, Empty, LinkButton, SectionTitle } from "@/components/ui";
+import { formatearFechaChile, saludoChile } from "@/lib/fecha";
 
 // El dashboard lee proyectos y contenido reales en cada visita.
 export const dynamic = "force-dynamic";
+
+// Solo elige un ícono según palabras ya presentes en `formato` (dato que ya
+// existe) — puramente visual, no agrega ni infiere datos nuevos.
+const ICONOS_FORMATO: { patron: RegExp; icono: string }[] = [
+  { patron: /video|reel|tiktok|shorts/i, icono: "🎥" },
+  { patron: /carrusel/i, icono: "📚" },
+  { patron: /imagen/i, icono: "🖼" },
+  { patron: /historia/i, icono: "📖" },
+];
+
+function iconoParaFormato(formato: string): string {
+  return ICONOS_FORMATO.find((f) => f.patron.test(formato))?.icono ?? "📄";
+}
 
 export default async function RootPage() {
   const { proyectoReciente, proyectosRecientes, bloquesRecientes, notasSinVincular } =
     await getDashboardData();
 
+  const saludo = saludoChile();
+
+  const subtitulo = proyectoReciente
+    ? `Puedes continuar con ${proyectoReciente.nombre}.`
+    : proyectosRecientes.length > 0
+      ? "Sigue creando contenido para tus proyectos."
+      : "Crea tu primer proyecto para empezar.";
+
+  const crearHref = proyectoReciente ? `/proyectos/${proyectoReciente.id}/crear` : "/proyectos";
+
   return (
-    <main className="mx-auto max-w-[760px] px-4 py-6 sm:py-8">
-      <header className="mb-6 border-b border-border pb-4">
-        <div className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent">
-          Content OS
+    <main className="mx-auto max-w-[760px] px-4 py-10 sm:py-16">
+      <header className="animate-fade-in mb-10 text-center sm:mb-14">
+        <p className="font-mono text-[11px] uppercase tracking-[2px] text-accent">Content OS</p>
+        <h1 className="mt-2 font-display text-3xl font-normal tracking-wide sm:text-4xl">
+          {saludo}.
+        </h1>
+        <p className="mx-auto mt-3 max-w-[440px] text-[15px] text-text-muted">{subtitulo}</p>
+        <p className="mt-1 text-[15px] text-text-muted">¿Qué quieres crear hoy?</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <LinkButton href={crearHref}>Crear contenido</LinkButton>
+          <LinkButton href="/segundo-cerebro" variant="secondary">
+            Segundo Cerebro
+          </LinkButton>
         </div>
-        <h1 className="font-display text-2xl font-normal tracking-wide">Tu estudio creativo</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Todo lo que necesitas para seguir creando, en un solo lugar.
-        </p>
       </header>
 
-      <div className="space-y-5">
-        <Card>
+      <div className="space-y-6">
+        <Card className="hover-lift animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionTitle
-              subtitle={
-                notasSinVincular > 0
-                  ? `${notasSinVincular} nota${notasSinVincular === 1 ? "" : "s"} todavía sin vincular a un proyecto.`
-                  : "Apunta ideas sueltas, sin fricción — vincúlalas a un proyecto cuando quieras."
-              }
-            >
-              Segundo Cerebro
-            </SectionTitle>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl" aria-hidden>
+                🧠
+              </span>
+              <SectionTitle
+                subtitle={
+                  notasSinVincular > 0
+                    ? `${notasSinVincular} nota${notasSinVincular === 1 ? "" : "s"} todavía sin vincular a un proyecto.`
+                    : "Apunta ideas sueltas, sin fricción — vincúlalas a un proyecto cuando quieras."
+                }
+              >
+                Segundo Cerebro
+              </SectionTitle>
+            </div>
             <LinkButton href="/segundo-cerebro" variant="secondary">
               Abrir
             </LinkButton>
@@ -48,33 +82,31 @@ export default async function RootPage() {
           </Empty>
         ) : (
           <>
-            <Card className="border-accent/30 bg-accent-soft/40">
-              <SectionTitle subtitle={`Sigue justo donde lo dejaste en "${proyectoReciente.nombre}".`}>
-                Continuar donde quedé
-              </SectionTitle>
-              <div className="flex flex-wrap gap-2">
-                <LinkButton href={`/proyectos/${proyectoReciente.id}/identidad`}>
-                  Abrir {proyectoReciente.nombre}
-                </LinkButton>
-                <LinkButton href={`/proyectos/${proyectoReciente.id}/crear`} variant="secondary">
-                  Crear contenido nuevo
-                </LinkButton>
-              </div>
-            </Card>
-
-            <Card>
+            <section className="animate-fade-in">
               <SectionTitle subtitle="Tus proyectos más activos.">Proyectos recientes</SectionTitle>
-              <div className="space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {proyectosRecientes.map((p) => (
                   <Link
                     key={p.id}
                     href={`/proyectos/${p.id}/identidad`}
-                    className="block rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[14px] text-text transition-colors hover:border-accent/50"
+                    className="hover-lift block rounded-2xl bg-surface p-4 shadow-[var(--shadow-card)]"
                   >
-                    {p.nombre}
-                    {p.descripcion ? (
-                      <span className="block text-[12px] text-text-muted">{p.descripcion}</span>
-                    ) : null}
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-[16px] text-accent">
+                        {p.nombre.trim().charAt(0).toUpperCase() || "?"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[14.5px] font-medium text-text">{p.nombre}</p>
+                        {p.descripcion ? (
+                          <p className="mt-0.5 line-clamp-2 text-[12.5px] text-text-muted">
+                            {p.descripcion}
+                          </p>
+                        ) : null}
+                        <p className="mt-1.5 text-[11.5px] text-text-muted">
+                          {formatearFechaChile(p.ultimaActividad)}
+                        </p>
+                      </div>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -83,9 +115,9 @@ export default async function RootPage() {
                   Ver todos los proyectos
                 </Link>
               </div>
-            </Card>
+            </section>
 
-            <Card>
+            <section className="animate-fade-in">
               <SectionTitle subtitle="Lo último que guardaste, en cualquier proyecto.">
                 Contenidos recientes
               </SectionTitle>
@@ -99,16 +131,23 @@ export default async function RootPage() {
                     <Link
                       key={b.id}
                       href={`/proyectos/${b.proyectoId}/biblioteca/${b.id}/editar`}
-                      className="block rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[14px] text-text transition-colors hover:border-accent/50"
+                      className="hover-lift flex items-center gap-3 rounded-2xl bg-surface p-3.5 shadow-[var(--shadow-card)]"
                     >
-                      <Chip>{b.formato}</Chip>
-                      <span className="ml-2">{b.titulo}</span>
-                      <span className="block text-[12px] text-text-muted">{b.proyectoNombre}</span>
+                      <span className="text-xl" aria-hidden>
+                        {iconoParaFormato(b.formato)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <Chip>{b.formato}</Chip>
+                        <p className="mt-1 truncate text-[14px] text-text">{b.titulo}</p>
+                        <p className="text-[12px] text-text-muted">
+                          {b.proyectoNombre} · {formatearFechaChile(b.createdAt)}
+                        </p>
+                      </div>
                     </Link>
                   ))}
                 </div>
               )}
-            </Card>
+            </section>
           </>
         )}
       </div>

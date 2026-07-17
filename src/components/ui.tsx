@@ -50,7 +50,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
   const base = "inline-flex items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[14px] font-medium transition-opacity disabled:opacity-50";
   const styles = {
-    primary: "bg-accent text-white font-semibold hover:opacity-90",
+    primary: "bg-accent text-text font-semibold hover:bg-accent-hover",
     secondary: "border border-border bg-transparent text-text hover:bg-surface-2",
     danger: "border border-border bg-transparent text-danger hover:bg-surface-2",
   } as const;
@@ -66,9 +66,9 @@ export function LinkButton({
   children: ReactNode;
   variant?: "primary" | "secondary";
 }) {
-  const base = "inline-flex items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[14px] font-medium transition-opacity hover:opacity-90";
+  const base = "inline-flex items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[14px] font-medium transition-colors";
   const styles = {
-    primary: "bg-accent text-white font-semibold",
+    primary: "bg-accent text-text font-semibold hover:bg-accent-hover",
     secondary: "border border-border bg-transparent text-text hover:bg-surface-2",
   } as const;
   return (
