@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { formatearFechaChile } from "@/lib/fecha";
 import type { Nota, Proyecto } from "@/lib/types";
 
 type Filtro = "todas" | "sin-vincular" | string;
@@ -117,6 +118,7 @@ function NotaCard({
         </Button>
       </div>
       <p className="mt-2 whitespace-pre-wrap text-[14px] text-text">{nota.texto}</p>
+      <p className="mt-2 text-[12px] text-text-muted">{formatearFechaChile(nota.createdAt)}</p>
 
       <select
         value={nota.proyectoId ?? ""}

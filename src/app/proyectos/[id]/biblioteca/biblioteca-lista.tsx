@@ -14,6 +14,7 @@ import {
 import { Card, Chip } from "@/components/ui";
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
 import { ConfirmDialog, PromptDialog, SelectDialog } from "@/components/confirm-dialog";
+import { formatearFechaChile } from "@/lib/fecha";
 import type { Bloque } from "@/lib/types";
 
 type BloqueConDias = Bloque & { diasRestantes?: number };
@@ -124,6 +125,7 @@ function BloqueCard({
         </ActionMenu>
       </div>
       <p className="whitespace-pre-wrap text-[14px] text-text">{bloque.texto}</p>
+      <p className="mt-2 text-[12px] text-text-muted">{formatearFechaChile(bloque.createdAt)}</p>
 
       <ConfirmDialog
         open={confirmPapelera}
