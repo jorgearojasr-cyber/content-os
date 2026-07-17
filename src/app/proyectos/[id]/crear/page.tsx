@@ -5,6 +5,7 @@ import {
   createBloque,
   generarContenidoAction,
   getActivos,
+  getConocimiento,
   getIdentidad,
   inferirConfiguracionAction,
 } from "@/lib/actions";
@@ -23,6 +24,7 @@ export default async function CrearPage({
   if (!identidad) notFound();
 
   const activos = await getActivos(proyectoId);
+  const conocimiento = await getConocimiento(proyectoId);
   const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
   const boundGenerar = generarContenidoAction.bind(null, proyectoId);
   const boundCreate = createBloque.bind(null, proyectoId);
@@ -42,6 +44,7 @@ export default async function CrearPage({
       <CrearModos
         proyectoId={proyectoId}
         identidad={identidad}
+        tieneConocimiento={conocimiento.length > 0}
         onInferir={boundInferir}
         onGenerar={boundGenerar}
         onGuardar={boundCreate}

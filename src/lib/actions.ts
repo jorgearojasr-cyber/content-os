@@ -307,14 +307,19 @@ export async function generarContenidoAction(
     incluirPersonaje?: boolean;
     incluirMarca?: boolean;
     incluirContacto?: boolean;
+    /** Por defecto true (mismo criterio que las otras casillas cuando no
+     * llegan). En false, ni siquiera se consulta la Base de Conocimiento —
+     * no solo se omite del prompt. */
+    incluirConocimiento?: boolean;
   },
 ): Promise<ContenidoGenerado> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, ...resto } = input;
+  const { incluirPersonaje, incluirMarca, incluirContacto, incluirConocimiento, ...resto } = input;
   const identidad = await getIdentidad(proyectoId);
   const identidadCompilada = identidad
     ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto })
     : "";
-  const conocimientoRelevante = await conocimientoRelevantePara(proyectoId, input.tema);
+  const conocimientoRelevante =
+    incluirConocimiento === false ? "" : await conocimientoRelevantePara(proyectoId, input.tema);
   return generarContenido({
     ...resto,
     identidadCompilada,

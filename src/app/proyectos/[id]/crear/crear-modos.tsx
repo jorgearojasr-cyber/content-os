@@ -50,6 +50,9 @@ function QueIncluir({
   mostrarContacto,
   incluirContacto,
   setIncluirContacto,
+  mostrarConocimiento,
+  incluirConocimiento,
+  setIncluirConocimiento,
 }: {
   mostrarPersonaje: boolean;
   incluirPersonaje: boolean;
@@ -59,6 +62,9 @@ function QueIncluir({
   mostrarContacto: boolean;
   incluirContacto: boolean;
   setIncluirContacto: (v: boolean) => void;
+  mostrarConocimiento: boolean;
+  incluirConocimiento: boolean;
+  setIncluirConocimiento: (v: boolean) => void;
 }) {
   return (
     <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
@@ -92,6 +98,16 @@ function QueIncluir({
             Incluir datos de contacto
           </label>
         ) : null}
+        {mostrarConocimiento ? (
+          <label className="flex items-center gap-2 text-[13px] text-text">
+            <input
+              type="checkbox"
+              checked={incluirConocimiento}
+              onChange={(e) => setIncluirConocimiento(e.target.checked)}
+            />
+            Usar Base de Conocimiento
+          </label>
+        ) : null}
       </div>
     </div>
   );
@@ -100,6 +116,7 @@ function QueIncluir({
 export function CrearModos({
   proyectoId,
   identidad,
+  tieneConocimiento,
   onInferir,
   onGenerar,
   onGuardar,
@@ -107,12 +124,14 @@ export function CrearModos({
 }: {
   proyectoId: string;
   identidad: Identidad;
+  tieneConocimiento: boolean;
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
   onGenerar: (
     input: Omit<ContenidoInput, "identidadCompilada"> & {
       incluirPersonaje?: boolean;
       incluirMarca?: boolean;
       incluirContacto?: boolean;
+      incluirConocimiento?: boolean;
     },
   ) => Promise<ContenidoGenerado>;
   onGuardar: (formData: FormData) => Promise<void>;
@@ -131,6 +150,7 @@ export function CrearModos({
   const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [incluirContacto, setIncluirContacto] = useState(false);
+  const [incluirConocimiento, setIncluirConocimiento] = useState(true);
 
   function empezarDeNuevo() {
     setResultado(null);
@@ -192,6 +212,7 @@ export function CrearModos({
         incluirPersonaje,
         incluirMarca,
         incluirContacto,
+        incluirConocimiento,
       });
       setResultado(resultadoGenerado);
     } catch (e) {
@@ -272,6 +293,9 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
+                mostrarConocimiento={tieneConocimiento}
+                incluirConocimiento={incluirConocimiento}
+                setIncluirConocimiento={setIncluirConocimiento}
               />
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
@@ -326,6 +350,9 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
+                mostrarConocimiento={tieneConocimiento}
+                incluirConocimiento={incluirConocimiento}
+                setIncluirConocimiento={setIncluirConocimiento}
               />
               <Button type="button" onClick={generar}>
                 🚀 Crear contenido
@@ -355,6 +382,9 @@ export function CrearModos({
               mostrarContacto={tieneContacto}
               incluirContacto={incluirContacto}
               setIncluirContacto={setIncluirContacto}
+              mostrarConocimiento={tieneConocimiento}
+              incluirConocimiento={incluirConocimiento}
+              setIncluirConocimiento={setIncluirConocimiento}
             />
             <Button
               type="button"

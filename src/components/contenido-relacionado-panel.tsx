@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Chip } from "@/components/ui";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { ResultadoRelacionado } from "@/lib/reutilizacion";
 
@@ -67,7 +68,11 @@ export function ContenidoRelacionadoPanel({
       {abierto ? (
         <div className="mt-3 space-y-3">
           <SeccionRelacionada titulo="En tu Biblioteca" resultados={resultado.biblioteca} />
-          <SeccionRelacionada titulo="En tu Base de Conocimiento" resultados={resultado.conocimiento} />
+          <SeccionRelacionada
+            titulo="En tu Base de Conocimiento"
+            resultados={resultado.conocimiento}
+            etiqueta="Conocimiento"
+          />
           <SeccionRelacionada titulo="En tu Segundo Cerebro" resultados={resultado.segundoCerebro} />
         </div>
       ) : null}
@@ -78,9 +83,13 @@ export function ContenidoRelacionadoPanel({
 function SeccionRelacionada({
   titulo,
   resultados,
+  etiqueta,
 }: {
   titulo: string;
   resultados: ResultadoRelacionado[];
+  /** Chip mostrado junto a cada resultado, para dejar claro de dónde sale
+   * (ej. "Conocimiento" en los resultados de Base de Conocimiento). */
+  etiqueta?: string;
 }) {
   if (resultados.length === 0) return null;
   return (
@@ -91,7 +100,10 @@ function SeccionRelacionada({
       <ul className="space-y-1.5">
         {resultados.map((r) => (
           <li key={r.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
-            <span className="font-medium">{r.titulo}</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="font-medium">{r.titulo}</span>
+              {etiqueta ? <Chip>{etiqueta}</Chip> : null}
+            </span>
             {r.fragmento && r.fragmento !== r.titulo ? (
               <span className="block text-text-muted">{r.fragmento}</span>
             ) : null}
