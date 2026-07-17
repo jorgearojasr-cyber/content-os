@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { generarImagenParaEscena, getActivos, getBloque, getIdentidad, updateBloque } from "@/lib/actions";
-import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { BotonGuardar } from "@/components/boton-guardar";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { FORMATOS_CONTENIDO, parseEscenas } from "@/lib/types";
 import { EditarBloqueConEscenas } from "./editar-bloque-escenas";
@@ -65,9 +66,7 @@ export default async function EditarBloquePage({
             required
           />
 
-          <Button type="submit" className="mt-4">
-            Guardar cambios
-          </Button>
+          <BotonGuardar texto="Guardar cambios" className="mt-4" />
         </form>
       </Card>
 

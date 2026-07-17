@@ -12,7 +12,8 @@ import {
   subirLogo,
   updateIdentidad,
 } from "@/lib/actions";
-import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { BotonGuardar } from "@/components/boton-guardar";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
 import { FotosPersonaje } from "@/components/fotos-personaje";
@@ -300,7 +301,7 @@ export default async function IdentidadPage({
           />
         </Card>
 
-        <Button type="submit">Guardar identidad</Button>
+        <BotonGuardar texto="Guardar identidad" />
       </form>
 
       <Card>
@@ -323,9 +324,7 @@ export default async function IdentidadPage({
             className="min-h-[100px]"
             required
           />
-          <Button type="submit" className="mt-3">
-            Agregar
-          </Button>
+          <BotonGuardar texto="Agregar" textoConfirmado="Agregado ✓" className="mt-3" />
         </form>
         <ConocimientoLista entradas={conocimiento} onDelete={boundDeleteConocimiento} />
       </Card>

@@ -14,6 +14,8 @@ import {
   type Identidad,
 } from "@/lib/types";
 
+const DURACION_CONFIRMACION_MS = 2000;
+
 /**
  * Ver/editar un bloque ya guardado cuyo `escenasJson` no es null: reutiliza
  * el mismo EscenasEditor de la pantalla Crear. Al guardar, `texto` se
@@ -40,6 +42,7 @@ export function EditarBloqueConEscenas({
   const [texto, setTexto] = useState(bloque.texto);
   const [escenas, setEscenas] = useState<Escena[]>(escenasIniciales);
   const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
   const [error, setError] = useState("");
 
   async function guardar() {
@@ -54,6 +57,8 @@ export function EditarBloqueConEscenas({
       fd.set("escenasJson", JSON.stringify(escenas));
       await onUpdate(fd);
       router.refresh();
+      setGuardado(true);
+      setTimeout(() => setGuardado(false), DURACION_CONFIRMACION_MS);
     } catch (e) {
       setError(explicarError(e));
     } finally {
@@ -86,7 +91,7 @@ export function EditarBloqueConEscenas({
 
         {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
         <Button type="button" className="mt-4" disabled={guardando} onClick={guardar}>
-          {guardando ? "Guardando…" : "Guardar cambios"}
+          {guardando ? "Guardando…" : guardado ? "Guardado ✓" : "Guardar cambios"}
         </Button>
       </Card>
 

@@ -6,6 +6,8 @@ import { TIPOS_ACTIVO } from "@/lib/types";
 
 type TipoActivo = (typeof TIPOS_ACTIVO)[number]["value"];
 
+const DURACION_CONFIRMACION_MS = 2000;
+
 export function NuevoActivoForm({
   onCreateArchivo,
   onCreateTexto,
@@ -14,6 +16,8 @@ export function NuevoActivoForm({
   onCreateTexto: (formData: FormData) => Promise<void>;
 }) {
   const [tipo, setTipo] = useState<TipoActivo>(TIPOS_ACTIVO[0].value);
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const esArchivo = TIPOS_ACTIVO.find((t) => t.value === tipo)?.archivo ?? false;
 
@@ -21,13 +25,20 @@ export function NuevoActivoForm({
     <form
       ref={formRef}
       action={async (formData) => {
-        if (esArchivo) {
-          await onCreateArchivo(formData);
-        } else {
-          await onCreateTexto(formData);
+        setGuardando(true);
+        try {
+          if (esArchivo) {
+            await onCreateArchivo(formData);
+          } else {
+            await onCreateTexto(formData);
+          }
+          formRef.current?.reset();
+          setTipo(TIPOS_ACTIVO[0].value);
+          setGuardado(true);
+          setTimeout(() => setGuardado(false), DURACION_CONFIRMACION_MS);
+        } finally {
+          setGuardando(false);
         }
-        formRef.current?.reset();
-        setTipo(TIPOS_ACTIVO[0].value);
       }}
     >
       <Label htmlFor="tipo">Tipo</Label>
@@ -79,8 +90,8 @@ export function NuevoActivoForm({
       <Label htmlFor="notas">Notas (opcional)</Label>
       <Textarea id="notas" name="notas" placeholder="Contexto para cuándo usarlo" />
 
-      <Button type="submit" className="mt-4">
-        Guardar activo
+      <Button type="submit" disabled={guardando} className="mt-4">
+        {guardando ? "Guardando…" : guardado ? "Guardado ✓" : "Guardar activo"}
       </Button>
     </form>
   );
