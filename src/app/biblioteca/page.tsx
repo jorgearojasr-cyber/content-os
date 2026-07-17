@@ -1,11 +1,17 @@
-import { getProyectos, getTodosLosBloquesActivos } from "@/lib/actions";
+import { getProyectos, getTodosLosBloquesActivos, getTodosLosPersonajes } from "@/lib/actions";
+import { personajesPorId } from "@/lib/types";
 import { BibliotecaGlobalLista } from "./biblioteca-global-lista";
 
 // Lee bloques reales de la base de datos en cada visita.
 export const dynamic = "force-dynamic";
 
 export default async function BibliotecaGlobalPage() {
-  const [bloques, proyectos] = await Promise.all([getTodosLosBloquesActivos(), getProyectos()]);
+  const [bloques, proyectos, todosPersonajes] = await Promise.all([
+    getTodosLosBloquesActivos(),
+    getProyectos(),
+    getTodosLosPersonajes(),
+  ]);
+  const personajePorId = personajesPorId(todosPersonajes);
 
   return (
     <main className="mx-auto max-w-[760px] px-4 py-6 sm:py-8">
@@ -19,7 +25,7 @@ export default async function BibliotecaGlobalPage() {
         </p>
       </header>
 
-      <BibliotecaGlobalLista bloques={bloques} proyectos={proyectos} />
+      <BibliotecaGlobalLista bloques={bloques} proyectos={proyectos} personajePorId={personajePorId} />
     </main>
   );
 }

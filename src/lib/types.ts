@@ -116,6 +116,19 @@ export function parseFotosPersonaje(json: unknown): string[] {
     .slice(0, MAX_FOTOS_PERSONAJE);
 }
 
+export type PersonajeResumen = { nombre: string; fotoUrl: string | null };
+
+/** Mapa id -> {nombre, primera foto} para resolver rápido qué Personaje
+ * generó un Bloque (`bloque.personajeId`) sin pasar el objeto completo —
+ * usado por la guía de producción de Biblioteca. */
+export function personajesPorId(personajes: Personaje[]): Record<string, PersonajeResumen> {
+  const mapa: Record<string, PersonajeResumen> = {};
+  for (const p of personajes) {
+    mapa[p.id] = { nombre: p.nombre, fotoUrl: parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null };
+  }
+  return mapa;
+}
+
 export type Bloque = {
   id: string;
   proyectoId: string;
@@ -239,6 +252,15 @@ export type Escena = {
   promptImagen: string;
   promptVideo: string;
   textoEnPantalla: string;
+  /** Solo para contenido tipo lista de N cosas/elementos: el objeto físico
+   * concreto de esta escena (ver EscenaSchema en ai.ts). "" si no aplica,
+   * o si la escena se guardó antes de que existiera este campo. */
+  elementoConcreto?: string;
+  /** Prompt de imagen fija para producción manual asistida (Gemini/Nano
+   * Banana) — distinto de `promptImagen`, que alimenta la generación
+   * automática vía OpenAI (`generarImagenParaEscena`). "" si no aplica, o
+   * si la escena se guardó antes de que existiera este campo. */
+  promptVisual?: string;
   /**
    * URL local (/uploads/xxx.png) de la imagen generada con IA para esta
    * escena. Opcional a propósito: no es parte de lo que la IA de texto

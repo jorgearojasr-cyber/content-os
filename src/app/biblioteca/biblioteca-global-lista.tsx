@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Empty } from "@/components/ui";
 import { BloqueCard, type BloqueConDias } from "@/app/proyectos/[id]/biblioteca/biblioteca-lista";
-import type { Proyecto } from "@/lib/types";
+import type { PersonajeResumen, Proyecto } from "@/lib/types";
 
 type BloqueGlobal = BloqueConDias & { proyectoNombre: string };
 
@@ -16,9 +16,11 @@ type BloqueGlobal = BloqueConDias & { proyectoNombre: string };
 export function BibliotecaGlobalLista({
   bloques,
   proyectos,
+  personajePorId,
 }: {
   bloques: BloqueGlobal[];
   proyectos: Proyecto[];
+  personajePorId: Record<string, PersonajeResumen>;
 }) {
   const [filtro, setFiltro] = useState<string>("");
 
@@ -55,6 +57,7 @@ export function BibliotecaGlobalLista({
                 .filter((p) => p.id !== bloque.proyectoId)
                 .map((p) => ({ id: p.id, nombre: p.nombre }))}
               nombreProyecto={bloque.proyectoNombre}
+              personaje={bloque.personajeId ? personajePorId[bloque.personajeId] : undefined}
             />
           ))}
         </div>

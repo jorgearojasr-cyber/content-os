@@ -1,6 +1,14 @@
 import Link from "next/link";
-import { getBloques, getBloquesArchivados, getPapelera, getProyectos } from "@/lib/actions";
+import {
+  getBloques,
+  getBloquesArchivados,
+  getPapelera,
+  getPersonajes,
+  getPersonajesDelEstudio,
+  getProyectos,
+} from "@/lib/actions";
 import { Empty, SectionTitle } from "@/components/ui";
+import { personajesPorId } from "@/lib/types";
 import { BibliotecaLista } from "./biblioteca-lista";
 
 type Vista = "activos" | "archivados" | "papelera";
@@ -38,18 +46,21 @@ export default async function BibliotecaPage({
   const vista: Vista =
     vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
 
-  const [bloques, proyectos] = await Promise.all([
+  const [bloques, proyectos, personajes, personajesEstudio] = await Promise.all([
     vista === "activos"
       ? getBloques(proyectoId)
       : vista === "archivados"
         ? getBloquesArchivados(proyectoId)
         : getPapelera(proyectoId),
     getProyectos(),
+    getPersonajes(proyectoId),
+    getPersonajesDelEstudio(),
   ]);
 
   const otrosProyectos = proyectos
     .filter((p) => p.id !== proyectoId)
     .map((p) => ({ id: p.id, nombre: p.nombre }));
+  const personajePorId = personajesPorId([...personajes, ...personajesEstudio]);
 
   return (
     <div className="space-y-4">
@@ -86,6 +97,7 @@ export default async function BibliotecaPage({
           vista={vista}
           bloques={bloques}
           otrosProyectos={otrosProyectos}
+          personajePorId={personajePorId}
         />
       )}
     </div>

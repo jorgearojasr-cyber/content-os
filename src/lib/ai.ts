@@ -97,6 +97,27 @@ const EscenaSchema = z.object({
   promptImagen: z.string(),
   promptVideo: z.string(),
   textoEnPantalla: z.string(),
+  elementoConcreto: z.string().describe(
+    "Solo para contenido tipo lista de N cosas/elementos (ej. carrusel de "
+      + "'7 cosas indispensables'): el objeto o elemento FÍSICO CONCRETO de "
+      + "esta escena, listo para fotografiar — nunca el concepto abstracto. "
+      + "Ej. 'membrana asfáltica aplicada en la base de un muro exterior', no "
+      + "'Impermeabilización'; 'tablero eléctrico con protector diferencial "
+      + "visible, marca genérica, instalado en pared', no 'Tablero eléctrico "
+      + "seguro'. Cadena vacía si esta pieza no es de tipo lista de elementos.",
+  ),
+  promptVisual: z.string().describe(
+    "Prompt de imagen fija para producción manual asistida (Gemini/Nano "
+      + "Banana como herramienta principal) — un solo párrafo en español, "
+      + "sintaxis natural y descriptiva, SIN parámetros técnicos de otra "
+      + "herramienta (nada de '--ar', '--v', etc.). Combina, cuando aplique: "
+      + "la descripción física exacta del Personaje si esta escena lo usa, "
+      + "el elementoConcreto de esta escena, la acción o composición (ej. "
+      + "'de pie junto a', 'señalando'), el texto en pantalla que debe "
+      + "aparecer legible en la imagen, y el estilo visual de marca (colores, "
+      + "tono) tomado de la Identidad. Cadena vacía si esta escena no tiene "
+      + "ningún componente visual de imagen fija.",
+  ),
 });
 
 const ContenidoGeneradoSchema = z.object({
@@ -172,9 +193,16 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
     `Recuerda: "escenas" es la unidad estructural universal — para Carrusel cada elemento es una ` +
     `página (sin duración, sin prompt de video); para Imagen es un solo elemento; para Historia ` +
     `decide tú la cantidad. No dejes "escenas" vacío salvo que el tipo de producción sea puramente ` +
-    `texto sin ningún componente visual.`;
+    `texto sin ningún componente visual. Si el tema es una lista de N cosas/elementos (ej. "7 cosas ` +
+    `indispensables"), cada escena debe identificar en "elementoConcreto" el objeto físico exacto de ` +
+    `esa escena, nunca el concepto abstracto — es lo que hace que "promptVisual" sea fotografiable de ` +
+    `verdad. Completa "promptVisual" en cada escena con componente visual de imagen fija: un párrafo ` +
+    `natural en español lista para pegar en Gemini, sin parámetros técnicos de otras herramientas.`;
 
-  return generarEstructurado(prompt, ContenidoGeneradoSchema, 4096);
+  // 6144 en vez de 4096: cada escena ahora suma dos campos más
+  // (elementoConcreto + promptVisual) — con 8 escenas (ej. un carrusel
+  // largo) el límite anterior se quedaba corto y truncaba la respuesta.
+  return generarEstructurado(prompt, ContenidoGeneradoSchema, 6144);
 }
 
 const ConfiguracionInferidaSchema = z.object({
