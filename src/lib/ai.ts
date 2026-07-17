@@ -221,10 +221,16 @@ export async function inferirConfiguracion(
 
 const PorEscenaEdicionSchema = z.object({
   numero: z.number().describe("Debe coincidir exactamente con el número de la escena real"),
-  duracionSugerida: z.number().describe("Duración sugerida en segundos para esta escena en el corte final"),
+  duracionSugerida: z
+    .number()
+    .describe(
+      "Duración sugerida en segundos para esta escena en el corte final — en una conversión a video, cuántos segundos mostrar esta lámina",
+    ),
   movimientoCamara: z
     .string()
-    .describe("Ej: zoom lento, zoom rápido, cámara fija, handheld, paneo, tilt, cámara lenta"),
+    .describe(
+      "Ej: zoom lento, zoom rápido, cámara fija, handheld, paneo, tilt, cámara lenta — en una conversión a video, el movimiento aplicado a la imagen estática (efecto Ken Burns, zoom-pan)",
+    ),
   transicionEntrada: z
     .string()
     .describe("Cómo entra esta escena desde la anterior: corte seco, corte en el beat, whip pan, match cut, fade..."),
@@ -288,6 +294,12 @@ export type PlanEdicionInput = {
   formato: string;
   identidadCompilada: string;
   texto: string;
+  /** true = esta pieza nació como Carrusel/Imagen de varias láminas (sin
+   * duración de video real) y el usuario quiere convertirla en video — el
+   * plan debe recomendar tiempos por lámina, transiciones, movimiento
+   * sobre la imagen estática (Ken Burns) y música, nunca asumir metraje
+   * filmado. false = pieza de video real, comportamiento de siempre. */
+  esConversionAVideo: boolean;
   escenas: {
     numero: number;
     duracionSegundos: number;
@@ -306,32 +318,53 @@ export type PlanEdicionInput = {
  * contenido — opina y guía como un editor senior. Se dispara solo al
  * presionar el botón (nunca automáticamente al generar la pieza) y el
  * resultado se guarda una sola vez en `bloques.planEdicionJson`.
+ *
+ * También cubre la CONVERSIÓN de un Carrusel/Imagen estática a video —
+ * mismo schema, pero el prompt le deja clarísimo a la IA que no hay
+ * metraje filmado: solo láminas a las que hay que sumarles movimiento,
+ * transición, música y ritmo.
  * ------------------------------------------------------------------
  */
 export async function generarPlanEdicion(input: PlanEdicionInput): Promise<PlanEdicion> {
+  const unidad = input.esConversionAVideo ? "Lámina" : "Escena";
   const escenasTexto = input.escenas
     .map(
       (e) =>
-        `Escena ${e.numero} (${e.duracionSegundos}s): ${e.descripcion}\n` +
+        `${unidad} ${e.numero}${e.duracionSegundos ? ` (${e.duracionSegundos}s)` : ""}: ${e.descripcion}\n` +
         `Guion: ${e.guionHablado || "(sin diálogo)"}\n` +
         `Texto en pantalla: ${e.textoEnPantalla || "(ninguno)"}`,
     )
     .join("\n\n");
 
+  const instruccionRol = input.esConversionAVideo
+    ? `Actúa como un director de edición senior especializado en contenido corto para redes sociales ` +
+      `(TikTok, Reels, Shorts). IMPORTANTE: esta pieza NO se filmó — nació como Carrusel/imágenes ` +
+      `estáticas (cada "${unidad}" de abajo es una lámina/página ya generada, no un clip de video). El ` +
+      `usuario quiere CONVERTIRLA en un video tipo carrusel animado/slideshow para redes, usando CapCut, ` +
+      `Premiere o DaVinci. Tu plan debe recomendar: cuántos segundos mostrar cada lámina (usa ` +
+      `"duracionSugerida" para esto), qué transición usar entre láminas, dónde y cómo mover la cámara ` +
+      `sobre la imagen fija (zoom lento, paneo, efecto Ken Burns — usa "movimientoCamara" para describir ` +
+      `ese movimiento), textos animados sobre cada lámina, música acorde al contenido, y cómo cerrar con ` +
+      `un CTA en video. NUNCA asumas que hay tomas filmadas, actuación en cámara o B-roll real — todo el ` +
+      `material visual son las láminas ya generadas; el B-roll que sugieras debe ser, como mucho, ` +
+      `material de apoyo adicional que el usuario podría filmar o conseguir para intercalar, no algo que ` +
+      `ya existe. Tus indicaciones deben ser accionables, como si dijeras "si yo convirtiera este ` +
+      `carrusel en video, haría exactamente esto" — nunca genéricas.`
+    : `Actúa como un director de edición senior especializado en contenido corto para redes sociales ` +
+      `(TikTok, Reels, Shorts). No editas tú mismo ni generas contenido nuevo — analizas una pieza YA ` +
+      `GENERADA y entregas un plan de edición profesional y concreto para que el usuario lo siga a mano ` +
+      `en CapCut, Premiere o DaVinci. Tus indicaciones deben ser accionables, como si dijeras "si yo ` +
+      `editara este video, haría exactamente esto" — nunca genéricas.`;
+
   const prompt =
-    `Actúa como un director de edición senior especializado en contenido corto para redes sociales ` +
-    `(TikTok, Reels, Shorts). No editas tú mismo ni generas contenido nuevo — analizas una pieza YA ` +
-    `GENERADA y entregas un plan de edición profesional y concreto para que el usuario lo siga a mano ` +
-    `en CapCut, Premiere o DaVinci. Tus indicaciones deben ser accionables, como si dijeras "si yo ` +
-    `editara este video, haría exactamente esto" — nunca genéricas. Adapta el tono de tus ` +
-    `recomendaciones al formato de esta pieza: "${input.formato}".\n\n` +
+    `${instruccionRol} Adapta el tono de tus recomendaciones al formato de esta pieza: "${input.formato}".\n\n` +
     `Esta es la identidad de marca del proyecto — tu plan debe ser coherente con ella. Si el Estilo ` +
     `pide un ritmo o cámara específicos, síguelos; si te apartas de lo que pide, justifica ` +
     `explícitamente por qué en tu recomendación:\n\n${input.identidadCompilada}\n\n` +
     `Contenido completo de la pieza (copy, hashtags, CTA, narración):\n\n${input.texto}\n\n` +
-    `Desglose de las ${input.escenas.length} escenas reales, numeradas — tu plan por escena DEBE ` +
-    `cubrir cada una de ellas, en el mismo orden y con los mismos números, sin inventar escenas que no ` +
-    `existen:\n\n${escenasTexto}`;
+    `Desglose de las ${input.escenas.length} ${unidad.toLowerCase()}s reales, numeradas — tu plan por ` +
+    `escena DEBE cubrir cada una de ellas, en el mismo orden y con los mismos números, sin inventar ` +
+    `${unidad.toLowerCase()}s que no existen:\n\n${escenasTexto}`;
 
   return generarEstructurado(prompt, PlanEdicionSchema, 6144);
 }

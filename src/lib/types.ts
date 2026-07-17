@@ -254,10 +254,19 @@ export function parseEscenas(json: unknown): Escena[] {
 
 /** True si al menos una escena tiene duración real de video — el mismo
  * criterio que distingue video (Video Corto/Largo, Historia con video) de
- * un desglose puramente de imagen/carrusel (`duracionSegundos: 0`). Es lo
- * que decide si el botón "Generar Plan de Edición" aparece. */
+ * un desglose puramente de imagen/carrusel (`duracionSegundos: 0`). */
 export function tieneEscenasDeVideo(escenas: Escena[]): boolean {
   return escenas.some((e) => e.duracionSegundos > 0);
+}
+
+/** True si esta pieza tiene escenas pero ninguna con duración real de
+ * video — un Carrusel o una Imagen de varias láminas. El Director de
+ * Edición sigue ofreciendo un plan para estas piezas, pero como una
+ * CONVERSIÓN a video (láminas estáticas + Ken Burns + música), no como
+ * indicaciones sobre metraje ya filmado. Es lo que decide si el botón
+ * "Generar Plan de Edición" muestra el texto de conversión. */
+export function esConversionAVideo(escenas: Escena[]): boolean {
+  return escenas.length > 0 && !tieneEscenasDeVideo(escenas);
 }
 
 /** Adapta `planEdicionJson` (columna `jsonb`, nullable) al tipo `PlanEdicion`;

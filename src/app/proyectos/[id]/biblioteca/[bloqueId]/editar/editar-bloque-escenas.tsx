@@ -8,9 +8,9 @@ import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { PlanEdicionPanel } from "@/components/plan-edicion-panel";
 import { explicarError } from "@/lib/errores";
 import {
+  esConversionAVideo,
   parsePlanEdicion,
   reemplazarSeccionEscenas,
-  tieneEscenasDeVideo,
   type Bloque,
   type CalidadImagen,
   type Escena,
@@ -108,7 +108,8 @@ export function EditarBloqueConEscenas({
       <PlanEdicionPanel
         tituloBloque={bloque.titulo}
         planInicial={parsePlanEdicion(bloque.planEdicionJson)}
-        puedeGenerar={tieneEscenasDeVideo(escenasIniciales)}
+        puedeGenerar={escenasIniciales.length > 0}
+        esConversion={esConversionAVideo(escenasIniciales)}
         onGenerar={onGenerarPlanEdicion}
       />
 

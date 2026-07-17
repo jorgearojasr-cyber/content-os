@@ -27,11 +27,11 @@ import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
+  esConversionAVideo,
   MAX_FOTOS_PERSONAJE,
   parseEscenas,
   parseFotosPersonaje,
   parsePlanEdicion,
-  tieneEscenasDeVideo,
   TIPOS_ACTIVO,
 } from "./types";
 import type { Avatar, AvatarInput, CalidadImagen, Identidad, IdentidadInput, Personaje, PersonajeInput } from "./types";
@@ -726,14 +726,18 @@ export async function generarPlanEdicionAction(
   if (planExistente && !regenerar) return planExistente;
 
   const escenas = parseEscenas(bloque.escenasJson);
-  if (!tieneEscenasDeVideo(escenas)) {
-    throw new Error("Esta pieza no tiene escenas de video para generar un plan de edición.");
+  if (escenas.length === 0) {
+    throw new Error("Esta pieza no tiene escenas para generar un plan de edición.");
   }
 
   const plan = await generarPlanEdicion({
     formato: bloque.formato,
     identidadCompilada: bloque.identidadCompilada,
     texto: bloque.texto,
+    // Carrusel/Imagen de varias láminas (sin duración de video real): el
+    // Director de Edición ofrece un plan de CONVERSIÓN a video, no
+    // indicaciones sobre metraje ya filmado.
+    esConversionAVideo: esConversionAVideo(escenas),
     escenas: escenas.map((e) => ({
       numero: e.numero,
       duracionSegundos: e.duracionSegundos,

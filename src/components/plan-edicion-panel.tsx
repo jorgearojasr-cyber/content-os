@@ -20,15 +20,16 @@ const NOMBRE_CRITERIO: Record<ClaveCriterio, string> = {
 /** Arma el plan como texto plano legible — sin JSON crudo — para "Copiar
  * todo" y "Descargar .txt". Pensado para leerse en pantalla partida
  * mientras se edita en CapCut/Premiere/DaVinci. */
-function formatearPlanEdicion(plan: PlanEdicion, tituloBloque: string): string {
+function formatearPlanEdicion(plan: PlanEdicion, tituloBloque: string, esConversion: boolean): string {
+  const unidad = esConversion ? "Lámina" : "Escena";
   const lineas: string[] = [];
   lineas.push(`PLAN DE EDICIÓN — ${tituloBloque}`, "");
   lineas.push(`RITMO GENERAL: ${plan.ritmoGeneral.recomendacion}`, plan.ritmoGeneral.porQue, "");
 
-  lineas.push("── ESCENA POR ESCENA ──", "");
+  lineas.push(`── ${unidad.toUpperCase()} POR ${unidad.toUpperCase()} ──`, "");
   for (const e of plan.porEscena) {
     lineas.push(
-      `Escena ${e.numero} (${e.duracionSugerida}s)`,
+      `${unidad} ${e.numero} (${e.duracionSugerida}s)`,
       `Movimiento de cámara: ${e.movimientoCamara}`,
       `Transición de entrada: ${e.transicionEntrada}`,
       `Elementos gráficos: ${e.elementosGraficos || "—"}`,
@@ -96,14 +97,20 @@ export function PlanEdicionPanel({
   tituloBloque,
   planInicial,
   puedeGenerar,
+  esConversion,
   onGenerar,
 }: {
   tituloBloque: string;
   planInicial: PlanEdicion | null;
-  /** Si la pieza no tiene escenas con duración real de video, el panel
-   * entero no se renderiza — no tiene sentido ofrecer un plan de edición
-   * para una imagen o un carrusel. */
+  /** Si la pieza no tiene ninguna escena, el panel entero no se renderiza
+   * — no hay nada sobre lo que hacer un plan. Con escenas (de video real O
+   * de Carrusel/Imagen), siempre se ofrece: para Carrusel/Imagen, como un
+   * plan de CONVERSIÓN a video (ver `esConversion`). */
   puedeGenerar: boolean;
+  /** true = esta pieza nació como Carrusel/Imagen de varias láminas (sin
+   * video real) — ajusta textos a "convertir en video" en vez de asumir
+   * metraje ya filmado. */
+  esConversion: boolean;
   onGenerar: (regenerar: boolean) => Promise<PlanEdicion>;
 }) {
   const [plan, setPlan] = useState(planInicial);
@@ -129,23 +136,40 @@ export function PlanEdicionPanel({
   if (!plan) {
     return (
       <Card>
-        <SectionTitle subtitle="La IA analiza esta pieza ya generada y te entrega un plan de edición profesional para que edites a mano en CapCut, Premiere o DaVinci — no automatiza la edición.">
+        <SectionTitle
+          subtitle={
+            esConversion
+              ? "La IA analiza este Carrusel/Imagen ya generado y te entrega un plan para convertirlo en video (tiempos por lámina, transiciones, movimiento y música) para que edites a mano en CapCut, Premiere o DaVinci — no automatiza la edición."
+              : "La IA analiza esta pieza ya generada y te entrega un plan de edición profesional para que edites a mano en CapCut, Premiere o DaVinci — no automatiza la edición."
+          }
+        >
           Director de Edición
         </SectionTitle>
         {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
         <Button type="button" disabled={cargando} onClick={() => generar(false)}>
-          {cargando ? "Generando plan… (puede tardar 20-40s)" : "🎬 Generar Plan de Edición"}
+          {cargando
+            ? "Generando plan… (puede tardar 20-40s)"
+            : esConversion
+              ? "🎬 Plan para convertir en video"
+              : "🎬 Generar Plan de Edición"}
         </Button>
       </Card>
     );
   }
 
-  const textoPlano = formatearPlanEdicion(plan, tituloBloque);
+  const textoPlano = formatearPlanEdicion(plan, tituloBloque, esConversion);
+  const unidad = esConversion ? "Lámina" : "Escena";
 
   return (
     <Card>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <SectionTitle subtitle="Sigue este plan a mano en tu editor — la IA no edita el video por ti.">
+        <SectionTitle
+          subtitle={
+            esConversion
+              ? "Plan para convertir este Carrusel/Imagen en video — sigue estos pasos a mano en tu editor."
+              : "Sigue este plan a mano en tu editor — la IA no edita el video por ti."
+          }
+        >
           Director de Edición
         </SectionTitle>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -198,13 +222,13 @@ export function PlanEdicionPanel({
 
         <section>
           <p className="mb-2 text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">
-            Escena por escena
+            {unidad} por {unidad.toLowerCase()}
           </p>
           <div className="space-y-2.5">
             {plan.porEscena.map((e) => (
               <div key={e.numero} className="rounded-xl border border-border bg-surface-2 p-3.5">
                 <p className="text-[13.5px] font-medium text-text">
-                  Escena {e.numero} <span className="font-normal text-text-muted">({e.duracionSugerida}s)</span>
+                  {unidad} {e.numero} <span className="font-normal text-text-muted">({e.duracionSugerida}s)</span>
                 </p>
                 <p className="mt-1.5 text-[12.5px] text-text-muted">
                   <span className="text-text">Cámara:</span> {e.movimientoCamara}
