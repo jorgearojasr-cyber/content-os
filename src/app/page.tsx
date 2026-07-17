@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDashboardData } from "@/lib/actions";
 import { Card, Chip, Empty, LinkButton, SectionTitle } from "@/components/ui";
 import { formatearFechaChile, saludoChile } from "@/lib/fecha";
+import { urlImagenVisible } from "@/lib/imagen-url";
 
 // El dashboard lee proyectos y contenido reales en cada visita.
 export const dynamic = "force-dynamic";
@@ -35,10 +36,10 @@ export default async function RootPage() {
   const crearHref = proyectoReciente ? `/proyectos/${proyectoReciente.id}/crear` : "/proyectos";
 
   return (
-    <main className="mx-auto max-w-[760px] px-4 py-10 sm:py-16">
-      <header className="animate-fade-in mb-10 sm:mb-14">
-        <div className="flex flex-col-reverse items-center gap-6 text-center sm:flex-row sm:text-left">
-          <div className="flex-1">
+    <main className="mx-auto max-w-[1040px] px-4 py-10 sm:py-16">
+      <header className="animate-fade-in relative mb-10 overflow-hidden sm:mb-14">
+        <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-start sm:text-left">
+          <div className="max-w-[520px] flex-1">
             <p className="font-mono text-[11px] uppercase tracking-[2px] text-accent">
               Estudio Creativo JR
             </p>
@@ -49,12 +50,6 @@ export default async function RootPage() {
               {subtitulo}
             </p>
             <p className="mt-1 text-[15px] text-text-muted">¿Qué quieres crear hoy?</p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-              <LinkButton href={crearHref}>Crear contenido</LinkButton>
-              <LinkButton href="/segundo-cerebro" variant="secondary">
-                Segundo Cerebro
-              </LinkButton>
-            </div>
           </div>
           <Image
             src="/brand/hero.png"
@@ -62,8 +57,41 @@ export default async function RootPage() {
             width={1536}
             height={1024}
             priority
-            className="w-40 shrink-0 rounded-2xl shadow-[var(--shadow-card)] sm:w-56"
+            className="hero-fade w-52 shrink-0 sm:-my-6 sm:w-[340px]"
           />
+        </div>
+
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <Link
+            href={crearHref}
+            className="hover-lift block rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)]"
+          >
+            <span
+              className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-xl"
+              aria-hidden
+            >
+              ✨
+            </span>
+            <p className="font-display text-[16px] text-text">Crear contenido</p>
+            <p className="mt-1 text-[13px] text-text-muted">
+              Genera tu próxima pieza con ayuda de IA, lista en minutos.
+            </p>
+          </Link>
+          <Link
+            href="/proyectos"
+            className="hover-lift block rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)]"
+          >
+            <span
+              className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-success/15 text-xl"
+              aria-hidden
+            >
+              📁
+            </span>
+            <p className="font-display text-[16px] text-text">Nuevo proyecto</p>
+            <p className="mt-1 text-[13px] text-text-muted">
+              Crea una nueva marca o negocio y entrena su identidad.
+            </p>
+          </Link>
         </div>
       </header>
 
@@ -71,7 +99,10 @@ export default async function RootPage() {
         <Card className="hover-lift animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <span className="text-2xl" aria-hidden>
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-xl"
+                aria-hidden
+              >
                 🧠
               </span>
               <SectionTitle
@@ -84,9 +115,7 @@ export default async function RootPage() {
                 Segundo Cerebro
               </SectionTitle>
             </div>
-            <LinkButton href="/segundo-cerebro" variant="secondary">
-              Abrir
-            </LinkButton>
+            <LinkButton href="/segundo-cerebro">Abrir</LinkButton>
           </div>
         </Card>
 
@@ -101,7 +130,7 @@ export default async function RootPage() {
           <>
             <section className="animate-fade-in">
               <SectionTitle subtitle="Tus proyectos más activos.">Proyectos recientes</SectionTitle>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {proyectosRecientes.map((p) => (
                   <Link
                     key={p.id}
@@ -109,9 +138,18 @@ export default async function RootPage() {
                     className="hover-lift block rounded-2xl bg-surface p-4 shadow-[var(--shadow-card)]"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-[16px] text-accent">
-                        {p.nombre.trim().charAt(0).toUpperCase() || "?"}
-                      </span>
+                      {p.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={urlImagenVisible(p.logoUrl)}
+                          alt=""
+                          className="h-10 w-10 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-[16px] text-accent">
+                          {p.nombre.trim().charAt(0).toUpperCase() || "?"}
+                        </span>
+                      )}
                       <div className="min-w-0">
                         <p className="truncate text-[14.5px] font-medium text-text">{p.nombre}</p>
                         {p.descripcion ? (

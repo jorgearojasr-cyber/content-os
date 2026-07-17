@@ -757,8 +757,16 @@ async function conocimientoRelevantePara(proyectoId: string, tema: string): Prom
  * a ningún proyecto. */
 export async function getDashboardData() {
   const todosProyectos = await db.select().from(proyectos);
-  const todasIdentidades = await db.select().from(identidades);
-  const identidadPorProyecto = new Map(todasIdentidades.map((i) => [i.proyectoId, i]));
+  // Solo las columnas que realmente usa el dashboard (fecha de actividad y
+  // logo) — no trae la identidad completa (voz, personaje, avatar, etc.).
+  const identidadesResumen = await db
+    .select({
+      proyectoId: identidades.proyectoId,
+      updatedAt: identidades.updatedAt,
+      logoUrl: identidades.logoUrl,
+    })
+    .from(identidades);
+  const identidadPorProyecto = new Map(identidadesResumen.map((i) => [i.proyectoId, i]));
   const bloquesActivos = await db.select().from(bloques).where(eq(bloques.estado, "activo"));
 
   // Ya se consultan todos los bloques activos para "Contenidos recientes" —
@@ -779,6 +787,7 @@ export async function getDashboardData() {
       ...p,
       ultimaActividad: ultimaActividad(p),
       totalContenidos: conteoContenidosPorProyecto.get(p.id) ?? 0,
+      logoUrl: identidadPorProyecto.get(p.id)?.logoUrl ?? "",
     }));
 
   const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));

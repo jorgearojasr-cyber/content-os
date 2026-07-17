@@ -91,6 +91,13 @@ body {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
 }
 
+/* Difumina los bordes de la ilustración del hero para que se funda con el
+ * fondo de la app en vez de verse como una foto recortada en un marco. */
+.hero-fade {
+  mask-image: radial-gradient(ellipse 75% 75% at center, black 50%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 75% at center, black 50%, transparent 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
