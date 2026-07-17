@@ -999,6 +999,10 @@ export async function getDashboardData() {
     .from(identidades);
   const identidadPorProyecto = new Map(identidadesResumen.map((i) => [i.proyectoId, i]));
   const bloquesActivos = await db.select().from(bloques).where(eq(bloques.estado, "activo"));
+  // Solo id+nombre — el mismo criterio liviano que `identidadesResumen`, para
+  // resolver "proyecto · personaje · fecha" en Contenidos recientes.
+  const personajesResumen = await db.select({ id: personajes.id, nombre: personajes.nombre }).from(personajes);
+  const nombrePorPersonaje = new Map(personajesResumen.map((p) => [p.id, p.nombre]));
 
   // Ya se consultan todos los bloques activos para "Contenidos recientes" —
   // se reutiliza esa misma lista para el conteo por proyecto, sin agregar
@@ -1025,7 +1029,11 @@ export async function getDashboardData() {
   const bloquesRecientes = bloquesActivos
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .slice(0, 6)
-    .map((b) => ({ ...b, proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "" }));
+    .map((b) => ({
+      ...b,
+      proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "",
+      personajeNombre: b.personajeId ? (nombrePorPersonaje.get(b.personajeId) ?? "") : "",
+    }));
 
   const notasSinVincular = (await db.select().from(notas).where(isNull(notas.proyectoId))).length;
 

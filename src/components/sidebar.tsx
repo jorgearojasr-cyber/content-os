@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /** Exactamente 5 ítems — no hay Recursos, Campañas ni Configuración en
- * esta app, así que no se agregan aquí tampoco. */
+ * esta app, así que no se agregan aquí tampoco. Íconos igual que el
+ * rediseño de Claude Design (Dashboard.dc.html). */
 const ITEMS = [
-  { href: "/", label: "Inicio" },
-  { href: "/proyectos", label: "Proyectos" },
-  { href: "/segundo-cerebro", label: "Segundo Cerebro" },
-  { href: "/personajes", label: "Personajes" },
-  { href: "/biblioteca", label: "Biblioteca" },
+  { href: "/", label: "Inicio", icono: "🏠" },
+  { href: "/proyectos", label: "Proyectos", icono: "📁" },
+  { href: "/segundo-cerebro", label: "Segundo Cerebro", icono: "🧠" },
+  { href: "/personajes", label: "Personajes", icono: "👤" },
+  { href: "/biblioteca", label: "Biblioteca", icono: "📖" },
 ] as const;
 
 export function Sidebar({ className = "" }: { className?: string }) {
@@ -38,13 +39,16 @@ export function Sidebar({ className = "" }: { className?: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`block rounded-lg px-3 py-2.5 text-[13.5px] transition-colors ${
+              className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ${
                 activo
                   ? "bg-accent-soft font-semibold text-accent"
                   : "text-text-muted hover:bg-surface-2 hover:text-text"
               }`}
             >
-              {item.label}
+              <span className="w-[18px] text-center text-[15px]" aria-hidden>
+                {item.icono}
+              </span>
+              <span>{item.label}</span>
             </Link>
           );
         })}
