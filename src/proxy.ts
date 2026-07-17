@@ -128,5 +128,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // "brand/" (logo.png, hero.png) queda fuera del candado: son assets
+  // estáticos de marca empaquetados con la app, no datos de usuario — y
+  // deben ser accesibles sin cookie para que el optimizador de imágenes de
+  // Next.js (next/image) pueda leerlos en su fetch interno, que no manda
+  // la cookie de sesión.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|brand/).*)"],
 };

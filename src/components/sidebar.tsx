@@ -1,0 +1,52 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+/** Exactamente 3 ítems — no hay Personajes, Recursos, Campañas ni
+ * Configuración en esta app, así que no se agregan aquí tampoco. */
+const ITEMS = [
+  { href: "/", label: "Inicio" },
+  { href: "/proyectos", label: "Proyectos" },
+  { href: "/segundo-cerebro", label: "Segundo Cerebro" },
+] as const;
+
+export function Sidebar({ className = "" }: { className?: string }) {
+  const pathname = usePathname();
+
+  return (
+    <aside className={`w-60 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 ${className}`}>
+      <Link href="/" className="mb-8 block">
+        {/* El logo ya trae el nombre "Estudio Creativo JR" dibujado dentro
+         * del PNG — no se repite como texto aparte para no duplicarlo. */}
+        <Image
+          src="/brand/logo.png"
+          alt="Estudio Creativo JR"
+          width={1536}
+          height={1024}
+          priority
+          className="h-auto w-full max-w-[180px]"
+        />
+      </Link>
+      <nav className="space-y-1">
+        {ITEMS.map((item) => {
+          const activo = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block rounded-lg px-3 py-2.5 text-[13.5px] transition-colors ${
+                activo
+                  ? "bg-accent-soft font-semibold text-accent"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}

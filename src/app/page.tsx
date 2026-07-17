@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getDashboardData } from "@/lib/actions";
 import { Card, Chip, Empty, LinkButton, SectionTitle } from "@/components/ui";
@@ -35,18 +36,34 @@ export default async function RootPage() {
 
   return (
     <main className="mx-auto max-w-[760px] px-4 py-10 sm:py-16">
-      <header className="animate-fade-in mb-10 text-center sm:mb-14">
-        <p className="font-mono text-[11px] uppercase tracking-[2px] text-accent">Content OS</p>
-        <h1 className="mt-2 font-display text-3xl font-normal tracking-wide sm:text-4xl">
-          {saludo}.
-        </h1>
-        <p className="mx-auto mt-3 max-w-[440px] text-[15px] text-text-muted">{subtitulo}</p>
-        <p className="mt-1 text-[15px] text-text-muted">¿Qué quieres crear hoy?</p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <LinkButton href={crearHref}>Crear contenido</LinkButton>
-          <LinkButton href="/segundo-cerebro" variant="secondary">
-            Segundo Cerebro
-          </LinkButton>
+      <header className="animate-fade-in mb-10 sm:mb-14">
+        <div className="flex flex-col-reverse items-center gap-6 text-center sm:flex-row sm:text-left">
+          <div className="flex-1">
+            <p className="font-mono text-[11px] uppercase tracking-[2px] text-accent">
+              Estudio Creativo JR
+            </p>
+            <h1 className="mt-2 font-display text-3xl font-normal tracking-wide sm:text-4xl">
+              {saludo}.
+            </h1>
+            <p className="mx-auto mt-3 max-w-[440px] text-[15px] text-text-muted sm:mx-0">
+              {subtitulo}
+            </p>
+            <p className="mt-1 text-[15px] text-text-muted">¿Qué quieres crear hoy?</p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+              <LinkButton href={crearHref}>Crear contenido</LinkButton>
+              <LinkButton href="/segundo-cerebro" variant="secondary">
+                Segundo Cerebro
+              </LinkButton>
+            </div>
+          </div>
+          <Image
+            src="/brand/hero.png"
+            alt=""
+            width={1536}
+            height={1024}
+            priority
+            className="w-40 shrink-0 rounded-2xl shadow-[var(--shadow-card)] sm:w-56"
+          />
         </div>
       </header>
 
@@ -103,7 +120,8 @@ export default async function RootPage() {
                           </p>
                         ) : null}
                         <p className="mt-1.5 text-[11.5px] text-text-muted">
-                          {formatearFechaChile(p.ultimaActividad)}
+                          {formatearFechaChile(p.ultimaActividad)} · {p.totalContenidos}{" "}
+                          contenido{p.totalContenidos === 1 ? "" : "s"}
                         </p>
                       </div>
                     </div>

@@ -759,6 +759,15 @@ export async function getDashboardData() {
   const todosProyectos = await db.select().from(proyectos);
   const todasIdentidades = await db.select().from(identidades);
   const identidadPorProyecto = new Map(todasIdentidades.map((i) => [i.proyectoId, i]));
+  const bloquesActivos = await db.select().from(bloques).where(eq(bloques.estado, "activo"));
+
+  // Ya se consultan todos los bloques activos para "Contenidos recientes" —
+  // se reutiliza esa misma lista para el conteo por proyecto, sin agregar
+  // una consulta nueva.
+  const conteoContenidosPorProyecto = new Map<string, number>();
+  for (const b of bloquesActivos) {
+    conteoContenidosPorProyecto.set(b.proyectoId, (conteoContenidosPorProyecto.get(b.proyectoId) ?? 0) + 1);
+  }
 
   function ultimaActividad(p: { id: string; createdAt: string }): string {
     return identidadPorProyecto.get(p.id)?.updatedAt ?? p.createdAt;
@@ -766,10 +775,13 @@ export async function getDashboardData() {
 
   const proyectosOrdenados = [...todosProyectos]
     .sort((a, b) => (ultimaActividad(a) < ultimaActividad(b) ? 1 : -1))
-    .map((p) => ({ ...p, ultimaActividad: ultimaActividad(p) }));
+    .map((p) => ({
+      ...p,
+      ultimaActividad: ultimaActividad(p),
+      totalContenidos: conteoContenidosPorProyecto.get(p.id) ?? 0,
+    }));
 
   const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
-  const bloquesActivos = await db.select().from(bloques).where(eq(bloques.estado, "activo"));
   const bloquesRecientes = bloquesActivos
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .slice(0, 6)
