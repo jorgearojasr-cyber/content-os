@@ -1,5 +1,13 @@
 import { notFound } from "next/navigation";
-import { generarImagenParaEscena, getActivos, getBloque, getIdentidad, updateBloque } from "@/lib/actions";
+import {
+  generarImagenParaEscena,
+  getActivos,
+  getAvatares,
+  getBloque,
+  getIdentidad,
+  getPersonajes,
+  updateBloque,
+} from "@/lib/actions";
 import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
@@ -17,6 +25,8 @@ export default async function EditarBloquePage({
 
   const identidad = await getIdentidad(proyectoId);
   const activos = await getActivos(proyectoId);
+  const personajes = await getPersonajes(proyectoId);
+  const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateBloque.bind(null, proyectoId, bloqueId);
   const boundGenerarImagen = generarImagenParaEscena.bind(null, proyectoId, bloqueId);
 
@@ -30,6 +40,8 @@ export default async function EditarBloquePage({
         onGenerarImagen={boundGenerarImagen}
         identidad={identidad}
         activosCount={activos.length}
+        tienePersonaje={personajes.length > 0}
+        tieneAvatar={avatares.length > 0}
       />
     );
   }
@@ -78,6 +90,8 @@ export default async function EditarBloquePage({
           <IdentidadChecklist
             identidad={identidad}
             activosCount={activos.length}
+            tienePersonaje={personajes.length > 0}
+            tieneAvatar={avatares.length > 0}
             textoDetalle={bloque.identidadCompilada}
           />
         </Card>

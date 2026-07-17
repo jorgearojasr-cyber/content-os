@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { activos, bloques, conocimiento, identidades, notas, proyectos } from "@/db/schema";
+import { activos, avatares, bloques, conocimiento, identidades, notas, personajes, proyectos } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
 import { completarProyecto, generarContenido, generarPersonaje, inferirConfiguracion } from "./ai";
 import type {
@@ -20,7 +20,7 @@ import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import { MAX_FOTOS_PERSONAJE, parseEscenas, parseFotosPersonaje, TIPOS_ACTIVO } from "./types";
-import type { AvatarCliente, CalidadImagen, Identidad, IdentidadInput } from "./types";
+import type { Avatar, AvatarInput, CalidadImagen, Identidad, IdentidadInput, Personaje, PersonajeInput } from "./types";
 
 const PAPELERA_RETENCION_DIAS = 7;
 
@@ -84,17 +84,13 @@ export async function getIdentidad(proyectoId: string): Promise<Identidad | null
   return rows[0] ?? null;
 }
 
+// Marca + Estilo + Contacto — lo que de verdad es único por proyecto. Los
+// campos de Personaje/Avatar quedaron deprecados acá (ver `personajes`/
+// `avatares` más abajo) y ya no se leen del formData de este formulario.
 const IDENTIDAD_CAMPOS = [
   "voz",
   "reglas",
   "objetivo",
-  "personajeNombre",
-  "personajePersonalidad",
-  "fisica",
-  "vestuario",
-  "vozDescrita",
-  "gestos",
-  "muletillas",
   "paleta",
   "tipografia",
   "look",
@@ -105,101 +101,38 @@ const IDENTIDAD_CAMPOS = [
   "sitioWeb",
   "telefono",
   "direccion",
-] as const satisfies ReadonlyArray<Exclude<keyof IdentidadInput, "avatarJson" | "fotosUrlsJson">>;
-
-const AVATAR_CAMPOS = [
-  ["avatarNombreFicticio", "nombreFicticio"],
-  ["avatarEdad", "edad"],
-  ["avatarProfesion", "profesion"],
-  ["avatarNivelConocimiento", "nivelConocimiento"],
-  ["avatarProblemasFrecuentes", "problemasFrecuentes"],
-  ["avatarObjetivos", "objetivos"],
-  ["avatarMiedos", "miedos"],
-  ["avatarQueBuscaAprender", "queBuscaAprender"],
-  ["avatarComoConsumeContenido", "comoConsumeContenido"],
-  ["avatarLenguaje", "lenguaje"],
-] as const satisfies ReadonlyArray<[string, keyof AvatarCliente]>;
+] as const satisfies ReadonlyArray<
+  Exclude<
+    keyof IdentidadInput,
+    | "avatarJson"
+    | "fotosUrlsJson"
+    | "personajeNombre"
+    | "personajePersonalidad"
+    | "fisica"
+    | "vestuario"
+    | "vozDescrita"
+    | "gestos"
+    | "muletillas"
+  >
+>;
 
 export async function updateIdentidad(proyectoId: string, formData: FormData) {
   const valores = Object.fromEntries(
     IDENTIDAD_CAMPOS.map((campo) => [campo, String(formData.get(campo) ?? "").trim()]),
-  ) as unknown as Omit<IdentidadInput, "avatarJson" | "fotosUrlsJson">;
-
-  const avatar = Object.fromEntries(
-    AVATAR_CAMPOS.map(([campoForm, campoAvatar]) => [
-      campoAvatar,
-      String(formData.get(campoForm) ?? "").trim(),
-    ]),
-  ) as unknown as AvatarCliente;
-
-  // Varios <input name="fotosUrls"> (uno por foto ya subida, más el que
-  // esté escribiendo el uploader activo) llegan todos bajo el mismo nombre
-  // — getAll() reconstruye el arreglo completo, en orden, capado a 4.
-  const fotosUrls = formData
-    .getAll("fotosUrls")
-    .map((v) => String(v).trim())
-    .filter((v) => v.length > 0)
-    .slice(0, MAX_FOTOS_PERSONAJE);
+  ) as unknown as Pick<IdentidadInput, (typeof IDENTIDAD_CAMPOS)[number]>;
 
   await db
     .update(identidades)
-    .set({
-      ...valores,
-      avatarJson: avatar,
-      fotosUrlsJson: fotosUrls,
-      updatedAt: new Date().toISOString(),
-    })
+    .set({ ...valores, updatedAt: new Date().toISOString() })
     .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
   revalidatePath(`/proyectos/${proyectoId}/crear`);
 }
 
-/** Sube una foto de referencia del Personaje (hasta `MAX_FOTOS_PERSONAJE`) y
- * la agrega al arreglo existente, persistiendo de inmediato (no espera a que
- * se guarde el resto del formulario de Identidad). */
-export async function subirFotoPersonaje(proyectoId: string, formData: FormData): Promise<string[]> {
-  const archivo = formData.get("foto");
-  if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
-
-  const identidad = await getIdentidad(proyectoId);
-  const fotosActuales = parseFotosPersonaje(identidad?.fotosUrlsJson);
-  if (fotosActuales.length >= MAX_FOTOS_PERSONAJE) {
-    throw new Error(`Ya tienes ${MAX_FOTOS_PERSONAJE} fotos de referencia — elimina una antes de subir otra.`);
-  }
-
-  const url = await guardarArchivoSubido(archivo);
-  const fotosNuevas = [...fotosActuales, url];
-
-  await db
-    .update(identidades)
-    .set({ fotosUrlsJson: fotosNuevas, updatedAt: new Date().toISOString() })
-    .where(eq(identidades.proyectoId, proyectoId));
-
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  return fotosNuevas;
-}
-
-/** Elimina una foto de referencia del Personaje (y su blob) del arreglo. */
-export async function eliminarFotoPersonaje(proyectoId: string, url: string): Promise<string[]> {
-  const identidad = await getIdentidad(proyectoId);
-  const fotosNuevas = parseFotosPersonaje(identidad?.fotosUrlsJson).filter((f) => f !== url);
-
-  await db
-    .update(identidades)
-    .set({ fotosUrlsJson: fotosNuevas, updatedAt: new Date().toISOString() })
-    .where(eq(identidades.proyectoId, proyectoId));
-
-  await eliminarArchivoSubido(url).catch(() => {});
-
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  return fotosNuevas;
-}
-
-/** Sube el logo del proyecto y lo persiste de inmediato — mismo patrón que
- * `subirFotoPersonaje`, pero para la capa Estilo en vez de Personaje. Lee la
- * clave "foto" del FormData (no "logo") porque `FileUploader` — reutilizado
- * tal cual, sin duplicarlo — siempre manda el archivo bajo esa clave fija. */
+/** Sube el logo del proyecto y lo persiste de inmediato. Lee la clave
+ * "foto" del FormData (no "logo") porque `FileUploader` — reutilizado tal
+ * cual, sin duplicarlo — siempre manda el archivo bajo esa clave fija. */
 export async function subirLogo(proyectoId: string, formData: FormData): Promise<string> {
   const archivo = formData.get("foto");
   if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
@@ -216,7 +149,7 @@ export async function subirLogo(proyectoId: string, formData: FormData): Promise
 }
 
 /** Genera sugerencias de personaje con IA. No escribe en la base de datos —
- * el usuario revisa el resultado en el formulario y confirma con "Guardar". */
+ * quien llama decide qué hacer con el resultado (ver `createPersonaje`). */
 export async function generarPersonajeAction(
   descripcion: string,
   contexto?: Partial<PersonajeSugerido>,
@@ -230,6 +163,232 @@ export async function completarProyectoAction(
   descripcion: string,
 ): Promise<IdentidadCompletaSugerida> {
   return completarProyecto(descripcion);
+}
+
+// ---------------------------------------------------------------------
+// Personajes
+// ---------------------------------------------------------------------
+
+/** Más reciente primero — el mismo criterio usado en toda la app para
+ * elegir el "por defecto" cuando hay varios (Crear, vista previa, etc.).
+ * Compara por fecha real (no por string): las filas migradas desde
+ * `identidades` llevan un `created_at` en formato ISO (`new Date().toISOString()`),
+ * mientras que las filas nuevas usan el formato nativo de Postgres — un
+ * `<` de strings entre ambos formatos da un orden incorrecto. */
+export async function getPersonajes(proyectoId: string): Promise<Personaje[]> {
+  const rows = await db.select().from(personajes).where(eq(personajes.proyectoId, proyectoId));
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function getPersonaje(proyectoId: string, personajeId: string): Promise<Personaje | null> {
+  const rows = await db
+    .select()
+    .from(personajes)
+    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+  return rows[0] ?? null;
+}
+
+const PERSONAJE_CAMPOS = [
+  "nombre",
+  "personalidad",
+  "fisica",
+  "vestuario",
+  "vozDescrita",
+  "gestos",
+  "muletillas",
+] as const satisfies ReadonlyArray<keyof PersonajeInput>;
+
+function leerCamposPersonaje(formData: FormData) {
+  return Object.fromEntries(
+    PERSONAJE_CAMPOS.map((campo) => [campo, String(formData.get(campo) ?? "").trim()]),
+  ) as unknown as PersonajeInput;
+}
+
+function leerFotosDeFormData(formData: FormData): string[] {
+  return formData
+    .getAll("fotosUrls")
+    .map((v) => String(v).trim())
+    .filter((v) => v.length > 0)
+    .slice(0, MAX_FOTOS_PERSONAJE);
+}
+
+/** Crea un Personaje nuevo — nunca sobrescribe uno existente, ni siquiera
+ * desde los botones de IA ("Generar personaje" crea uno nuevo en la lista,
+ * ver ai-tools.tsx / personajes-lista.tsx). */
+export async function createPersonaje(proyectoId: string, formData: FormData): Promise<{ id: string }> {
+  const valores = leerCamposPersonaje(formData);
+  const fotosUrlsJson = leerFotosDeFormData(formData);
+  const id = randomUUID();
+
+  await db.insert(personajes).values({ id, proyectoId, ...valores, fotosUrlsJson });
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
+  return { id };
+}
+
+export async function updatePersonaje(proyectoId: string, personajeId: string, formData: FormData) {
+  const valores = leerCamposPersonaje(formData);
+  const fotosUrlsJson = leerFotosDeFormData(formData);
+
+  await db
+    .update(personajes)
+    .set({ ...valores, fotosUrlsJson })
+    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
+}
+
+export async function deletePersonaje(proyectoId: string, personajeId: string) {
+  const existente = await getPersonaje(proyectoId, personajeId);
+
+  await db
+    .delete(personajes)
+    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+
+  for (const url of parseFotosPersonaje(existente?.fotosUrlsJson)) {
+    await eliminarArchivoSubido(url).catch(() => {});
+  }
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
+}
+
+/** Sube una foto de referencia a un Personaje YA GUARDADO (hasta
+ * `MAX_FOTOS_PERSONAJE`) y persiste de inmediato — no espera a que se
+ * guarde el resto del formulario. Para un Personaje todavía sin guardar
+ * ("+ Nuevo personaje"), usar `subirArchivoTemporal` en su lugar. */
+export async function subirFotoPersonaje(
+  proyectoId: string,
+  personajeId: string,
+  formData: FormData,
+): Promise<string[]> {
+  const archivo = formData.get("foto");
+  if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
+
+  const personaje = await getPersonaje(proyectoId, personajeId);
+  const fotosActuales = parseFotosPersonaje(personaje?.fotosUrlsJson);
+  if (fotosActuales.length >= MAX_FOTOS_PERSONAJE) {
+    throw new Error(`Ya tienes ${MAX_FOTOS_PERSONAJE} fotos de referencia — elimina una antes de subir otra.`);
+  }
+
+  const url = await guardarArchivoSubido(archivo);
+  const fotosNuevas = [...fotosActuales, url];
+
+  await db
+    .update(personajes)
+    .set({ fotosUrlsJson: fotosNuevas })
+    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  return fotosNuevas;
+}
+
+/** Elimina una foto de referencia (y su blob) de un Personaje ya guardado. */
+export async function eliminarFotoPersonaje(
+  proyectoId: string,
+  personajeId: string,
+  url: string,
+): Promise<string[]> {
+  const personaje = await getPersonaje(proyectoId, personajeId);
+  const fotosNuevas = parseFotosPersonaje(personaje?.fotosUrlsJson).filter((f) => f !== url);
+
+  await db
+    .update(personajes)
+    .set({ fotosUrlsJson: fotosNuevas })
+    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+
+  await eliminarArchivoSubido(url).catch(() => {});
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  return fotosNuevas;
+}
+
+/** Sube un archivo sin tocar la base de datos — usado por el formulario
+ * "+ Nuevo personaje" mientras el Personaje todavía no existe como fila
+ * (no hay a qué fila persistirle la foto todavía). El estado de "cuáles
+ * fotos lleva este personaje nuevo" vive en el cliente hasta que se
+ * guarda con `createPersonaje`, que sí las persiste todas juntas. */
+export async function subirArchivoTemporal(formData: FormData): Promise<string> {
+  const archivo = formData.get("foto");
+  if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
+  return guardarArchivoSubido(archivo);
+}
+
+/** Borra un archivo subido con `subirArchivoTemporal` que el usuario quitó
+ * antes de guardar — best effort, nunca bloquea la interacción. */
+export async function eliminarArchivoTemporal(url: string): Promise<void> {
+  await eliminarArchivoSubido(url).catch(() => {});
+}
+
+// ---------------------------------------------------------------------
+// Avatares
+// ---------------------------------------------------------------------
+
+/** Más reciente primero — ver comentario de `getPersonajes` sobre por qué
+ * se compara por fecha real y no por string. */
+export async function getAvatares(proyectoId: string): Promise<Avatar[]> {
+  const rows = await db.select().from(avatares).where(eq(avatares.proyectoId, proyectoId));
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function getAvatarPorId(proyectoId: string, avatarId: string): Promise<Avatar | null> {
+  const rows = await db
+    .select()
+    .from(avatares)
+    .where(and(eq(avatares.id, avatarId), eq(avatares.proyectoId, proyectoId)));
+  return rows[0] ?? null;
+}
+
+const AVATAR_CAMPOS = [
+  "nombreFicticio",
+  "edad",
+  "profesion",
+  "nivelConocimiento",
+  "problemasFrecuentes",
+  "objetivos",
+  "miedos",
+  "queBuscaAprender",
+  "comoConsumeContenido",
+  "lenguaje",
+] as const satisfies ReadonlyArray<keyof AvatarInput>;
+
+function leerCamposAvatar(formData: FormData) {
+  return Object.fromEntries(
+    AVATAR_CAMPOS.map((campo) => [campo, String(formData.get(campo) ?? "").trim()]),
+  ) as unknown as AvatarInput;
+}
+
+/** Crea un Avatar nuevo — nunca sobrescribe uno existente. */
+export async function createAvatar(proyectoId: string, formData: FormData): Promise<{ id: string }> {
+  const valores = leerCamposAvatar(formData);
+  const id = randomUUID();
+
+  await db.insert(avatares).values({ id, proyectoId, ...valores });
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
+  return { id };
+}
+
+export async function updateAvatar(proyectoId: string, avatarId: string, formData: FormData) {
+  const valores = leerCamposAvatar(formData);
+
+  await db
+    .update(avatares)
+    .set(valores)
+    .where(and(eq(avatares.id, avatarId), eq(avatares.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
+}
+
+export async function deleteAvatar(proyectoId: string, avatarId: string) {
+  await db.delete(avatares).where(and(eq(avatares.id, avatarId), eq(avatares.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidatePath(`/proyectos/${proyectoId}/crear`);
 }
 
 // ---------------------------------------------------------------------
@@ -311,12 +470,22 @@ export async function generarContenidoAction(
      * llegan). En false, ni siquiera se consulta la Base de Conocimiento —
      * no solo se omite del prompt. */
     incluirConocimiento?: boolean;
+    /** Cuál Personaje/Avatar de la lista del proyecto usar en esta
+     * generación (selector en Crear cuando hay más de uno). Ausente/vacío
+     * = ninguno seleccionado, la sección respectiva se omite. */
+    personajeId?: string;
+    avatarId?: string;
   },
 ): Promise<ContenidoGenerado> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, incluirConocimiento, ...resto } = input;
-  const identidad = await getIdentidad(proyectoId);
+  const { incluirPersonaje, incluirMarca, incluirContacto, incluirConocimiento, personajeId, avatarId, ...resto } =
+    input;
+  const [identidad, personaje, avatar] = await Promise.all([
+    getIdentidad(proyectoId),
+    personajeId ? getPersonaje(proyectoId, personajeId) : Promise.resolve(null),
+    avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
+  ]);
   const identidadCompilada = identidad
-    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto })
+    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personaje, avatar })
     : "";
   const conocimientoRelevante =
     incluirConocimiento === false ? "" : await conocimientoRelevantePara(proyectoId, input.tema);
@@ -331,14 +500,20 @@ export async function generarContenidoAction(
  * "Crear rápido": infiere la configuración de producción a partir de una
  * idea libre. El cliente siempre debe mostrar el resultado como un resumen
  * editable para confirmar antes de llamar a `generarContenidoAction` — esta
- * función nunca genera el contenido final por sí sola.
+ * función nunca genera el contenido final por sí sola. Usa el Personaje y
+ * el Avatar más recientes del proyecto (si hay varios) solo para informar
+ * mejor la inferencia — no hay casillas de selección en este paso.
  */
 export async function inferirConfiguracionAction(
   proyectoId: string,
   idea: string,
 ): Promise<ConfiguracionInferida> {
-  const identidad = await getIdentidad(proyectoId);
-  const identidadCompilada = identidad ? compileIdentity(identidad) : "";
+  const [identidad, personaje, avatar] = await Promise.all([
+    getIdentidad(proyectoId),
+    getPersonajes(proyectoId).then((lista) => lista[0] ?? null),
+    getAvatares(proyectoId).then((lista) => lista[0] ?? null),
+  ]);
+  const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
   return inferirConfiguracion(idea, identidadCompilada);
 }
 
@@ -359,7 +534,9 @@ function parsearEscenasDeFormData(valor: string): unknown {
  * con el texto, el bloque de identidad exacto que el Compilador produjo en
  * ese momento — evidencia de que la identidad se usó, y de qué decía.
  * `escenasJson` es opcional: solo viene poblado desde el flujo de "Crear"
- * con IA; las piezas manuales no lo usan.
+ * con IA; las piezas manuales no lo usan. `personajeId` (si vino del
+ * selector de Crear) queda guardado en el bloque — es lo que después usa
+ * `generarImagenParaEscena` para tomar la foto de referencia correcta.
  */
 export async function createBloque(proyectoId: string, formData: FormData) {
   const titulo = String(formData.get("titulo") ?? "").trim();
@@ -373,12 +550,20 @@ export async function createBloque(proyectoId: string, formData: FormData) {
       ? parsearEscenasDeFormData(escenasJsonRaw)
       : null;
 
-  const identidad = await getIdentidad(proyectoId);
-  const identidadCompilada = identidad ? compileIdentity(identidad) : "";
+  const personajeId = String(formData.get("personajeId") ?? "").trim() || null;
+  const avatarId = String(formData.get("avatarId") ?? "").trim() || null;
+
+  const [identidad, personaje, avatar] = await Promise.all([
+    getIdentidad(proyectoId),
+    personajeId ? getPersonaje(proyectoId, personajeId) : Promise.resolve(null),
+    avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
+  ]);
+  const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
 
   await db.insert(bloques).values({
     id: randomUUID(),
     proyectoId,
+    personajeId,
     titulo,
     formato,
     texto,
@@ -422,12 +607,14 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
 
 /**
  * Genera (o regenera) la imagen de una escena específica con IA real
- * (OpenAI). Si la Identidad del proyecto tiene una foto de Personaje
- * cargada, se usa automáticamente como referencia — el usuario nunca
- * vuelve a seleccionarla a mano, igual que con el resto de la identidad.
- * Persiste el resultado directamente en `escenasJson` (no depende de que
- * el usuario después presione "Guardar cambios": generar una imagen cuesta
- * dinero real, así que no debe poder perderse por no guardar a tiempo).
+ * (OpenAI). Si el bloque tiene un Personaje asociado (el que estaba
+ * seleccionado en Crear al generar esta pieza — ver `createBloque`) y ese
+ * Personaje tiene fotos de referencia, se usa automáticamente la primera
+ * como referencia; el usuario nunca vuelve a seleccionarla a mano. Sin
+ * Personaje asociado, no hay foto de referencia. Persiste el resultado
+ * directamente en `escenasJson` (no depende de que el usuario después
+ * presione "Guardar cambios": generar una imagen cuesta dinero real, así
+ * que no debe poder perderse por no guardar a tiempo).
  */
 export async function generarImagenParaEscena(
   proyectoId: string,
@@ -445,11 +632,11 @@ export async function generarImagenParaEscena(
   const promptImagen = escenas[index].promptImagen.trim();
   if (!promptImagen) throw new Error("Esta escena no tiene un prompt de imagen para generar.");
 
-  const identidad = await getIdentidad(proyectoId);
-  // Usa la PRIMERA foto del arreglo como referencia — múltiples referencias
-  // a la vez sería una mejora futura del proveedor de imagen, no de esta
-  // ronda (ver comentario en imagen-provider.ts).
-  const fotoReferenciaUrl = parseFotosPersonaje(identidad?.fotosUrlsJson).at(0);
+  // Usa la PRIMERA foto del Personaje asociado al bloque como referencia —
+  // múltiples referencias a la vez sería una mejora futura del proveedor de
+  // imagen, no de esta ronda (ver comentario en imagen-provider.ts).
+  const personaje = bloque.personajeId ? await getPersonaje(proyectoId, bloque.personajeId) : null;
+  const fotoReferenciaUrl = parseFotosPersonaje(personaje?.fotosUrlsJson).at(0);
 
   const imagenGeneradaUrl = await generarImagenIA(promptImagen, fotoReferenciaUrl, calidad);
 

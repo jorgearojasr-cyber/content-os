@@ -65,6 +65,62 @@ export const identidades = pgTable("identidades", {
 });
 
 /**
+ * Personaje: quién aparece en el contenido, si aplica. Antes vivía como
+ * columnas únicas dentro de `identidades` (relación 1 a 1); ahora es su
+ * propia tabla porque un proyecto puede tener varios personajes (varias
+ * filas por `proyectoId`) y elegir cuál usar en cada pieza. Las columnas
+ * equivalentes en `identidades` (personajeNombre, fisica, etc.) quedan
+ * deprecadas — se conservan por ahora, sin usarse.
+ */
+export const personajes = pgTable("personajes", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  nombre: text("nombre").notNull().default(""),
+  personalidad: text("personalidad").notNull().default(""),
+  fisica: text("fisica").notNull().default(""),
+  vestuario: text("vestuario").notNull().default(""),
+  vozDescrita: text("voz_descrita").notNull().default(""),
+  gestos: text("gestos").notNull().default(""),
+  muletillas: text("muletillas").notNull().default(""),
+  // Arreglo de hasta 4 URLs de Blob — mismo formato que la antigua columna
+  // `identidades.fotos_urls_json`, ahora colgando del Personaje dueño.
+  fotosUrlsJson: jsonb("fotos_urls_json").notNull().default([]),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
+ * Avatar del cliente ideal: quién recibe el contenido, no quién lo crea
+ * (eso es Personaje). Antes vivía serializado en `identidades.avatar_json`
+ * (uno solo por proyecto); ahora es su propia tabla — un proyecto puede
+ * tener varios avatares (varios segmentos de audiencia) y elegir cuál usar
+ * en cada pieza. `identidades.avatar_json` queda deprecada.
+ */
+export const avatares = pgTable("avatares", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  // Doble uso: dato de la ficha Y título de la tarjeta en la lista.
+  nombreFicticio: text("nombre_ficticio").notNull().default(""),
+  edad: text("edad").notNull().default(""),
+  profesion: text("profesion").notNull().default(""),
+  nivelConocimiento: text("nivel_conocimiento").notNull().default(""),
+  problemasFrecuentes: text("problemas_frecuentes").notNull().default(""),
+  objetivos: text("objetivos").notNull().default(""),
+  miedos: text("miedos").notNull().default(""),
+  queBuscaAprender: text("que_busca_aprender").notNull().default(""),
+  comoConsumeContenido: text("como_consume_contenido").notNull().default(""),
+  lenguaje: text("lenguaje").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
  * Bloque: una pieza de contenido guardada en la Biblioteca.
  * En la Fase 1 se crean a mano (sin IA); guardamos también el bloque de
  * identidad compilado en el momento de creación, como evidencia de que
@@ -75,6 +131,11 @@ export const bloques = pgTable("bloques", {
   proyectoId: text("proyecto_id")
     .notNull()
     .references(() => proyectos.id, { onDelete: "cascade" }),
+  // Qué Personaje estaba seleccionado al generar esta pieza — permite que
+  // la generación de imagen (más tarde, desde Biblioteca) use la foto de
+  // referencia correcta. Null si se creó sin Personaje o antes de que
+  // existiera esta columna.
+  personajeId: text("personaje_id").references(() => personajes.id, { onDelete: "set null" }),
   titulo: text("titulo").notNull(),
   formato: text("formato").notNull().default("manual"),
   texto: text("texto").notNull(),

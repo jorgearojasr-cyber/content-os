@@ -117,6 +117,10 @@ export function parseFotosPersonaje(json: unknown): string[] {
 export type Bloque = {
   id: string;
   proyectoId: string;
+  /** Qué Personaje estaba seleccionado al generar esta pieza (null si se
+   * creó sin Personaje, o antes de que existiera esta columna) — usado por
+   * la generación de imagen para tomar la foto de referencia correcta. */
+  personajeId: string | null;
   titulo: string;
   formato: string;
   texto: string;
@@ -127,6 +131,85 @@ export type Bloque = {
   escenasJson: unknown;
   createdAt: string;
 };
+
+/**
+ * Personaje: quién aparece en el contenido, si aplica. Un proyecto puede
+ * tener varios (ver Crear: selector de cuál usar). Reemplaza a las
+ * columnas `personaje*`/`fotosUrlsJson` que antes vivían en `Identidad`
+ * (ahora deprecadas ahí, una fila fija por proyecto no alcanzaba).
+ */
+export type Personaje = {
+  id: string;
+  proyectoId: string;
+  nombre: string;
+  personalidad: string;
+  fisica: string;
+  vestuario: string;
+  vozDescrita: string;
+  gestos: string;
+  muletillas: string;
+  /** Columna `jsonb` — arreglo de hasta 4 URLs (o `[]`). Usar `parseFotosPersonaje()`. */
+  fotosUrlsJson: unknown;
+  createdAt: string;
+};
+
+export type PersonajeInput = Omit<Personaje, "id" | "proyectoId" | "createdAt" | "fotosUrlsJson">;
+
+/** True si el personaje tiene al menos un campo de texto con contenido
+ * (fotos no cuentan — mismo criterio que antes en Identidad). */
+export function personajeTieneContenido(personaje: Personaje): boolean {
+  return (
+    [
+      personaje.nombre,
+      personaje.personalidad,
+      personaje.fisica,
+      personaje.vestuario,
+      personaje.vozDescrita,
+      personaje.gestos,
+      personaje.muletillas,
+    ].some((v) => v.trim().length > 0) || parseFotosPersonaje(personaje.fotosUrlsJson).length > 0
+  );
+}
+
+/**
+ * Avatar del cliente ideal: quién recibe el contenido. Un proyecto puede
+ * tener varios (distintos segmentos de audiencia). Reemplaza a la columna
+ * `avatarJson` que antes vivía en `Identidad` (ahora deprecada ahí).
+ */
+export type Avatar = {
+  id: string;
+  proyectoId: string;
+  /** Doble uso: dato de la ficha Y título de la tarjeta en la lista. */
+  nombreFicticio: string;
+  edad: string;
+  profesion: string;
+  nivelConocimiento: string;
+  problemasFrecuentes: string;
+  objetivos: string;
+  miedos: string;
+  queBuscaAprender: string;
+  comoConsumeContenido: string;
+  lenguaje: string;
+  createdAt: string;
+};
+
+export type AvatarInput = Omit<Avatar, "id" | "proyectoId" | "createdAt">;
+
+/** True si el avatar tiene al menos un campo de texto con contenido. */
+export function avatarTieneContenido(avatar: Avatar): boolean {
+  return [
+    avatar.nombreFicticio,
+    avatar.edad,
+    avatar.profesion,
+    avatar.nivelConocimiento,
+    avatar.problemasFrecuentes,
+    avatar.objetivos,
+    avatar.miedos,
+    avatar.queBuscaAprender,
+    avatar.comoConsumeContenido,
+    avatar.lenguaje,
+  ].some((v) => v.trim().length > 0);
+}
 
 /**
  * Unidad estructural universal de una pieza generada: escena de video con

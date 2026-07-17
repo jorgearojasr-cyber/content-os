@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { compileIdentity, identidadPorSeccion } from "@/lib/identity-compiler";
-import type { Identidad } from "@/lib/types";
+import type { Avatar, Identidad, Personaje } from "@/lib/types";
 
 /**
  * Checklist visual del Compilador de Identidad — mismo componente reutilizado
@@ -13,10 +13,21 @@ import type { Identidad } from "@/lib/types";
 export function IdentidadChecklist({
   identidad,
   activosCount,
+  tienePersonaje,
+  tieneAvatar,
+  personaje = null,
+  avatar = null,
   textoDetalle,
 }: {
   identidad: Identidad;
   activosCount: number;
+  /** ¿Existe al menos un Personaje/Avatar en el proyecto? — para el ✔/✗. */
+  tienePersonaje: boolean;
+  tieneAvatar: boolean;
+  /** Personaje/Avatar a usar para "Ver detalles" cuando no se pasa
+   * `textoDetalle` (normalmente el más reciente). */
+  personaje?: Personaje | null;
+  avatar?: Avatar | null;
   /** Texto a mostrar en "Ver detalles". Por defecto, `compileIdentity(identidad)`
    * recién calculado. Se puede pasar un texto ya congelado (ej. el que se
    * guardó al crear una pieza en Biblioteca) para no reemplazarlo por el
@@ -24,7 +35,7 @@ export function IdentidadChecklist({
   textoDetalle?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const porSeccion = identidadPorSeccion(identidad);
+  const porSeccion = identidadPorSeccion(identidad, { tienePersonaje, tieneAvatar });
 
   const secciones = [
     { label: "Marca", ok: porSeccion.marca },
@@ -60,7 +71,7 @@ export function IdentidadChecklist({
 
       {abierto ? (
         <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-border bg-surface-2 p-3.5 font-mono text-[12.5px] text-text-muted">
-          {textoDetalle ?? compileIdentity(identidad)}
+          {textoDetalle ?? compileIdentity(identidad, { personaje, avatar })}
         </pre>
       ) : null}
     </div>

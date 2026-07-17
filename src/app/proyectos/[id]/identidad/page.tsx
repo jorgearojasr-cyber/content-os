@@ -1,35 +1,44 @@
 import { notFound } from "next/navigation";
 import {
   completarProyectoAction,
+  createAvatar,
   createConocimiento,
+  createPersonaje,
+  deleteAvatar,
   deleteConocimiento,
+  deletePersonaje,
+  eliminarArchivoTemporal,
   eliminarFotoPersonaje,
   generarPersonajeAction,
   getActivos,
+  getAvatares,
   getConocimiento,
   getIdentidad,
+  getPersonajes,
+  subirArchivoTemporal,
   subirFotoPersonaje,
   subirLogo,
+  updateAvatar,
   updateIdentidad,
+  updatePersonaje,
 } from "@/lib/actions";
 import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
-import { FotosPersonaje } from "@/components/fotos-personaje";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { identidadPorSeccion, resumenPorSeccion } from "@/lib/identity-compiler";
 import { extraerFragmento } from "@/lib/reutilizacion";
-import { parseAvatar, parseFotosPersonaje } from "@/lib/types";
 import {
-  EJEMPLOS_AVATAR,
   EJEMPLOS_IDENTIDAD,
   OBJETIVO_TIP,
   OBJETIVOS_SUGERIDOS,
 } from "@/lib/identidad-ejemplos";
 import { IdentidadAiTools } from "./ai-tools";
 import { ConocimientoLista } from "./conocimiento-lista";
+import { PersonajesLista } from "./personajes-lista";
+import { AvataresLista } from "./avatares-lista";
 
 const LARGO_RESUMEN = 80;
 
@@ -44,20 +53,34 @@ export default async function IdentidadPage({
 
   const activos = await getActivos(proyectoId);
   const conocimiento = await getConocimiento(proyectoId);
+  const personajes = await getPersonajes(proyectoId);
+  const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateIdentidad.bind(null, proyectoId);
-  const boundSubirFoto = subirFotoPersonaje.bind(null, proyectoId);
-  const boundEliminarFoto = eliminarFotoPersonaje.bind(null, proyectoId);
   const boundSubirLogo = subirLogo.bind(null, proyectoId);
   const boundCreateConocimiento = createConocimiento.bind(null, proyectoId);
   const boundDeleteConocimiento = deleteConocimiento.bind(null, proyectoId);
-  const avatar = parseAvatar(identidad.avatarJson);
-  const fotosPersonaje = parseFotosPersonaje(identidad.fotosUrlsJson);
+  const boundCreatePersonaje = createPersonaje.bind(null, proyectoId);
+  const boundUpdatePersonaje = updatePersonaje.bind(null, proyectoId);
+  const boundDeletePersonaje = deletePersonaje.bind(null, proyectoId);
+  const boundSubirFotoPersonaje = subirFotoPersonaje.bind(null, proyectoId);
+  const boundEliminarFotoPersonaje = eliminarFotoPersonaje.bind(null, proyectoId);
+  const boundCreateAvatar = createAvatar.bind(null, proyectoId);
+  const boundUpdateAvatar = updateAvatar.bind(null, proyectoId);
+  const boundDeleteAvatar = deleteAvatar.bind(null, proyectoId);
 
-  const porSeccion = identidadPorSeccion(identidad);
+  const tienePersonaje = personajes.length > 0;
+  const tieneAvatar = avatares.length > 0;
+  const porSeccion = identidadPorSeccion(identidad, { tienePersonaje, tieneAvatar });
   const resumen = resumenPorSeccion(identidad);
   const tieneConocimiento = conocimiento.length > 0;
   const resumenConocimiento = tieneConocimiento
     ? `${conocimiento.length} entrada${conocimiento.length === 1 ? "" : "s"}`
+    : "";
+  const resumenPersonajes = tienePersonaje
+    ? `${personajes.length} personaje${personajes.length === 1 ? "" : "s"}`
+    : "";
+  const resumenAvatares = tieneAvatar
+    ? `${avatares.length} avatar${avatares.length === 1 ? "" : "es"}`
     : "";
 
   return (
@@ -69,8 +92,9 @@ export default async function IdentidadPage({
       </p>
 
       <IdentidadAiTools
-        onGenerarPersonaje={generarPersonajeAction}
         onCompletarProyecto={completarProyectoAction}
+        onCreatePersonaje={boundCreatePersonaje}
+        onCreateAvatar={boundCreateAvatar}
       />
 
       <form action={boundUpdate} className="space-y-5">
@@ -101,144 +125,6 @@ export default async function IdentidadPage({
             ejemplos={OBJETIVOS_SUGERIDOS}
             multiline={false}
           />
-        </SeccionColapsable>
-
-        <SeccionColapsable
-          titulo="Avatar del cliente ideal"
-          subtitulo="Quién recibe tu contenido — mientras más real lo imagines, más preciso será cada texto."
-          tieneContenido={porSeccion.avatar}
-          resumen={extraerFragmento(resumen.avatar, LARGO_RESUMEN)}
-        >
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <FieldWithHelp
-              label="Nombre ficticio"
-              name="avatarNombreFicticio"
-              defaultValue={avatar.nombreFicticio}
-              multiline={false}
-              {...EJEMPLOS_AVATAR.nombreFicticio}
-            />
-            <FieldWithHelp
-              label="Edad"
-              name="avatarEdad"
-              defaultValue={avatar.edad}
-              multiline={false}
-              {...EJEMPLOS_AVATAR.edad}
-            />
-            <FieldWithHelp
-              label="Profesión"
-              name="avatarProfesion"
-              defaultValue={avatar.profesion}
-              multiline={false}
-              {...EJEMPLOS_AVATAR.profesion}
-            />
-            <FieldWithHelp
-              label="Nivel de conocimientos"
-              name="avatarNivelConocimiento"
-              defaultValue={avatar.nivelConocimiento}
-              multiline={false}
-              {...EJEMPLOS_AVATAR.nivelConocimiento}
-            />
-          </div>
-          <FieldWithHelp
-            label="Problemas frecuentes"
-            name="avatarProblemasFrecuentes"
-            defaultValue={avatar.problemasFrecuentes}
-            {...EJEMPLOS_AVATAR.problemasFrecuentes}
-          />
-          <FieldWithHelp
-            label="Objetivos"
-            name="avatarObjetivos"
-            defaultValue={avatar.objetivos}
-            {...EJEMPLOS_AVATAR.objetivos}
-          />
-          <FieldWithHelp
-            label="Qué teme"
-            name="avatarMiedos"
-            defaultValue={avatar.miedos}
-            {...EJEMPLOS_AVATAR.miedos}
-          />
-          <FieldWithHelp
-            label="Qué busca aprender"
-            name="avatarQueBuscaAprender"
-            defaultValue={avatar.queBuscaAprender}
-            {...EJEMPLOS_AVATAR.queBuscaAprender}
-          />
-          <FieldWithHelp
-            label="Cómo consume contenido"
-            name="avatarComoConsumeContenido"
-            defaultValue={avatar.comoConsumeContenido}
-            {...EJEMPLOS_AVATAR.comoConsumeContenido}
-          />
-          <FieldWithHelp
-            label="Qué lenguaje entiende mejor"
-            name="avatarLenguaje"
-            defaultValue={avatar.lenguaje}
-            multiline={false}
-            {...EJEMPLOS_AVATAR.lenguaje}
-          />
-        </SeccionColapsable>
-
-        <SeccionColapsable
-          titulo="Personaje"
-          subtitulo="Quién aparece, si aplica. Se repite igual en cada pieza."
-          tieneContenido={porSeccion.personaje}
-          resumen={extraerFragmento(resumen.personaje, LARGO_RESUMEN)}
-        >
-          <FieldWithHelp
-            label="Nombre"
-            name="personajeNombre"
-            defaultValue={identidad.personajeNombre}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.personajeNombre}
-          />
-          <FieldWithHelp
-            label="Personalidad"
-            name="personajePersonalidad"
-            defaultValue={identidad.personajePersonalidad}
-            {...EJEMPLOS_IDENTIDAD.personajePersonalidad}
-          />
-          <FieldWithHelp
-            label="Descripción física exacta"
-            name="fisica"
-            defaultValue={identidad.fisica}
-            {...EJEMPLOS_IDENTIDAD.fisica}
-          />
-          <FieldWithHelp
-            label="Vestuario característico"
-            name="vestuario"
-            defaultValue={identidad.vestuario}
-            {...EJEMPLOS_IDENTIDAD.vestuario}
-          />
-          <FieldWithHelp
-            label="Voz (descripción)"
-            name="vozDescrita"
-            defaultValue={identidad.vozDescrita}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.vozDescrita}
-          />
-          <FieldWithHelp
-            label="Gestos"
-            name="gestos"
-            defaultValue={identidad.gestos}
-            {...EJEMPLOS_IDENTIDAD.gestos}
-          />
-          <FieldWithHelp
-            label="Muletillas"
-            name="muletillas"
-            defaultValue={identidad.muletillas}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.muletillas}
-          />
-          <div className="mt-3.5">
-            <label className="mb-1 block text-[12.5px] text-text-muted">
-              Fotos de referencia (hasta 4)
-            </label>
-            <FotosPersonaje
-              fotosIniciales={fotosPersonaje}
-              onSubir={boundSubirFoto}
-              onEliminar={boundEliminarFoto}
-            />
-          </div>
         </SeccionColapsable>
 
         <SeccionColapsable
@@ -335,6 +221,39 @@ export default async function IdentidadPage({
       </form>
 
       <SeccionColapsable
+        titulo="Personajes"
+        subtitulo="Quién aparece, si aplica. Un proyecto puede tener varios — eliges cuál usar al crear."
+        tieneContenido={tienePersonaje}
+        resumen={resumenPersonajes}
+      >
+        <PersonajesLista
+          personajes={personajes}
+          onCreate={boundCreatePersonaje}
+          onUpdate={boundUpdatePersonaje}
+          onDelete={boundDeletePersonaje}
+          onSubirFoto={boundSubirFotoPersonaje}
+          onEliminarFoto={boundEliminarFotoPersonaje}
+          onSubirTemporal={subirArchivoTemporal}
+          onEliminarTemporal={eliminarArchivoTemporal}
+          onGenerarPersonaje={generarPersonajeAction}
+        />
+      </SeccionColapsable>
+
+      <SeccionColapsable
+        titulo="Avatares del cliente ideal"
+        subtitulo="Quién recibe tu contenido. Un proyecto puede tener varios — eliges cuál usar al crear."
+        tieneContenido={tieneAvatar}
+        resumen={resumenAvatares}
+      >
+        <AvataresLista
+          avatares={avatares}
+          onCreate={boundCreateAvatar}
+          onUpdate={boundUpdateAvatar}
+          onDelete={boundDeleteAvatar}
+        />
+      </SeccionColapsable>
+
+      <SeccionColapsable
         titulo="Conocimiento"
         subtitulo="Material de referencia de este proyecto — la IA lo usa cuando es relevante para el tema que estás creando."
         tieneContenido={tieneConocimiento}
@@ -365,7 +284,14 @@ export default async function IdentidadPage({
         <SectionTitle subtitle="Esto es exactamente lo que el Compilador de Identidad produce ahora mismo — lo que se usará en cada generación futura, sin resumir.">
           Vista previa del Compilador
         </SectionTitle>
-        <IdentidadChecklist identidad={identidad} activosCount={activos.length} />
+        <IdentidadChecklist
+          identidad={identidad}
+          activosCount={activos.length}
+          tienePersonaje={tienePersonaje}
+          tieneAvatar={tieneAvatar}
+          personaje={personajes[0] ?? null}
+          avatar={avatares[0] ?? null}
+        />
       </Card>
     </div>
   );

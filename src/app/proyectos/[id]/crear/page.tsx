@@ -5,8 +5,10 @@ import {
   createBloque,
   generarContenidoAction,
   getActivos,
+  getAvatares,
   getConocimiento,
   getIdentidad,
+  getPersonajes,
   inferirConfiguracionAction,
 } from "@/lib/actions";
 import { identityHasContent } from "@/lib/identity-compiler";
@@ -25,10 +27,15 @@ export default async function CrearPage({
 
   const activos = await getActivos(proyectoId);
   const conocimiento = await getConocimiento(proyectoId);
+  const personajes = await getPersonajes(proyectoId);
+  const avatares = await getAvatares(proyectoId);
   const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
   const boundGenerar = generarContenidoAction.bind(null, proyectoId);
   const boundCreate = createBloque.bind(null, proyectoId);
-  const tieneIdentidad = identityHasContent(identidad);
+  const tieneIdentidad = identityHasContent(identidad, {
+    tienePersonaje: personajes.length > 0,
+    tieneAvatar: avatares.length > 0,
+  });
 
   return (
     <div className="space-y-5">
@@ -44,6 +51,8 @@ export default async function CrearPage({
       <CrearModos
         proyectoId={proyectoId}
         identidad={identidad}
+        personajes={personajes}
+        avatares={avatares}
         tieneConocimiento={conocimiento.length > 0}
         onInferir={boundInferir}
         onGenerar={boundGenerar}
@@ -55,7 +64,14 @@ export default async function CrearPage({
         <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que la IA usa automáticamente, sin que tengas que volver a seleccionarlo.">
           Identidad activa
         </SectionTitle>
-        <IdentidadChecklist identidad={identidad} activosCount={activos.length} />
+        <IdentidadChecklist
+          identidad={identidad}
+          activosCount={activos.length}
+          tienePersonaje={personajes.length > 0}
+          tieneAvatar={avatares.length > 0}
+          personaje={personajes[0] ?? null}
+          avatar={avatares[0] ?? null}
+        />
       </Card>
     </div>
   );

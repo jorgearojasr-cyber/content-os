@@ -6,7 +6,7 @@ import {
   identityHasContent,
   resumenPorSeccion,
 } from "./identity-compiler";
-import type { AvatarCliente, Identidad } from "./types";
+import type { Avatar, Identidad, Personaje } from "./types";
 
 function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
   return {
@@ -39,15 +39,48 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
   };
 }
 
-function avatarJsonCon(overrides: Partial<AvatarCliente>): Partial<AvatarCliente> {
-  return overrides;
+function basePersonaje(overrides: Partial<Personaje> = {}): Personaje {
+  return {
+    id: "personaje-1",
+    proyectoId: "proy-1",
+    nombre: "",
+    personalidad: "",
+    fisica: "",
+    vestuario: "",
+    vozDescrita: "",
+    gestos: "",
+    muletillas: "",
+    fotosUrlsJson: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function baseAvatar(overrides: Partial<Avatar> = {}): Avatar {
+  return {
+    id: "avatar-1",
+    proyectoId: "proy-1",
+    nombreFicticio: "",
+    edad: "",
+    profesion: "",
+    nivelConocimiento: "",
+    problemasFrecuentes: "",
+    objetivos: "",
+    miedos: "",
+    queBuscaAprender: "",
+    comoConsumeContenido: "",
+    lenguaje: "",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
 }
 
 describe("compileIdentity", () => {
   it("es determinístico: la misma entrada produce siempre la misma salida", () => {
-    const identidad = baseIdentidad({ voz: "Directa y cálida", fisica: "Cabello corto" });
-    const a = compileIdentity(identidad);
-    const b = compileIdentity(identidad);
+    const identidad = baseIdentidad({ voz: "Directa y cálida" });
+    const personaje = basePersonaje({ fisica: "Cabello corto" });
+    const a = compileIdentity(identidad, { personaje });
+    const b = compileIdentity(identidad, { personaje });
     expect(a).toBe(b);
   });
 
@@ -62,12 +95,12 @@ describe("compileIdentity", () => {
   it("reproduce el texto de forma literal, sin resumir ni alterar", () => {
     const descripcionExacta =
       "mujer de 32 años, cabello castaño corto con raya al medio, ojos café";
-    const identidad = baseIdentidad({ fisica: descripcionExacta });
-    const salida = compileIdentity(identidad);
+    const personaje = basePersonaje({ fisica: descripcionExacta });
+    const salida = compileIdentity(baseIdentidad(), { personaje });
     expect(salida).toContain(descripcionExacta);
   });
 
-  it("avisa explícitamente cuando la identidad está vacía", () => {
+  it("avisa explícitamente cuando la identidad está vacía y no hay personaje ni avatar", () => {
     const salida = compileIdentity(baseIdentidad());
     expect(salida).toMatch(/todavía no tiene ningún campo cargado/);
   });
@@ -78,25 +111,28 @@ describe("compileIdentity", () => {
     expect(salida).toContain("Objetivo del proyecto: Educar");
   });
 
-  it("incluye la personalidad del personaje cuando está definida", () => {
-    const identidad = baseIdentidad({
-      personajeNombre: "Don José Luis",
-      personajePersonalidad: "Cercano, paciente, con humor sencillo",
+  it("sin personaje seleccionado, la sección Personaje no aparece aunque incluirPersonaje sea true", () => {
+    const salida = compileIdentity(baseIdentidad({ voz: "Directa" }), { incluirPersonaje: true });
+    expect(salida).not.toContain("## Personaje");
+  });
+
+  it("incluye la personalidad del personaje SELECCIONADO cuando está definida", () => {
+    const personaje = basePersonaje({
+      nombre: "Don José Luis",
+      personalidad: "Cercano, paciente, con humor sencillo",
     });
-    const salida = compileIdentity(identidad);
+    const salida = compileIdentity(baseIdentidad(), { personaje });
     expect(salida).toContain("## Personaje");
     expect(salida).toContain("Personalidad: Cercano, paciente, con humor sencillo");
   });
 
-  it("renderiza el avatar campo por campo, sin resumir", () => {
-    const identidad = baseIdentidad({
-      avatarJson: avatarJsonCon({
-        nombreFicticio: "Marta",
-        edad: "42",
-        miedos: "Que el proyecto fracase por falta de tiempo",
-      }),
+  it("renderiza el avatar SELECCIONADO campo por campo, sin resumir", () => {
+    const avatar = baseAvatar({
+      nombreFicticio: "Marta",
+      edad: "42",
+      miedos: "Que el proyecto fracase por falta de tiempo",
     });
-    const salida = compileIdentity(identidad);
+    const salida = compileIdentity(baseIdentidad(), { avatar });
     expect(salida).toContain("Avatar del cliente ideal:");
     expect(salida).toContain("Nombre ficticio: Marta");
     expect(salida).toContain("Edad: 42");
@@ -105,18 +141,24 @@ describe("compileIdentity", () => {
     expect(salida).not.toContain("Profesión:");
   });
 
-  it("un avatarJson vacío ({}) no agrega el bloque de avatar", () => {
+  it("sin avatar seleccionado no agrega el bloque de avatar", () => {
     const identidad = baseIdentidad({ voz: "Directa" });
     const salida = compileIdentity(identidad);
     expect(salida).not.toContain("Avatar del cliente ideal");
   });
 
-  it("renderiza las fotos de referencia del Personaje numeradas", () => {
-    const identidad = baseIdentidad({
-      personajeNombre: "Don José Luis",
+  it("un avatar seleccionado pero completamente vacío tampoco agrega el bloque", () => {
+    const identidad = baseIdentidad({ voz: "Directa" });
+    const salida = compileIdentity(identidad, { avatar: baseAvatar() });
+    expect(salida).not.toContain("Avatar del cliente ideal");
+  });
+
+  it("renderiza las fotos de referencia del Personaje SELECCIONADO numeradas", () => {
+    const personaje = basePersonaje({
+      nombre: "Don José Luis",
       fotosUrlsJson: ["https://blob/foto1.jpg", "https://blob/foto2.jpg"],
     });
-    const salida = compileIdentity(identidad);
+    const salida = compileIdentity(baseIdentidad(), { personaje });
     expect(salida).toContain("Fotos de referencia:");
     expect(salida).toContain("1. https://blob/foto1.jpg");
     expect(salida).toContain("2. https://blob/foto2.jpg");
@@ -141,49 +183,47 @@ describe("compileIdentity", () => {
     expect(salida).toContain("Dirección: Av. Siempre Viva 123");
   });
 
-  it("opciones.incluirPersonaje = false omite toda la sección Personaje", () => {
-    const identidad = baseIdentidad({ personajeNombre: "Don José Luis" });
-    const salida = compileIdentity(identidad, { incluirPersonaje: false });
+  it("opciones.incluirPersonaje = false omite toda la sección Personaje aunque haya uno seleccionado", () => {
+    const personaje = basePersonaje({ nombre: "Don José Luis" });
+    const salida = compileIdentity(baseIdentidad(), { personaje, incluirPersonaje: false });
     expect(salida).not.toContain("## Personaje");
   });
 
   it("opciones.incluirMarca = false omite Marca, avatar incluido", () => {
-    const identidad = baseIdentidad({
-      voz: "Directa",
-      avatarJson: avatarJsonCon({ edad: "42" }),
-    });
-    const salida = compileIdentity(identidad, { incluirMarca: false });
+    const identidad = baseIdentidad({ voz: "Directa" });
+    const avatar = baseAvatar({ edad: "42" });
+    const salida = compileIdentity(identidad, { avatar, incluirMarca: false });
     expect(salida).not.toContain("## Marca");
     expect(salida).not.toContain("Avatar del cliente ideal");
   });
 });
 
 describe("identityHasContent", () => {
-  it("es falso para una identidad totalmente vacía", () => {
-    expect(identityHasContent(baseIdentidad())).toBe(false);
+  it("es falso para una identidad totalmente vacía sin personaje ni avatar", () => {
+    expect(identityHasContent(baseIdentidad(), { tienePersonaje: false, tieneAvatar: false })).toBe(false);
   });
 
   it("es verdadero si al menos un campo tiene texto", () => {
-    expect(identityHasContent(baseIdentidad({ voz: "Directa" }))).toBe(true);
+    const identidad = baseIdentidad({ voz: "Directa" });
+    expect(identityHasContent(identidad, { tienePersonaje: false, tieneAvatar: false })).toBe(true);
   });
 
   it("es verdadero si solo el objetivo tiene texto", () => {
-    expect(identityHasContent(baseIdentidad({ objetivo: "Vender servicios" }))).toBe(true);
+    const identidad = baseIdentidad({ objetivo: "Vender servicios" });
+    expect(identityHasContent(identidad, { tienePersonaje: false, tieneAvatar: false })).toBe(true);
   });
 
-  it("es verdadero si solo el avatar (avatarJson con al menos un campo) tiene datos", () => {
-    const identidad = baseIdentidad({ avatarJson: avatarJsonCon({ edad: "30" }) });
-    expect(identityHasContent(identidad)).toBe(true);
+  it("es verdadero si el proyecto tiene al menos un avatar, aunque el resto esté vacío", () => {
+    expect(identityHasContent(baseIdentidad(), { tienePersonaje: false, tieneAvatar: true })).toBe(true);
   });
 
-  it("es verdadero si solo hay una foto de referencia del Personaje", () => {
-    const identidad = baseIdentidad({ fotosUrlsJson: ["https://blob/foto1.jpg"] });
-    expect(identityHasContent(identidad)).toBe(true);
+  it("es verdadero si el proyecto tiene al menos un personaje, aunque el resto esté vacío", () => {
+    expect(identityHasContent(baseIdentidad(), { tienePersonaje: true, tieneAvatar: false })).toBe(true);
   });
 
   it("es falso si solo hay datos de Contacto — Contacto no cuenta como contenido", () => {
     const identidad = baseIdentidad({ sitioWeb: "https://ejemplo.com" });
-    expect(identityHasContent(identidad)).toBe(false);
+    expect(identityHasContent(identidad, { tienePersonaje: false, tieneAvatar: false })).toBe(false);
   });
 });
 
@@ -198,8 +238,8 @@ describe("identidadTieneContacto", () => {
 });
 
 describe("identidadPorSeccion", () => {
-  it("las 5 secciones son falsas para una identidad totalmente vacía", () => {
-    const estado = identidadPorSeccion(baseIdentidad());
+  it("las 5 secciones son falsas para una identidad totalmente vacía sin personaje ni avatar", () => {
+    const estado = identidadPorSeccion(baseIdentidad(), { tienePersonaje: false, tieneAvatar: false });
     expect(estado).toEqual({
       marca: false,
       avatar: false,
@@ -211,34 +251,33 @@ describe("identidadPorSeccion", () => {
 
   it("marca solo depende de voz/reglas/objetivo, no del resto de la identidad", () => {
     const identidad = baseIdentidad({ voz: "Directa y cálida" });
-    const estado = identidadPorSeccion(identidad);
+    const estado = identidadPorSeccion(identidad, { tienePersonaje: false, tieneAvatar: false });
     expect(estado.marca).toBe(true);
     expect(estado.avatar).toBe(false);
     expect(estado.personaje).toBe(false);
     expect(estado.estilo).toBe(false);
   });
 
-  it("avatar es verdadero con un solo campo del avatar cargado", () => {
-    const identidad = baseIdentidad({ avatarJson: avatarJsonCon({ edad: "42" }) });
-    expect(identidadPorSeccion(identidad).avatar).toBe(true);
+  it("avatar refleja directamente el contexto.tieneAvatar (existe al menos uno en la lista)", () => {
+    expect(identidadPorSeccion(baseIdentidad(), { tienePersonaje: false, tieneAvatar: true }).avatar).toBe(
+      true,
+    );
   });
 
-  it("personaje es verdadero con al menos uno de sus 7 campos, pero fotosUrlsJson NO cuenta como campo de personaje", () => {
-    const soloFoto = baseIdentidad({ fotosUrlsJson: ["/uploads/foto.jpg"] });
-    expect(identidadPorSeccion(soloFoto).personaje).toBe(false);
-
-    const conNombre = baseIdentidad({ personajeNombre: "Don José Luis" });
-    expect(identidadPorSeccion(conNombre).personaje).toBe(true);
+  it("personaje refleja directamente el contexto.tienePersonaje (existe al menos uno en la lista)", () => {
+    expect(
+      identidadPorSeccion(baseIdentidad(), { tienePersonaje: true, tieneAvatar: false }).personaje,
+    ).toBe(true);
   });
 
   it("estilo es verdadero con al menos uno de sus 6 campos", () => {
     const identidad = baseIdentidad({ camara: "Formato vertical 9:16" });
-    expect(identidadPorSeccion(identidad).estilo).toBe(true);
+    expect(identidadPorSeccion(identidad, { tienePersonaje: false, tieneAvatar: false }).estilo).toBe(true);
   });
 
   it("estilo es falso con solo logoUrl — logoUrl NO cuenta como campo de estilo", () => {
     const soloLogo = baseIdentidad({ logoUrl: "/uploads/logo.png" });
-    expect(identidadPorSeccion(soloLogo).estilo).toBe(false);
+    expect(identidadPorSeccion(soloLogo, { tienePersonaje: false, tieneAvatar: false }).estilo).toBe(false);
   });
 
   it("las 4 secciones de entrenamiento son verdaderas cuando la identidad está completa (contacto sigue aparte)", () => {
@@ -246,11 +285,9 @@ describe("identidadPorSeccion", () => {
       voz: "Directa",
       reglas: "Sin tecnicismos",
       objetivo: "Educar",
-      avatarJson: avatarJsonCon({ edad: "42" }),
-      personajeNombre: "Don José Luis",
       paleta: "Azul marino",
     });
-    const estado = identidadPorSeccion(identidad);
+    const estado = identidadPorSeccion(identidad, { tienePersonaje: true, tieneAvatar: true });
     expect(estado).toEqual({
       marca: true,
       avatar: true,
@@ -262,29 +299,27 @@ describe("identidadPorSeccion", () => {
 
   it("contacto es verdadero con al menos un dato de contacto cargado", () => {
     const identidad = baseIdentidad({ telefono: "+56911111111" });
-    expect(identidadPorSeccion(identidad).contacto).toBe(true);
+    expect(identidadPorSeccion(identidad, { tienePersonaje: false, tieneAvatar: false }).contacto).toBe(
+      true,
+    );
   });
 });
 
 describe("resumenPorSeccion", () => {
-  it("toma el primer campo con contenido de cada sección, en el mismo orden que el checklist", () => {
+  it("toma el primer campo con contenido de marca/estilo/contacto, en el mismo orden que el checklist", () => {
     const identidad = baseIdentidad({
       reglas: "Sin tecnicismos",
-      avatarJson: avatarJsonCon({ profesion: "Arquitecta" }),
-      personajePersonalidad: "Cercano y paciente",
       camara: "Formato vertical 9:16",
       telefono: "+56911111111",
     });
     const resumen = resumenPorSeccion(identidad);
     expect(resumen.marca).toBe("Sin tecnicismos");
-    expect(resumen.avatar).toBe("Arquitecta");
-    expect(resumen.personaje).toBe("Cercano y paciente");
     expect(resumen.estilo).toBe("Formato vertical 9:16");
     expect(resumen.contacto).toBe("+56911111111");
   });
 
   it("devuelve cadenas vacías para las secciones sin contenido", () => {
     const resumen = resumenPorSeccion(baseIdentidad());
-    expect(resumen).toEqual({ marca: "", avatar: "", personaje: "", estilo: "", contacto: "" });
+    expect(resumen).toEqual({ marca: "", estilo: "", contacto: "" });
   });
 });

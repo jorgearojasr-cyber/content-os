@@ -1,11 +1,23 @@
-import type { Identidad } from "./types";
-import { avatarHasContent, parseAvatar, parseFotosPersonaje } from "./types";
+import type { Avatar, Identidad, Personaje } from "./types";
+import { avatarTieneContenido, parseFotosPersonaje } from "./types";
 
-/** Todos los campos de `Identidad` salvo `avatarJson` y `fotosUrlsJson`
- * (columnas `jsonb`, ambas `unknown` — no campos de texto simple). */
-type CampoTextoIdentidad = Exclude<keyof Identidad, "avatarJson" | "fotosUrlsJson">;
+/** Campos de texto de `Identidad` que siguen viviendo ahí de verdad (Marca,
+ * Estilo, Contacto). Los antiguos campos de Personaje/Avatar quedaron
+ * deprecados — ver `personajes`/`avatares` en db/schema.ts. */
+type CampoTextoIdentidad = Exclude<
+  keyof Identidad,
+  | "avatarJson"
+  | "fotosUrlsJson"
+  | "personajeNombre"
+  | "personajePersonalidad"
+  | "fisica"
+  | "vestuario"
+  | "vozDescrita"
+  | "gestos"
+  | "muletillas"
+>;
 
-const ETIQUETAS_AVATAR: Array<[keyof ReturnType<typeof parseAvatar>, string]> = [
+const ETIQUETAS_AVATAR: Array<[Exclude<keyof Avatar, "id" | "proyectoId" | "createdAt">, string]> = [
   ["nombreFicticio", "Nombre ficticio"],
   ["edad", "Edad"],
   ["profesion", "Profesión"],
@@ -19,21 +31,23 @@ const ETIQUETAS_AVATAR: Array<[keyof ReturnType<typeof parseAvatar>, string]> = 
 ];
 
 /**
- * Renderiza el avatar campo por campo (no lo resume): cada dato guardado
- * se antepone con su propia etiqueta, igual que el resto del compilador.
+ * Renderiza el avatar SELECCIONADO campo por campo (no lo resume): cada
+ * dato guardado se antepone con su propia etiqueta, igual que el resto del
+ * compilador. "" si no hay avatar seleccionado o no tiene contenido.
  */
-function formatearAvatar(avatarJson: unknown): string {
-  const avatar = parseAvatar(avatarJson);
-  if (!avatarHasContent(avatar)) return "";
+function formatearAvatar(avatar: Avatar | null | undefined): string {
+  if (!avatar || !avatarTieneContenido(avatar)) return "";
   return ETIQUETAS_AVATAR.filter(([campo]) => avatar[campo]?.trim().length > 0)
     .map(([campo, etiqueta]) => `${etiqueta}: ${avatar[campo].trim()}`)
     .join("\n");
 }
 
-/** Renderiza las fotos de referencia del Personaje (hasta 4) numeradas,
- * igual de literal que el resto del compilador — no elige "la mejor". */
-function formatearFotosPersonaje(fotosUrlsJson: unknown): string {
-  const fotos = parseFotosPersonaje(fotosUrlsJson);
+/** Renderiza las fotos de referencia del Personaje SELECCIONADO (hasta 4)
+ * numeradas, igual de literal que el resto del compilador — no elige "la
+ * mejor". */
+function formatearFotosPersonaje(personaje: Personaje | null | undefined): string {
+  if (!personaje) return "";
+  const fotos = parseFotosPersonaje(personaje.fotosUrlsJson);
   if (fotos.length === 0) return "";
   return fotos.map((url, i) => `${i + 1}. ${url}`).join("\n");
 }
@@ -43,10 +57,10 @@ function formatearFotosPersonaje(fotosUrlsJson: unknown): string {
  * ------------------------------------------------------------------
  * Esta es la pieza que justifica que Content OS exista.
  *
- * No es un agente de IA. Es una función pura: mismo objeto Identidad
- * de entrada -> exactamente el mismo texto de salida, siempre. No
- * resume, no reinterpreta, no "recuerda a su manera" — copia los
- * campos guardados de forma literal dentro de una plantilla fija.
+ * No es un agente de IA. Es una función pura: misma Identidad + mismo
+ * Personaje/Avatar seleccionados -> exactamente el mismo texto de salida,
+ * siempre. No resume, no reinterpreta, no "recuerda a su manera" — copia
+ * los campos guardados de forma literal dentro de una plantilla fija.
  *
  * La consistencia de un proyecto no depende de que un modelo de IA
  * "se acuerde bien" del personaje o del estilo: depende de que este
@@ -54,10 +68,9 @@ function formatearFotosPersonaje(fotosUrlsJson: unknown): string {
  * que luego se inyecta sin abreviar en cualquier generación futura
  * (texto, imagen o video) y hacia cualquier herramienta externa.
  *
- * A partir de la Fase 2, este bloque es literalmente lo que se
- * antepone a cada llamada de generación. En la Fase 1 no hay
- * generación todavía, pero el compilador ya es real y comprobable:
- * la pantalla "Crear" muestra su salida como vista previa.
+ * Un proyecto puede tener varios Personajes y varios Avatares — el
+ * Compilador nunca los elige por su cuenta: siempre recibe el objeto ya
+ * SELECCIONADO (por quien llama) en `opciones.personaje`/`opciones.avatar`.
  * ------------------------------------------------------------------
  */
 
@@ -93,13 +106,21 @@ export type OpcionesCompilado = {
    * dirección). Por defecto `false` — el Compilador nunca envía datos de
    * contacto salvo que se pida explícitamente (ver casillas de Crear). */
   incluirContacto?: boolean;
+  /** El Personaje SELECCIONADO para esta compilación (por quien llama —
+   * el Compilador nunca elige entre varios). `null`/`undefined` = sin
+   * Personaje, la sección se omite aunque `incluirPersonaje` sea `true`. */
+  personaje?: Personaje | null;
+  /** El Avatar SELECCIONADO para esta compilación. `null`/`undefined` =
+   * sin Avatar, el sub-bloque se omite. */
+  avatar?: Avatar | null;
 };
 
 /**
- * Compila el objeto Identidad completo en un bloque de texto canónico.
- * Las secciones sin ningún dato cargado se omiten (no se envían
- * etiquetas vacías a una futura generación), pero el orden y el
- * formato de las que sí tienen datos nunca cambia.
+ * Compila el objeto Identidad completo (más el Personaje/Avatar
+ * seleccionados) en un bloque de texto canónico. Las secciones sin ningún
+ * dato cargado se omiten (no se envían etiquetas vacías a una futura
+ * generación), pero el orden y el formato de las que sí tienen datos nunca
+ * cambia.
  *
  * `opciones` controla qué secciones se incluyen — es la única fuente de
  * verdad que usan tanto la vista previa (todo incluido, opciones por
@@ -107,9 +128,15 @@ export type OpcionesCompilado = {
  * usuario). No hay una segunda copia de esta lógica en ningún otro lado.
  */
 export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilado = {}): string {
-  const { incluirMarca = true, incluirPersonaje = true, incluirContacto = false } = opciones;
+  const {
+    incluirMarca = true,
+    incluirPersonaje = true,
+    incluirContacto = false,
+    personaje = null,
+    avatar = null,
+  } = opciones;
 
-  const avatarFormateado = formatearAvatar(identidad.avatarJson);
+  const avatarFormateado = formatearAvatar(avatar);
 
   const marca = incluirMarca
     ? seccion("Marca", [
@@ -120,19 +147,20 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
       ])
     : "";
 
-  const fotosFormateadas = formatearFotosPersonaje(identidad.fotosUrlsJson);
-  const personaje = incluirPersonaje
-    ? seccion("Personaje", [
-        ["Nombre", identidad.personajeNombre],
-        ["Personalidad", identidad.personajePersonalidad],
-        ["Descripción física", identidad.fisica],
-        ["Vestuario", identidad.vestuario],
-        ["Voz (descripción)", identidad.vozDescrita],
-        ["Gestos", identidad.gestos],
-        ["Muletillas", identidad.muletillas],
-        fotosFormateadas ? `Fotos de referencia:\n${fotosFormateadas}` : "",
-      ])
-    : "";
+  const fotosFormateadas = formatearFotosPersonaje(personaje);
+  const personajeSeccion =
+    incluirPersonaje && personaje
+      ? seccion("Personaje", [
+          ["Nombre", personaje.nombre],
+          ["Personalidad", personaje.personalidad],
+          ["Descripción física", personaje.fisica],
+          ["Vestuario", personaje.vestuario],
+          ["Voz (descripción)", personaje.vozDescrita],
+          ["Gestos", personaje.gestos],
+          ["Muletillas", personaje.muletillas],
+          fotosFormateadas ? `Fotos de referencia:\n${fotosFormateadas}` : "",
+        ])
+      : "";
 
   const estilo = seccion("Estilo", [
     ["Paleta de colores", identidad.paleta],
@@ -152,7 +180,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
       ])
     : "";
 
-  const secciones = [marca, personaje, estilo, contacto].filter(Boolean);
+  const secciones = [marca, personajeSeccion, estilo, contacto].filter(Boolean);
 
   if (secciones.length === 0) {
     return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
@@ -165,13 +193,6 @@ const CAMPOS_DE_CONTENIDO = [
   "voz",
   "reglas",
   "objetivo",
-  "personajeNombre",
-  "personajePersonalidad",
-  "fisica",
-  "vestuario",
-  "vozDescrita",
-  "gestos",
-  "muletillas",
   "paleta",
   "tipografia",
   "look",
@@ -181,32 +202,20 @@ const CAMPOS_DE_CONTENIDO = [
   "logoUrl",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
-/** True si al menos un campo de contenido de la identidad tiene texto.
- * Los datos de Contacto NO cuentan aquí a propósito: son opcionales y
- * nunca afectan qué tan genérico sale el contenido por defecto. */
-export function identityHasContent(identidad: Identidad): boolean {
-  if (avatarHasContent(parseAvatar(identidad.avatarJson))) return true;
-  if (parseFotosPersonaje(identidad.fotosUrlsJson).length > 0) return true;
+/** True si al menos un campo de contenido de la identidad tiene texto, o si
+ * hay al menos un Personaje o un Avatar guardado en el proyecto. Los datos
+ * de Contacto NO cuentan aquí a propósito: son opcionales y nunca afectan
+ * qué tan genérico sale el contenido por defecto. */
+export function identityHasContent(
+  identidad: Identidad,
+  contexto: { tienePersonaje: boolean; tieneAvatar: boolean },
+): boolean {
+  if (contexto.tienePersonaje || contexto.tieneAvatar) return true;
   return CAMPOS_DE_CONTENIDO.some((campo) => identidad[campo]?.trim().length > 0);
 }
 
 const CAMPOS_MARCA = ["voz", "reglas", "objetivo"] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
-// Los 7 campos de texto del Personaje — a propósito sin `fotosUrlsJson`, que
-// es una referencia de medio, no contenido de texto de la sección.
-const CAMPOS_PERSONAJE = [
-  "personajeNombre",
-  "personajePersonalidad",
-  "fisica",
-  "vestuario",
-  "vozDescrita",
-  "gestos",
-  "muletillas",
-] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
-
-// Los 6 campos de texto del Estilo — a propósito sin `logoUrl`, que es una
-// referencia de medio, no contenido de texto de la sección (mismo criterio
-// que excluye `fotosUrlsJson` de CAMPOS_PERSONAJE).
 const CAMPOS_ESTILO = [
   "paleta",
   "tipografia",
@@ -248,14 +257,19 @@ export type IdentidadPorSeccion = {
 /**
  * Estado ✔/✗ por sección — a diferencia de `identityHasContent` (que evalúa
  * la identidad completa junta), esto agrupa los campos por sección para el
- * checklist visual del Compilador. No cambia `compileIdentity` ni su salida;
+ * checklist visual del Compilador. Personaje/Avatar ✔ = existe al menos
+ * uno en la lista del proyecto (se le pasa como contexto — el Compilador
+ * no consulta la base de datos). No cambia `compileIdentity` ni su salida;
  * es una capa de lectura adicional sobre los mismos datos.
  */
-export function identidadPorSeccion(identidad: Identidad): IdentidadPorSeccion {
+export function identidadPorSeccion(
+  identidad: Identidad,
+  contexto: { tienePersonaje: boolean; tieneAvatar: boolean },
+): IdentidadPorSeccion {
   return {
     marca: algunCampoConContenido(identidad, CAMPOS_MARCA),
-    avatar: avatarHasContent(parseAvatar(identidad.avatarJson)),
-    personaje: algunCampoConContenido(identidad, CAMPOS_PERSONAJE),
+    avatar: contexto.tieneAvatar,
+    personaje: contexto.tienePersonaje,
     estilo: algunCampoConContenido(identidad, CAMPOS_ESTILO),
     contacto: algunCampoConContenido(identidad, CAMPOS_CONTACTO),
   };
@@ -271,27 +285,19 @@ function primerValorConContenido(identidad: Identidad, campos: ReadonlyArray<Cam
 
 export type ResumenPorSeccion = {
   marca: string;
-  avatar: string;
-  personaje: string;
   estilo: string;
   contacto: string;
 };
 
 /**
- * El primer campo con contenido de cada sección — para el resumen de una
- * línea que se muestra cuando una sección viene plegada en la pantalla
- * Identidad. Mismos grupos de campos que `identidadPorSeccion`; ningún
- * criterio nuevo de qué pertenece a cada sección.
+ * El primer campo con contenido de Marca/Estilo/Contacto — para el resumen
+ * de una línea que se muestra cuando esa sección viene plegada en la
+ * pantalla Identidad. Personaje y Avatar ya no tienen resumen acá: pasaron
+ * a ser listas de tarjetas con su propio resumen por tarjeta.
  */
 export function resumenPorSeccion(identidad: Identidad): ResumenPorSeccion {
-  const avatar = parseAvatar(identidad.avatarJson);
-  const avatarResumen = ETIQUETAS_AVATAR.map(([campo]) => avatar[campo]).find(
-    (valor) => valor?.trim().length > 0,
-  );
   return {
     marca: primerValorConContenido(identidad, CAMPOS_MARCA),
-    avatar: avatarResumen?.trim() ?? "",
-    personaje: primerValorConContenido(identidad, CAMPOS_PERSONAJE),
     estilo: primerValorConContenido(identidad, CAMPOS_ESTILO),
     contacto: primerValorConContenido(identidad, CAMPOS_CONTACTO),
   };

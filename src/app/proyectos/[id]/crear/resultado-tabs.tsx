@@ -90,12 +90,17 @@ export function ResultadoTabs({
   proyectoId,
   resultado,
   formato,
+  personajeId,
   onGuardar,
   onEmpezarDeNuevo,
 }: {
   proyectoId: string;
   resultado: ContenidoGenerado;
   formato: string;
+  /** El Personaje que estaba seleccionado al generar esta pieza (si
+   * corresponde) — se guarda junto con el bloque para que la generación de
+   * imagen use su foto de referencia. "" si no había ninguno. */
+  personajeId?: string;
   onGuardar: (formData: FormData) => Promise<void>;
   onEmpezarDeNuevo: () => void;
 }) {
@@ -141,6 +146,7 @@ export function ResultadoTabs({
       fd.set("formato", formato || "Otro formato");
       fd.set("texto", construirTextoPlano({ copy, hashtags, cta, narracion, miniatura, escenas }) || "(sin contenido)");
       fd.set("escenasJson", escenas.length > 0 ? JSON.stringify(escenas) : "");
+      if (personajeId) fd.set("personajeId", personajeId);
       await onGuardar(fd);
       router.push(`/proyectos/${proyectoId}/biblioteca`);
     } catch (e) {

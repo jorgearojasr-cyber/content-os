@@ -8,7 +8,7 @@ import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campo
 import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
-import type { Identidad } from "@/lib/types";
+import type { Avatar, Identidad, Personaje } from "@/lib/types";
 
 type Modo = "rapido" | "guiado" | "profesional";
 
@@ -35,18 +35,26 @@ function segundosDesdeDuracion(duracion: string): number | undefined {
 }
 
 /**
- * "Qué incluir en esta pieza" — mismas 3 casillas antes del botón de
- * generar en los 3 modos (un solo componente, no una copia por modo).
- * Controlan qué secciones del Compilador se pasan a esta generación en
- * particular (ver `OpcionesCompilado` en identity-compiler.ts); no cambian
- * nada guardado en Identidad.
+ * "Qué incluir en esta pieza" — mismas casillas antes del botón de generar
+ * en los 3 modos (un solo componente, no una copia por modo). Controlan
+ * qué secciones del Compilador se pasan a esta generación en particular
+ * (ver `OpcionesCompilado` en identity-compiler.ts); no cambian nada
+ * guardado en Identidad. Cuando el proyecto tiene más de un Personaje o
+ * Avatar, aparece un selector de cuál usar (por defecto, el más reciente)
+ * — con uno solo, no hay selector, cero fricción agregada.
  */
 function QueIncluir({
   mostrarPersonaje,
   incluirPersonaje,
   setIncluirPersonaje,
+  personajes,
+  personajeId,
+  setPersonajeId,
   incluirMarca,
   setIncluirMarca,
+  avatares,
+  avatarId,
+  setAvatarId,
   mostrarContacto,
   incluirContacto,
   setIncluirContacto,
@@ -57,8 +65,14 @@ function QueIncluir({
   mostrarPersonaje: boolean;
   incluirPersonaje: boolean;
   setIncluirPersonaje: (v: boolean) => void;
+  personajes: Personaje[];
+  personajeId: string;
+  setPersonajeId: (v: string) => void;
   incluirMarca: boolean;
   setIncluirMarca: (v: boolean) => void;
+  avatares: Avatar[];
+  avatarId: string;
+  setAvatarId: (v: string) => void;
   mostrarContacto: boolean;
   incluirContacto: boolean;
   setIncluirContacto: (v: boolean) => void;
@@ -71,23 +85,53 @@ function QueIncluir({
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Qué incluir en esta pieza</p>
       <div className="flex flex-col gap-1.5">
         {mostrarPersonaje ? (
+          <div>
+            <label className="flex items-center gap-2 text-[13px] text-text">
+              <input
+                type="checkbox"
+                checked={incluirPersonaje}
+                onChange={(e) => setIncluirPersonaje(e.target.checked)}
+              />
+              Usar Personaje
+            </label>
+            {incluirPersonaje && personajes.length > 1 ? (
+              <select
+                value={personajeId}
+                onChange={(e) => setPersonajeId(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
+              >
+                {personajes.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre || "Personaje sin nombre"}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+        ) : null}
+        <div>
           <label className="flex items-center gap-2 text-[13px] text-text">
             <input
               type="checkbox"
-              checked={incluirPersonaje}
-              onChange={(e) => setIncluirPersonaje(e.target.checked)}
+              checked={incluirMarca}
+              onChange={(e) => setIncluirMarca(e.target.checked)}
             />
-            Usar Personaje
+            Usar voz y tono de la marca
           </label>
-        ) : null}
-        <label className="flex items-center gap-2 text-[13px] text-text">
-          <input
-            type="checkbox"
-            checked={incluirMarca}
-            onChange={(e) => setIncluirMarca(e.target.checked)}
-          />
-          Usar voz y tono de la marca
-        </label>
+          {incluirMarca && avatares.length > 1 ? (
+            <select
+              value={avatarId}
+              onChange={(e) => setAvatarId(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
+            >
+              {avatares.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombreFicticio || "Avatar sin nombre"}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
         {mostrarContacto ? (
           <label className="flex items-center gap-2 text-[13px] text-text">
             <input
@@ -116,6 +160,8 @@ function QueIncluir({
 export function CrearModos({
   proyectoId,
   identidad,
+  personajes,
+  avatares,
   tieneConocimiento,
   onInferir,
   onGenerar,
@@ -124,6 +170,8 @@ export function CrearModos({
 }: {
   proyectoId: string;
   identidad: Identidad;
+  personajes: Personaje[];
+  avatares: Avatar[];
   tieneConocimiento: boolean;
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
   onGenerar: (
@@ -132,12 +180,17 @@ export function CrearModos({
       incluirMarca?: boolean;
       incluirContacto?: boolean;
       incluirConocimiento?: boolean;
+      personajeId?: string;
+      avatarId?: string;
     },
   ) => Promise<ContenidoGenerado>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
 }) {
-  const seccionesInfo = identidadPorSeccion(identidad);
+  const seccionesInfo = identidadPorSeccion(identidad, {
+    tienePersonaje: personajes.length > 0,
+    tieneAvatar: avatares.length > 0,
+  });
   const tieneContacto = identidadTieneContacto(identidad);
 
   const [modo, setModo] = useState<Modo>("rapido");
@@ -148,7 +201,10 @@ export function CrearModos({
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
   const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
+  // Más reciente por defecto (personajes/avatares ya vienen ordenados así).
+  const [personajeId, setPersonajeId] = useState(personajes[0]?.id ?? "");
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
+  const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
   const [incluirConocimiento, setIncluirConocimiento] = useState(true);
 
@@ -213,6 +269,8 @@ export function CrearModos({
         incluirMarca,
         incluirContacto,
         incluirConocimiento,
+        personajeId: incluirPersonaje ? personajeId || undefined : undefined,
+        avatarId: incluirMarca ? avatarId || undefined : undefined,
       });
       setResultado(resultadoGenerado);
     } catch (e) {
@@ -228,6 +286,7 @@ export function CrearModos({
         proyectoId={proyectoId}
         resultado={resultado}
         formato={config.tipoContenido}
+        personajeId={incluirPersonaje ? personajeId : ""}
         onGuardar={onGuardar}
         onEmpezarDeNuevo={empezarDeNuevo}
       />
@@ -288,8 +347,14 @@ export function CrearModos({
                 mostrarPersonaje={seccionesInfo.personaje}
                 incluirPersonaje={incluirPersonaje}
                 setIncluirPersonaje={setIncluirPersonaje}
+                personajes={personajes}
+                personajeId={personajeId}
+                setPersonajeId={setPersonajeId}
                 incluirMarca={incluirMarca}
                 setIncluirMarca={setIncluirMarca}
+                avatares={avatares}
+                avatarId={avatarId}
+                setAvatarId={setAvatarId}
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
@@ -345,8 +410,14 @@ export function CrearModos({
                 mostrarPersonaje={seccionesInfo.personaje}
                 incluirPersonaje={incluirPersonaje}
                 setIncluirPersonaje={setIncluirPersonaje}
+                personajes={personajes}
+                personajeId={personajeId}
+                setPersonajeId={setPersonajeId}
                 incluirMarca={incluirMarca}
                 setIncluirMarca={setIncluirMarca}
+                avatares={avatares}
+                avatarId={avatarId}
+                setAvatarId={setAvatarId}
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
@@ -377,8 +448,14 @@ export function CrearModos({
               mostrarPersonaje={seccionesInfo.personaje}
               incluirPersonaje={incluirPersonaje}
               setIncluirPersonaje={setIncluirPersonaje}
+              personajes={personajes}
+              personajeId={personajeId}
+              setPersonajeId={setPersonajeId}
               incluirMarca={incluirMarca}
               setIncluirMarca={setIncluirMarca}
+              avatares={avatares}
+              avatarId={avatarId}
+              setAvatarId={setAvatarId}
               mostrarContacto={tieneContacto}
               incluirContacto={incluirContacto}
               setIncluirContacto={setIncluirContacto}

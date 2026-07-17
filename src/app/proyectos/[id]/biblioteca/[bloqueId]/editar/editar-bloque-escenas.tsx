@@ -29,6 +29,8 @@ export function EditarBloqueConEscenas({
   onGenerarImagen,
   identidad,
   activosCount,
+  tienePersonaje,
+  tieneAvatar,
 }: {
   bloque: Bloque;
   escenasIniciales: Escena[];
@@ -36,6 +38,8 @@ export function EditarBloqueConEscenas({
   onGenerarImagen: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
   identidad: Identidad | null;
   activosCount: number;
+  tienePersonaje: boolean;
+  tieneAvatar: boolean;
 }) {
   const router = useRouter();
   const [titulo, setTitulo] = useState(bloque.titulo);
@@ -103,6 +107,8 @@ export function EditarBloqueConEscenas({
           <IdentidadChecklist
             identidad={identidad}
             activosCount={activosCount}
+            tienePersonaje={tienePersonaje}
+            tieneAvatar={tieneAvatar}
             textoDetalle={bloque.identidadCompilada}
           />
         </Card>
