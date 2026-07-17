@@ -22,7 +22,7 @@ function iconoParaFormato(formato: string): string {
 }
 
 export default async function RootPage() {
-  const { proyectoReciente, proyectosRecientes, bloquesRecientes, notasSinVincular } =
+  const { proyectoReciente, proyectosRecientes, totalProyectos, bloquesRecientes, notasSinVincular } =
     await getDashboardData();
 
   const saludo = saludoChile();
@@ -33,7 +33,12 @@ export default async function RootPage() {
       ? "Sigue creando contenido para tus proyectos."
       : "Crea tu primer proyecto para empezar.";
 
-  const crearHref = proyectoReciente ? `/proyectos/${proyectoReciente.id}/crear` : "/proyectos";
+  // Con exactamente 1 proyecto no hay ambigüedad posible — directo a Crear.
+  // Con 0 o 2+, al listado: sin proyectos para elegir uno, o con varios
+  // para que el usuario elija a cuál entrar (ya no se asume "el más
+  // reciente").
+  const crearHref =
+    totalProyectos === 1 && proyectoReciente ? `/proyectos/${proyectoReciente.id}/crear` : "/proyectos";
 
   const cerebroDescripcion =
     notasSinVincular > 0

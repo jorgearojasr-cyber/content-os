@@ -1209,6 +1209,10 @@ export async function getDashboardData() {
   return {
     proyectoReciente: proyectosOrdenados[0] ?? null,
     proyectosRecientes: proyectosOrdenados.slice(0, 5),
+    // Total real (no el largo de `proyectosRecientes`, que se recorta a 5) —
+    // el botón "Crear contenido" del dashboard lo necesita para decidir si
+    // puede saltar directo a un proyecto o si debe mandar al listado.
+    totalProyectos: todosProyectos.length,
     bloquesRecientes,
     notasSinVincular,
   };

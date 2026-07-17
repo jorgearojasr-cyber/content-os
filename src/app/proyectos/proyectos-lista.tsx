@@ -13,11 +13,34 @@ export function ProyectosLista({
   proyectos: Proyecto[];
   onDelete: (id: string) => Promise<void>;
 }) {
+  const [busqueda, setBusqueda] = useState("");
+  const termino = busqueda.trim();
+  // Filtro client-side simple — ya se trajo la lista completa de una vez,
+  // sin necesidad de una consulta nueva al servidor.
+  const filtrados = termino
+    ? proyectos.filter((p) => p.nombre.toLowerCase().includes(termino.toLowerCase()))
+    : proyectos;
+
   return (
-    <div className="space-y-3">
-      {proyectos.map((p) => (
-        <ProyectoCard key={p.id} proyecto={p} onDelete={onDelete} />
-      ))}
+    <div>
+      <input
+        type="search"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar proyecto por nombre..."
+        className="mb-4 w-full rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text placeholder:text-text-muted/60"
+      />
+      {filtrados.length === 0 ? (
+        <p className="text-[13.5px] text-text-muted">
+          Sin resultados para &ldquo;{termino}&rdquo;.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {filtrados.map((p) => (
+            <ProyectoCard key={p.id} proyecto={p} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
