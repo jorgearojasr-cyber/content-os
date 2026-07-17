@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compileIdentity, identidadPorSeccion, identityHasContent } from "./identity-compiler";
+import {
+  compileIdentity,
+  identidadPorSeccion,
+  identidadTieneContacto,
+  identityHasContent,
+} from "./identity-compiler";
 import type { AvatarCliente, Identidad } from "./types";
 
 function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
@@ -17,7 +22,7 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     vozDescrita: "",
     gestos: "",
     muletillas: "",
-    fotoUrl: "",
+    fotosUrlsJson: [],
     paleta: "",
     tipografia: "",
     look: "",
@@ -25,6 +30,9 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     ritmo: "",
     estructuraCta: "",
     logoUrl: "",
+    sitioWeb: "",
+    telefono: "",
+    direccion: "",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -101,6 +109,52 @@ describe("compileIdentity", () => {
     const salida = compileIdentity(identidad);
     expect(salida).not.toContain("Avatar del cliente ideal");
   });
+
+  it("renderiza las fotos de referencia del Personaje numeradas", () => {
+    const identidad = baseIdentidad({
+      personajeNombre: "Don José Luis",
+      fotosUrlsJson: ["https://blob/foto1.jpg", "https://blob/foto2.jpg"],
+    });
+    const salida = compileIdentity(identidad);
+    expect(salida).toContain("Fotos de referencia:");
+    expect(salida).toContain("1. https://blob/foto1.jpg");
+    expect(salida).toContain("2. https://blob/foto2.jpg");
+  });
+
+  it("nunca incluye Contacto por defecto, aunque haya datos cargados", () => {
+    const identidad = baseIdentidad({ sitioWeb: "https://ejemplo.com", telefono: "+56911111111" });
+    const salida = compileIdentity(identidad);
+    expect(salida).not.toContain("## Contacto");
+  });
+
+  it("opciones.incluirContacto agrega la sección Contacto", () => {
+    const identidad = baseIdentidad({
+      sitioWeb: "https://ejemplo.com",
+      telefono: "+56911111111",
+      direccion: "Av. Siempre Viva 123",
+    });
+    const salida = compileIdentity(identidad, { incluirContacto: true });
+    expect(salida).toContain("## Contacto");
+    expect(salida).toContain("Sitio web: https://ejemplo.com");
+    expect(salida).toContain("Teléfono: +56911111111");
+    expect(salida).toContain("Dirección: Av. Siempre Viva 123");
+  });
+
+  it("opciones.incluirPersonaje = false omite toda la sección Personaje", () => {
+    const identidad = baseIdentidad({ personajeNombre: "Don José Luis" });
+    const salida = compileIdentity(identidad, { incluirPersonaje: false });
+    expect(salida).not.toContain("## Personaje");
+  });
+
+  it("opciones.incluirMarca = false omite Marca, avatar incluido", () => {
+    const identidad = baseIdentidad({
+      voz: "Directa",
+      avatarJson: avatarJsonCon({ edad: "42" }),
+    });
+    const salida = compileIdentity(identidad, { incluirMarca: false });
+    expect(salida).not.toContain("## Marca");
+    expect(salida).not.toContain("Avatar del cliente ideal");
+  });
 });
 
 describe("identityHasContent", () => {
@@ -119,6 +173,26 @@ describe("identityHasContent", () => {
   it("es verdadero si solo el avatar (avatarJson con al menos un campo) tiene datos", () => {
     const identidad = baseIdentidad({ avatarJson: avatarJsonCon({ edad: "30" }) });
     expect(identityHasContent(identidad)).toBe(true);
+  });
+
+  it("es verdadero si solo hay una foto de referencia del Personaje", () => {
+    const identidad = baseIdentidad({ fotosUrlsJson: ["https://blob/foto1.jpg"] });
+    expect(identityHasContent(identidad)).toBe(true);
+  });
+
+  it("es falso si solo hay datos de Contacto — Contacto no cuenta como contenido", () => {
+    const identidad = baseIdentidad({ sitioWeb: "https://ejemplo.com" });
+    expect(identityHasContent(identidad)).toBe(false);
+  });
+});
+
+describe("identidadTieneContacto", () => {
+  it("es falso sin ningún dato de contacto", () => {
+    expect(identidadTieneContacto(baseIdentidad())).toBe(false);
+  });
+
+  it("es verdadero con al menos un campo de contacto", () => {
+    expect(identidadTieneContacto(baseIdentidad({ telefono: "+56911111111" }))).toBe(true);
   });
 });
 
@@ -142,8 +216,8 @@ describe("identidadPorSeccion", () => {
     expect(identidadPorSeccion(identidad).avatar).toBe(true);
   });
 
-  it("personaje es verdadero con al menos uno de sus 7 campos, pero fotoUrl NO cuenta como campo de personaje", () => {
-    const soloFoto = baseIdentidad({ fotoUrl: "/uploads/foto.jpg" });
+  it("personaje es verdadero con al menos uno de sus 7 campos, pero fotosUrlsJson NO cuenta como campo de personaje", () => {
+    const soloFoto = baseIdentidad({ fotosUrlsJson: ["/uploads/foto.jpg"] });
     expect(identidadPorSeccion(soloFoto).personaje).toBe(false);
 
     const conNombre = baseIdentidad({ personajeNombre: "Don José Luis" });

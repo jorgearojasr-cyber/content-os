@@ -55,12 +55,18 @@ function getClient(): OpenAI {
 
 /**
  * Genera una imagen real con la API de imágenes de OpenAI. Si se pasa
- * `fotoReferenciaUrl` (URL de Vercel Blob, típicamente la foto del
- * Personaje en Identidad), la descarga desde Blob y usa el endpoint de
- * EDICIÓN con esa imagen como referencia; si no, genera de texto a imagen
- * normal. Guarda el resultado con el mismo `guardarArchivoSubido` que ya
- * usan Activos y la foto de Personaje (no duplica lógica de guardado), y
- * devuelve la URL de Blob final.
+ * `fotoReferenciaUrl` (URL de Vercel Blob, típicamente la primera de las
+ * fotos del Personaje en Identidad — el llamador decide cuál manda), la
+ * descarga desde Blob y usa el endpoint de EDICIÓN con esa imagen como
+ * referencia; si no, genera de texto a imagen normal. Guarda el resultado
+ * con el mismo `guardarArchivoSubido` que ya usan Activos y las fotos de
+ * Personaje (no duplica lógica de guardado), y devuelve la URL de Blob
+ * final.
+ *
+ * Identidad ahora permite hasta 4 fotos de referencia del Personaje, pero
+ * este proveedor sigue aceptando una sola — usar varias referencias a la
+ * vez en el mismo llamado a la API de imágenes es una mejora futura del
+ * proveedor, no de esta ronda.
  */
 export async function generarImagenIA(
   prompt: string,

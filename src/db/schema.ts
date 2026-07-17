@@ -40,7 +40,9 @@ export const identidades = pgTable("identidades", {
   vozDescrita: text("voz_descrita").notNull().default(""),
   gestos: text("gestos").notNull().default(""),
   muletillas: text("muletillas").notNull().default(""),
-  fotoUrl: text("foto_url").notNull().default(""),
+  // Arreglo de hasta 4 URLs de Blob — reemplaza a la antigua `fotoUrl`
+  // (columna única). Ver `parseFotosPersonaje` en types.ts.
+  fotosUrlsJson: jsonb("fotos_urls_json").notNull().default([]),
 
   // Capa Estilo
   paleta: text("paleta").notNull().default(""),
@@ -50,6 +52,12 @@ export const identidades = pgTable("identidades", {
   ritmo: text("ritmo").notNull().default(""),
   estructuraCta: text("estructura_cta").notNull().default(""),
   logoUrl: text("logo_url").notNull().default(""),
+
+  // Contacto (opcional) — nunca se incluye en el Compilador por defecto,
+  // solo cuando se activa explícitamente al crear (ver Mejora 3).
+  sitioWeb: text("sitio_web").notNull().default(""),
+  telefono: text("telefono").notNull().default(""),
+  direccion: text("direccion").notNull().default(""),
 
   updatedAt: text("updated_at")
     .notNull()

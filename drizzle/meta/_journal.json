@@ -15,6 +15,20 @@
       "when": 1784259388991,
       "tag": "0001_yummy_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784260135265,
+      "tag": "0002_mixed_pride",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784260191111,
+      "tag": "0003_bent_the_executioner",
+      "breakpoints": true
     }
   ]
 }

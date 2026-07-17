@@ -1,9 +1,9 @@
 import type { Identidad } from "./types";
-import { avatarHasContent, parseAvatar } from "./types";
+import { avatarHasContent, parseAvatar, parseFotosPersonaje } from "./types";
 
-/** Todos los campos de `Identidad` salvo `avatarJson` (que es `unknown`,
- * columna `jsonb` — no un campo de texto simple como el resto). */
-type CampoTextoIdentidad = Exclude<keyof Identidad, "avatarJson">;
+/** Todos los campos de `Identidad` salvo `avatarJson` y `fotosUrlsJson`
+ * (columnas `jsonb`, ambas `unknown` — no campos de texto simple). */
+type CampoTextoIdentidad = Exclude<keyof Identidad, "avatarJson" | "fotosUrlsJson">;
 
 const ETIQUETAS_AVATAR: Array<[keyof ReturnType<typeof parseAvatar>, string]> = [
   ["nombreFicticio", "Nombre ficticio"],
@@ -28,6 +28,14 @@ function formatearAvatar(avatarJson: unknown): string {
   return ETIQUETAS_AVATAR.filter(([campo]) => avatar[campo]?.trim().length > 0)
     .map(([campo, etiqueta]) => `${etiqueta}: ${avatar[campo].trim()}`)
     .join("\n");
+}
+
+/** Renderiza las fotos de referencia del Personaje (hasta 4) numeradas,
+ * igual de literal que el resto del compilador — no elige "la mejor". */
+function formatearFotosPersonaje(fotosUrlsJson: unknown): string {
+  const fotos = parseFotosPersonaje(fotosUrlsJson);
+  if (fotos.length === 0) return "";
+  return fotos.map((url, i) => `${i + 1}. ${url}`).join("\n");
 }
 
 /**
@@ -74,32 +82,57 @@ function seccion(titulo: string, entradas: Entrada[]): string {
   return `## ${titulo}\n${contenido}`;
 }
 
+export type OpcionesCompilado = {
+  /** Si es `false`, omite toda la sección "## Marca" (voz, reglas, objetivo
+   * y Avatar del cliente ideal incluidos). Por defecto `true` — no cambia
+   * el comportamiento de ningún llamado existente. */
+  incluirMarca?: boolean;
+  /** Si es `false`, omite toda la sección "## Personaje". Por defecto `true`. */
+  incluirPersonaje?: boolean;
+  /** Si es `true`, agrega una sección "## Contacto" (sitio web, teléfono,
+   * dirección). Por defecto `false` — el Compilador nunca envía datos de
+   * contacto salvo que se pida explícitamente (ver casillas de Crear). */
+  incluirContacto?: boolean;
+};
+
 /**
  * Compila el objeto Identidad completo en un bloque de texto canónico.
  * Las secciones sin ningún dato cargado se omiten (no se envían
  * etiquetas vacías a una futura generación), pero el orden y el
  * formato de las que sí tienen datos nunca cambia.
+ *
+ * `opciones` controla qué secciones se incluyen — es la única fuente de
+ * verdad que usan tanto la vista previa (todo incluido, opciones por
+ * defecto) como la generación real desde Crear (con las casillas del
+ * usuario). No hay una segunda copia de esta lógica en ningún otro lado.
  */
-export function compileIdentity(identidad: Identidad): string {
+export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilado = {}): string {
+  const { incluirMarca = true, incluirPersonaje = true, incluirContacto = false } = opciones;
+
   const avatarFormateado = formatearAvatar(identidad.avatarJson);
 
-  const marca = seccion("Marca", [
-    ["Voz y personalidad", identidad.voz],
-    ["Reglas de escritura", identidad.reglas],
-    ["Objetivo del proyecto", identidad.objetivo],
-    avatarFormateado ? `Avatar del cliente ideal:\n${avatarFormateado}` : "",
-  ]);
+  const marca = incluirMarca
+    ? seccion("Marca", [
+        ["Voz y personalidad", identidad.voz],
+        ["Reglas de escritura", identidad.reglas],
+        ["Objetivo del proyecto", identidad.objetivo],
+        avatarFormateado ? `Avatar del cliente ideal:\n${avatarFormateado}` : "",
+      ])
+    : "";
 
-  const personaje = seccion("Personaje", [
-    ["Nombre", identidad.personajeNombre],
-    ["Personalidad", identidad.personajePersonalidad],
-    ["Descripción física", identidad.fisica],
-    ["Vestuario", identidad.vestuario],
-    ["Voz (descripción)", identidad.vozDescrita],
-    ["Gestos", identidad.gestos],
-    ["Muletillas", identidad.muletillas],
-    ["Foto de referencia", identidad.fotoUrl],
-  ]);
+  const fotosFormateadas = formatearFotosPersonaje(identidad.fotosUrlsJson);
+  const personaje = incluirPersonaje
+    ? seccion("Personaje", [
+        ["Nombre", identidad.personajeNombre],
+        ["Personalidad", identidad.personajePersonalidad],
+        ["Descripción física", identidad.fisica],
+        ["Vestuario", identidad.vestuario],
+        ["Voz (descripción)", identidad.vozDescrita],
+        ["Gestos", identidad.gestos],
+        ["Muletillas", identidad.muletillas],
+        fotosFormateadas ? `Fotos de referencia:\n${fotosFormateadas}` : "",
+      ])
+    : "";
 
   const estilo = seccion("Estilo", [
     ["Paleta de colores", identidad.paleta],
@@ -111,7 +144,15 @@ export function compileIdentity(identidad: Identidad): string {
     ["Logo", identidad.logoUrl],
   ]);
 
-  const secciones = [marca, personaje, estilo].filter(Boolean);
+  const contacto = incluirContacto
+    ? seccion("Contacto", [
+        ["Sitio web", identidad.sitioWeb],
+        ["Teléfono", identidad.telefono],
+        ["Dirección", identidad.direccion],
+      ])
+    : "";
+
+  const secciones = [marca, personaje, estilo, contacto].filter(Boolean);
 
   if (secciones.length === 0) {
     return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
@@ -131,7 +172,6 @@ const CAMPOS_DE_CONTENIDO = [
   "vozDescrita",
   "gestos",
   "muletillas",
-  "fotoUrl",
   "paleta",
   "tipografia",
   "look",
@@ -141,16 +181,19 @@ const CAMPOS_DE_CONTENIDO = [
   "logoUrl",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
-/** True si al menos un campo de contenido de la identidad tiene texto. */
+/** True si al menos un campo de contenido de la identidad tiene texto.
+ * Los datos de Contacto NO cuentan aquí a propósito: son opcionales y
+ * nunca afectan qué tan genérico sale el contenido por defecto. */
 export function identityHasContent(identidad: Identidad): boolean {
   if (avatarHasContent(parseAvatar(identidad.avatarJson))) return true;
+  if (parseFotosPersonaje(identidad.fotosUrlsJson).length > 0) return true;
   return CAMPOS_DE_CONTENIDO.some((campo) => identidad[campo]?.trim().length > 0);
 }
 
 const CAMPOS_MARCA = ["voz", "reglas", "objetivo"] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
-// Los 7 campos de texto del Personaje — a propósito sin `fotoUrl`, que es una
-// referencia de medio, no contenido de texto de la sección.
+// Los 7 campos de texto del Personaje — a propósito sin `fotosUrlsJson`, que
+// es una referencia de medio, no contenido de texto de la sección.
 const CAMPOS_PERSONAJE = [
   "personajeNombre",
   "personajePersonalidad",
@@ -163,7 +206,7 @@ const CAMPOS_PERSONAJE = [
 
 // Los 6 campos de texto del Estilo — a propósito sin `logoUrl`, que es una
 // referencia de medio, no contenido de texto de la sección (mismo criterio
-// que excluye `fotoUrl` de CAMPOS_PERSONAJE).
+// que excluye `fotosUrlsJson` de CAMPOS_PERSONAJE).
 const CAMPOS_ESTILO = [
   "paleta",
   "tipografia",
@@ -173,8 +216,21 @@ const CAMPOS_ESTILO = [
   "estructuraCta",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
+const CAMPOS_CONTACTO = [
+  "sitioWeb",
+  "telefono",
+  "direccion",
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
+
 function algunCampoConContenido(identidad: Identidad, campos: ReadonlyArray<CampoTextoIdentidad>): boolean {
   return campos.some((campo) => identidad[campo]?.trim().length > 0);
+}
+
+/** True si hay al menos un dato de contacto cargado — usado para decidir si
+ * mostrar la casilla "Incluir datos de contacto" en Crear (no tiene sentido
+ * ofrecerla si no hay nada que incluir). */
+export function identidadTieneContacto(identidad: Identidad): boolean {
+  return algunCampoConContenido(identidad, CAMPOS_CONTACTO);
 }
 
 export type IdentidadPorSeccion = {

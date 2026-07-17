@@ -41,6 +41,7 @@ export default async function CrearPage({
 
       <CrearModos
         proyectoId={proyectoId}
+        identidad={identidad}
         onInferir={boundInferir}
         onGenerar={boundGenerar}
         onGuardar={boundCreate}

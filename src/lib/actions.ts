@@ -19,7 +19,7 @@ import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reu
 import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
-import { parseEscenas, TIPOS_ACTIVO } from "./types";
+import { MAX_FOTOS_PERSONAJE, parseEscenas, parseFotosPersonaje, TIPOS_ACTIVO } from "./types";
 import type { AvatarCliente, CalidadImagen, Identidad, IdentidadInput } from "./types";
 
 const PAPELERA_RETENCION_DIAS = 7;
@@ -95,7 +95,6 @@ const IDENTIDAD_CAMPOS = [
   "vozDescrita",
   "gestos",
   "muletillas",
-  "fotoUrl",
   "paleta",
   "tipografia",
   "look",
@@ -103,7 +102,10 @@ const IDENTIDAD_CAMPOS = [
   "ritmo",
   "estructuraCta",
   "logoUrl",
-] as const satisfies ReadonlyArray<Exclude<keyof IdentidadInput, "avatarJson">>;
+  "sitioWeb",
+  "telefono",
+  "direccion",
+] as const satisfies ReadonlyArray<Exclude<keyof IdentidadInput, "avatarJson" | "fotosUrlsJson">>;
 
 const AVATAR_CAMPOS = [
   ["avatarNombreFicticio", "nombreFicticio"],
@@ -121,7 +123,7 @@ const AVATAR_CAMPOS = [
 export async function updateIdentidad(proyectoId: string, formData: FormData) {
   const valores = Object.fromEntries(
     IDENTIDAD_CAMPOS.map((campo) => [campo, String(formData.get(campo) ?? "").trim()]),
-  ) as unknown as Omit<IdentidadInput, "avatarJson">;
+  ) as unknown as Omit<IdentidadInput, "avatarJson" | "fotosUrlsJson">;
 
   const avatar = Object.fromEntries(
     AVATAR_CAMPOS.map(([campoForm, campoAvatar]) => [
@@ -130,30 +132,68 @@ export async function updateIdentidad(proyectoId: string, formData: FormData) {
     ]),
   ) as unknown as AvatarCliente;
 
+  // Varios <input name="fotosUrls"> (uno por foto ya subida, más el que
+  // esté escribiendo el uploader activo) llegan todos bajo el mismo nombre
+  // — getAll() reconstruye el arreglo completo, en orden, capado a 4.
+  const fotosUrls = formData
+    .getAll("fotosUrls")
+    .map((v) => String(v).trim())
+    .filter((v) => v.length > 0)
+    .slice(0, MAX_FOTOS_PERSONAJE);
+
   await db
     .update(identidades)
-    .set({ ...valores, avatarJson: avatar, updatedAt: new Date().toISOString() })
+    .set({
+      ...valores,
+      avatarJson: avatar,
+      fotosUrlsJson: fotosUrls,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
   revalidatePath(`/proyectos/${proyectoId}/crear`);
 }
 
-/** Sube la foto de referencia del personaje y la persiste de inmediato
- * (no espera a que se guarde el resto del formulario de Identidad). */
-export async function subirFotoPersonaje(proyectoId: string, formData: FormData): Promise<string> {
+/** Sube una foto de referencia del Personaje (hasta `MAX_FOTOS_PERSONAJE`) y
+ * la agrega al arreglo existente, persistiendo de inmediato (no espera a que
+ * se guarde el resto del formulario de Identidad). */
+export async function subirFotoPersonaje(proyectoId: string, formData: FormData): Promise<string[]> {
   const archivo = formData.get("foto");
   if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
 
+  const identidad = await getIdentidad(proyectoId);
+  const fotosActuales = parseFotosPersonaje(identidad?.fotosUrlsJson);
+  if (fotosActuales.length >= MAX_FOTOS_PERSONAJE) {
+    throw new Error(`Ya tienes ${MAX_FOTOS_PERSONAJE} fotos de referencia — elimina una antes de subir otra.`);
+  }
+
   const url = await guardarArchivoSubido(archivo);
+  const fotosNuevas = [...fotosActuales, url];
 
   await db
     .update(identidades)
-    .set({ fotoUrl: url, updatedAt: new Date().toISOString() })
+    .set({ fotosUrlsJson: fotosNuevas, updatedAt: new Date().toISOString() })
     .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  return url;
+  return fotosNuevas;
+}
+
+/** Elimina una foto de referencia del Personaje (y su blob) del arreglo. */
+export async function eliminarFotoPersonaje(proyectoId: string, url: string): Promise<string[]> {
+  const identidad = await getIdentidad(proyectoId);
+  const fotosNuevas = parseFotosPersonaje(identidad?.fotosUrlsJson).filter((f) => f !== url);
+
+  await db
+    .update(identidades)
+    .set({ fotosUrlsJson: fotosNuevas, updatedAt: new Date().toISOString() })
+    .where(eq(identidades.proyectoId, proyectoId));
+
+  await eliminarArchivoSubido(url).catch(() => {});
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  return fotosNuevas;
 }
 
 /** Sube el logo del proyecto y lo persiste de inmediato — mismo patrón que
@@ -260,13 +300,23 @@ export async function getBloque(proyectoId: string, bloqueId: string) {
  */
 export async function generarContenidoAction(
   proyectoId: string,
-  input: Omit<ContenidoInput, "identidadCompilada" | "conocimientoRelevante">,
+  input: Omit<ContenidoInput, "identidadCompilada" | "conocimientoRelevante"> & {
+    /** Casillas "Qué incluir en esta pieza" de Crear — controlan qué
+     * secciones del Compilador se pasan a esta generación en particular.
+     * Nunca se guardan; solo viven mientras dura este llamado. */
+    incluirPersonaje?: boolean;
+    incluirMarca?: boolean;
+    incluirContacto?: boolean;
+  },
 ): Promise<ContenidoGenerado> {
+  const { incluirPersonaje, incluirMarca, incluirContacto, ...resto } = input;
   const identidad = await getIdentidad(proyectoId);
-  const identidadCompilada = identidad ? compileIdentity(identidad) : "";
+  const identidadCompilada = identidad
+    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto })
+    : "";
   const conocimientoRelevante = await conocimientoRelevantePara(proyectoId, input.tema);
   return generarContenido({
-    ...input,
+    ...resto,
     identidadCompilada,
     conocimientoRelevante: conocimientoRelevante || undefined,
   });
@@ -391,7 +441,10 @@ export async function generarImagenParaEscena(
   if (!promptImagen) throw new Error("Esta escena no tiene un prompt de imagen para generar.");
 
   const identidad = await getIdentidad(proyectoId);
-  const fotoReferenciaUrl = identidad?.fotoUrl.trim() || undefined;
+  // Usa la PRIMERA foto del arreglo como referencia — múltiples referencias
+  // a la vez sería una mejora futura del proveedor de imagen, no de esta
+  // ronda (ver comentario en imagen-provider.ts).
+  const fotoReferenciaUrl = parseFotosPersonaje(identidad?.fotosUrlsJson).at(0);
 
   const imagenGeneradaUrl = await generarImagenIA(promptImagen, fotoReferenciaUrl, calidad);
 

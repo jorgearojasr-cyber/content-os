@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Textarea } from "@/components/ui";
 import { explicarError } from "@/lib/errores";
+import { identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
+import type { Identidad } from "@/lib/types";
 
 type Modo = "rapido" | "guiado" | "profesional";
 
@@ -32,19 +34,93 @@ function segundosDesdeDuracion(duracion: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
+/**
+ * "Qué incluir en esta pieza" — mismas 3 casillas antes del botón de
+ * generar en los 3 modos (un solo componente, no una copia por modo).
+ * Controlan qué secciones del Compilador se pasan a esta generación en
+ * particular (ver `OpcionesCompilado` en identity-compiler.ts); no cambian
+ * nada guardado en Identidad.
+ */
+function QueIncluir({
+  mostrarPersonaje,
+  incluirPersonaje,
+  setIncluirPersonaje,
+  incluirMarca,
+  setIncluirMarca,
+  mostrarContacto,
+  incluirContacto,
+  setIncluirContacto,
+}: {
+  mostrarPersonaje: boolean;
+  incluirPersonaje: boolean;
+  setIncluirPersonaje: (v: boolean) => void;
+  incluirMarca: boolean;
+  setIncluirMarca: (v: boolean) => void;
+  mostrarContacto: boolean;
+  incluirContacto: boolean;
+  setIncluirContacto: (v: boolean) => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
+      <p className="mb-2 text-[12.5px] font-medium text-text-muted">Qué incluir en esta pieza</p>
+      <div className="flex flex-col gap-1.5">
+        {mostrarPersonaje ? (
+          <label className="flex items-center gap-2 text-[13px] text-text">
+            <input
+              type="checkbox"
+              checked={incluirPersonaje}
+              onChange={(e) => setIncluirPersonaje(e.target.checked)}
+            />
+            Usar Personaje
+          </label>
+        ) : null}
+        <label className="flex items-center gap-2 text-[13px] text-text">
+          <input
+            type="checkbox"
+            checked={incluirMarca}
+            onChange={(e) => setIncluirMarca(e.target.checked)}
+          />
+          Usar voz y tono de la marca
+        </label>
+        {mostrarContacto ? (
+          <label className="flex items-center gap-2 text-[13px] text-text">
+            <input
+              type="checkbox"
+              checked={incluirContacto}
+              onChange={(e) => setIncluirContacto(e.target.checked)}
+            />
+            Incluir datos de contacto
+          </label>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function CrearModos({
   proyectoId,
+  identidad,
   onInferir,
   onGenerar,
   onGuardar,
   onBuscarRelacionado,
 }: {
   proyectoId: string;
+  identidad: Identidad;
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
-  onGenerar: (input: Omit<ContenidoInput, "identidadCompilada">) => Promise<ContenidoGenerado>;
+  onGenerar: (
+    input: Omit<ContenidoInput, "identidadCompilada"> & {
+      incluirPersonaje?: boolean;
+      incluirMarca?: boolean;
+      incluirContacto?: boolean;
+    },
+  ) => Promise<ContenidoGenerado>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
 }) {
+  const seccionesInfo = identidadPorSeccion(identidad);
+  const tieneContacto = identidadTieneContacto(identidad);
+
   const [modo, setModo] = useState<Modo>("rapido");
   const [config, setConfig] = useState<ConfigCreacion>(CONFIG_VACIA);
   const [idea, setIdea] = useState("");
@@ -52,6 +128,9 @@ export function CrearModos({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
+  const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
+  const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
+  const [incluirContacto, setIncluirContacto] = useState(false);
 
   function empezarDeNuevo() {
     setResultado(null);
@@ -110,6 +189,9 @@ export function CrearModos({
             ? Number(config.numeroPaginas)
             : undefined,
         estiloImagen: config.estiloImagen || undefined,
+        incluirPersonaje,
+        incluirMarca,
+        incluirContacto,
       });
       setResultado(resultadoGenerado);
     } catch (e) {
@@ -180,13 +262,25 @@ export function CrearModos({
               onBuscarRelacionado={onBuscarRelacionado}
             />
             {error ? <p className="mt-3 text-[12.5px] text-danger">{error}</p> : null}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
-                Volver a escribir la idea
-              </Button>
-              <Button type="button" onClick={generar}>
-                🚀 Crear contenido
-              </Button>
+            <div className="mt-4">
+              <QueIncluir
+                mostrarPersonaje={seccionesInfo.personaje}
+                incluirPersonaje={incluirPersonaje}
+                setIncluirPersonaje={setIncluirPersonaje}
+                incluirMarca={incluirMarca}
+                setIncluirMarca={setIncluirMarca}
+                mostrarContacto={tieneContacto}
+                incluirContacto={incluirContacto}
+                setIncluirContacto={setIncluirContacto}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
+                  Volver a escribir la idea
+                </Button>
+                <Button type="button" onClick={generar}>
+                  🚀 Crear contenido
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -223,6 +317,16 @@ export function CrearModos({
             <div className="mt-5 border-t border-border pt-4">
               <p className="mb-1 text-[12.5px] text-text-muted">Paso 5</p>
               {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
+              <QueIncluir
+                mostrarPersonaje={seccionesInfo.personaje}
+                incluirPersonaje={incluirPersonaje}
+                setIncluirPersonaje={setIncluirPersonaje}
+                incluirMarca={incluirMarca}
+                setIncluirMarca={setIncluirMarca}
+                mostrarContacto={tieneContacto}
+                incluirContacto={incluirContacto}
+                setIncluirContacto={setIncluirContacto}
+              />
               <Button type="button" onClick={generar}>
                 🚀 Crear contenido
               </Button>
@@ -242,6 +346,16 @@ export function CrearModos({
           />
           <div className="mt-5 border-t border-border pt-4">
             {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
+            <QueIncluir
+              mostrarPersonaje={seccionesInfo.personaje}
+              incluirPersonaje={incluirPersonaje}
+              setIncluirPersonaje={setIncluirPersonaje}
+              incluirMarca={incluirMarca}
+              setIncluirMarca={setIncluirMarca}
+              mostrarContacto={tieneContacto}
+              incluirContacto={incluirContacto}
+              setIncluirContacto={setIncluirContacto}
+            />
             <Button
               type="button"
               disabled={!config.tipoContenido || !config.tema.trim()}

@@ -1,0 +1,1 @@
+ALTER TABLE "identidades" DROP COLUMN "foto_url";

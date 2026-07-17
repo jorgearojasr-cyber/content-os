@@ -75,7 +75,9 @@ export type Identidad = {
   vozDescrita: string;
   gestos: string;
   muletillas: string;
-  fotoUrl: string;
+  /** Columna `jsonb` — arreglo de hasta 4 URLs (o `[]`), no un string.
+   * Usar `parseFotosPersonaje()`. Reemplaza a la antigua `fotoUrl` única. */
+  fotosUrlsJson: unknown;
 
   // Capa Estilo — cómo se ve y se siente
   paleta: string;
@@ -86,10 +88,31 @@ export type Identidad = {
   estructuraCta: string;
   logoUrl: string;
 
+  // Contacto (opcional) — nunca se incluye en el Compilador por defecto,
+  // solo cuando se activa explícitamente al crear.
+  sitioWeb: string;
+  telefono: string;
+  direccion: string;
+
   updatedAt: string;
 };
 
 export type IdentidadInput = Omit<Identidad, "id" | "proyectoId" | "updatedAt">;
+
+/** Máximo de fotos de referencia del Personaje permitidas. */
+export const MAX_FOTOS_PERSONAJE = 4;
+
+/**
+ * Adapta `fotosUrlsJson` (columna `jsonb`) a un arreglo de URLs; ante un
+ * valor ausente o con forma inesperada, devuelve un arreglo vacío. Nunca
+ * más de `MAX_FOTOS_PERSONAJE`, aunque la columna llegara a tener más.
+ */
+export function parseFotosPersonaje(json: unknown): string[] {
+  if (!Array.isArray(json)) return [];
+  return json
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .slice(0, MAX_FOTOS_PERSONAJE);
+}
 
 export type Bloque = {
   id: string;

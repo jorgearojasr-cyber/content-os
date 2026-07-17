@@ -3,6 +3,7 @@ import {
   completarProyectoAction,
   createConocimiento,
   deleteConocimiento,
+  eliminarFotoPersonaje,
   generarPersonajeAction,
   getActivos,
   getConocimiento,
@@ -14,8 +15,9 @@ import {
 import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
+import { FotosPersonaje } from "@/components/fotos-personaje";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
-import { parseAvatar } from "@/lib/types";
+import { parseAvatar, parseFotosPersonaje } from "@/lib/types";
 import {
   EJEMPLOS_AVATAR,
   EJEMPLOS_IDENTIDAD,
@@ -38,10 +40,12 @@ export default async function IdentidadPage({
   const conocimiento = await getConocimiento(proyectoId);
   const boundUpdate = updateIdentidad.bind(null, proyectoId);
   const boundSubirFoto = subirFotoPersonaje.bind(null, proyectoId);
+  const boundEliminarFoto = eliminarFotoPersonaje.bind(null, proyectoId);
   const boundSubirLogo = subirLogo.bind(null, proyectoId);
   const boundCreateConocimiento = createConocimiento.bind(null, proyectoId);
   const boundDeleteConocimiento = deleteConocimiento.bind(null, proyectoId);
   const avatar = parseAvatar(identidad.avatarJson);
+  const fotosPersonaje = parseFotosPersonaje(identidad.fotosUrlsJson);
 
   return (
     <div className="space-y-5">
@@ -205,15 +209,13 @@ export default async function IdentidadPage({
             {...EJEMPLOS_IDENTIDAD.muletillas}
           />
           <div className="mt-3.5">
-            <label className="mb-1 block text-[12.5px] text-text-muted">Foto de referencia</label>
-            <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">
-              Sube una imagen desde tu computador, arrástrala, pégala con Ctrl+V, o usa un
-              enlace público.
-            </p>
-            <FileUploader
-              name="fotoUrl"
-              defaultValue={identidad.fotoUrl}
-              onUpload={boundSubirFoto}
+            <label className="mb-1 block text-[12.5px] text-text-muted">
+              Fotos de referencia (hasta 4)
+            </label>
+            <FotosPersonaje
+              fotosIniciales={fotosPersonaje}
+              onSubir={boundSubirFoto}
+              onEliminar={boundEliminarFoto}
             />
           </div>
         </Card>
@@ -269,6 +271,33 @@ export default async function IdentidadPage({
             </p>
             <FileUploader name="logoUrl" defaultValue={identidad.logoUrl} onUpload={boundSubirLogo} />
           </div>
+        </Card>
+
+        <Card>
+          <SectionTitle subtitle="Estos datos solo se incluyen en el contenido cuando tú lo actives al crear.">
+            Contacto (opcional)
+          </SectionTitle>
+          <FieldWithHelp
+            label="Sitio web"
+            name="sitioWeb"
+            defaultValue={identidad.sitioWeb}
+            placeholder="Ej: www.obrabien.cl"
+            multiline={false}
+          />
+          <FieldWithHelp
+            label="Teléfono"
+            name="telefono"
+            defaultValue={identidad.telefono}
+            placeholder="Ej: +56 9 1234 5678"
+            multiline={false}
+          />
+          <FieldWithHelp
+            label="Dirección"
+            name="direccion"
+            defaultValue={identidad.direccion}
+            placeholder="Ej: Av. Siempre Viva 123, Santiago"
+            multiline={false}
+          />
         </Card>
 
         <Button type="submit">Guardar identidad</Button>
