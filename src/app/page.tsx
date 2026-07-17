@@ -57,7 +57,7 @@ export default async function RootPage() {
             width={1536}
             height={1024}
             priority
-            className="hero-fade w-52 shrink-0 sm:-my-6 sm:w-[340px]"
+            className="hero-fade w-52 shrink-0 sm:w-[340px]"
           />
         </div>
 
