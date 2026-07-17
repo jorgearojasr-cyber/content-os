@@ -7,19 +7,33 @@ import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { activos, avatares, bloques, conocimiento, identidades, notas, personajes, proyectos } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
-import { completarProyecto, generarContenido, generarPersonaje, inferirConfiguracion } from "./ai";
+import {
+  completarProyecto,
+  generarContenido,
+  generarPersonaje,
+  generarPlanEdicion,
+  inferirConfiguracion,
+} from "./ai";
 import type {
   ConfiguracionInferida,
   ContenidoGenerado,
   ContenidoInput,
   IdentidadCompletaSugerida,
   PersonajeSugerido,
+  PlanEdicion,
 } from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
 import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
-import { MAX_FOTOS_PERSONAJE, parseEscenas, parseFotosPersonaje, TIPOS_ACTIVO } from "./types";
+import {
+  MAX_FOTOS_PERSONAJE,
+  parseEscenas,
+  parseFotosPersonaje,
+  parsePlanEdicion,
+  tieneEscenasDeVideo,
+  TIPOS_ACTIVO,
+} from "./types";
 import type { Avatar, AvatarInput, CalidadImagen, Identidad, IdentidadInput, Personaje, PersonajeInput } from "./types";
 
 const PAPELERA_RETENCION_DIAS = 7;
@@ -681,6 +695,52 @@ export async function generarImagenParaEscena(
   revalidatePath(`/proyectos/${proyectoId}/biblioteca/${bloqueId}/editar`);
 
   return imagenGeneradaUrl;
+}
+
+/**
+ * DIRECTOR DE EDICIÓN: analiza una pieza de video ya generada y guarda un
+ * plan de edición profesional (ver `generarPlanEdicion` en ai.ts) — nunca
+ * se dispara automáticamente, solo cuando el usuario presiona el botón.
+ * Se genera una sola vez: si ya existe `planEdicionJson`, quien llama debe
+ * usar `regenerar: true` explícitamente para reemplazarlo.
+ */
+export async function generarPlanEdicionAction(
+  proyectoId: string,
+  bloqueId: string,
+  regenerar = false,
+): Promise<PlanEdicion> {
+  const bloque = await getBloque(proyectoId, bloqueId);
+  if (!bloque) throw new Error("El bloque ya no existe.");
+
+  const planExistente = parsePlanEdicion(bloque.planEdicionJson);
+  if (planExistente && !regenerar) return planExistente;
+
+  const escenas = parseEscenas(bloque.escenasJson);
+  if (!tieneEscenasDeVideo(escenas)) {
+    throw new Error("Esta pieza no tiene escenas de video para generar un plan de edición.");
+  }
+
+  const plan = await generarPlanEdicion({
+    formato: bloque.formato,
+    identidadCompilada: bloque.identidadCompilada,
+    texto: bloque.texto,
+    escenas: escenas.map((e) => ({
+      numero: e.numero,
+      duracionSegundos: e.duracionSegundos,
+      descripcion: e.descripcion,
+      guionHablado: e.guionHablado,
+      textoEnPantalla: e.textoEnPantalla,
+    })),
+  });
+
+  await db
+    .update(bloques)
+    .set({ planEdicionJson: plan })
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/biblioteca/${bloqueId}/editar`);
+
+  return plan;
 }
 
 export async function renombrarBloque(proyectoId: string, bloqueId: string, formData: FormData) {

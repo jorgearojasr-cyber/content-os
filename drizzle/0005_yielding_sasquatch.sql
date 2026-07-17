@@ -1,0 +1,1 @@
+ALTER TABLE "bloques" ADD COLUMN "plan_edicion_json" jsonb;

@@ -5,14 +5,18 @@ import { useRouter } from "next/navigation";
 import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { EscenasEditor } from "@/components/escenas-editor";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
+import { PlanEdicionPanel } from "@/components/plan-edicion-panel";
 import { explicarError } from "@/lib/errores";
 import {
+  parsePlanEdicion,
   reemplazarSeccionEscenas,
+  tieneEscenasDeVideo,
   type Bloque,
   type CalidadImagen,
   type Escena,
   type Identidad,
 } from "@/lib/types";
+import type { PlanEdicion } from "@/lib/ai";
 
 const DURACION_CONFIRMACION_MS = 2000;
 
@@ -27,6 +31,7 @@ export function EditarBloqueConEscenas({
   escenasIniciales,
   onUpdate,
   onGenerarImagen,
+  onGenerarPlanEdicion,
   identidad,
   activosCount,
   tienePersonaje,
@@ -36,6 +41,7 @@ export function EditarBloqueConEscenas({
   escenasIniciales: Escena[];
   onUpdate: (formData: FormData) => Promise<void>;
   onGenerarImagen: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
+  onGenerarPlanEdicion: (regenerar: boolean) => Promise<PlanEdicion>;
   identidad: Identidad | null;
   activosCount: number;
   tienePersonaje: boolean;
@@ -98,6 +104,13 @@ export function EditarBloqueConEscenas({
           {guardando ? "Guardando…" : guardado ? "Guardado ✓" : "Guardar cambios"}
         </Button>
       </Card>
+
+      <PlanEdicionPanel
+        tituloBloque={bloque.titulo}
+        planInicial={parsePlanEdicion(bloque.planEdicionJson)}
+        puedeGenerar={tieneEscenasDeVideo(escenasIniciales)}
+        onGenerar={onGenerarPlanEdicion}
+      />
 
       {bloque.identidadCompilada && identidad ? (
         <Card>

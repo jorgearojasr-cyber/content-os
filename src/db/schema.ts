@@ -148,6 +148,10 @@ export const bloques = pgTable("bloques", {
   // desglose estructurado (creado a mano, o formato sin escenas). Permite
   // editar y regenerar por escena más adelante.
   escenasJson: jsonb("escenas_json"),
+  // Plan de Edición (ver PlanEdicion en types.ts); null hasta que el
+  // usuario presiona "Generar Plan de Edición" — se genera una sola vez y
+  // se conserva, no se recalcula en cada visita.
+  planEdicionJson: jsonb("plan_edicion_json"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

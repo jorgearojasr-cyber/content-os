@@ -1,3 +1,5 @@
+import type { PlanEdicion } from "./ai";
+
 export type Proyecto = {
   id: string;
   nombre: string;
@@ -129,6 +131,9 @@ export type Bloque = {
   eliminadoAt: string;
   /** Columna `jsonb`, nullable — ya es un arreglo (o `null`), no un string. Usar `parseEscenas()`. */
   escenasJson: unknown;
+  /** Columna `jsonb`, nullable — el Plan de Edición generado por el Director
+   * de Edición (o `null` si todavía no se generó). Usar `parsePlanEdicion()`. */
+  planEdicionJson: unknown;
   createdAt: string;
 };
 
@@ -242,6 +247,21 @@ export type CalidadImagen = "low" | "medium" | "high";
  * un valor ausente o con forma inesperada, devuelve un arreglo vacío. */
 export function parseEscenas(json: unknown): Escena[] {
   return Array.isArray(json) ? (json as Escena[]) : [];
+}
+
+/** True si al menos una escena tiene duración real de video — el mismo
+ * criterio que distingue video (Video Corto/Largo, Historia con video) de
+ * un desglose puramente de imagen/carrusel (`duracionSegundos: 0`). Es lo
+ * que decide si el botón "Generar Plan de Edición" aparece. */
+export function tieneEscenasDeVideo(escenas: Escena[]): boolean {
+  return escenas.some((e) => e.duracionSegundos > 0);
+}
+
+/** Adapta `planEdicionJson` (columna `jsonb`, nullable) al tipo `PlanEdicion`;
+ * `null` si todavía no se generó ningún plan o el valor no tiene forma de
+ * objeto. */
+export function parsePlanEdicion(json: unknown): PlanEdicion | null {
+  return json && typeof json === "object" ? (json as PlanEdicion) : null;
 }
 
 /** Arma el bloque de texto plano (sin el encabezado `## Escenas`) a partir

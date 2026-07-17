@@ -218,3 +218,120 @@ export async function inferirConfiguracion(
 
   return generarEstructurado(prompt, ConfiguracionInferidaSchema, 1024);
 }
+
+const PorEscenaEdicionSchema = z.object({
+  numero: z.number().describe("Debe coincidir exactamente con el número de la escena real"),
+  duracionSugerida: z.number().describe("Duración sugerida en segundos para esta escena en el corte final"),
+  movimientoCamara: z
+    .string()
+    .describe("Ej: zoom lento, zoom rápido, cámara fija, handheld, paneo, tilt, cámara lenta"),
+  transicionEntrada: z
+    .string()
+    .describe("Cómo entra esta escena desde la anterior: corte seco, corte en el beat, whip pan, match cut, fade..."),
+  elementosGraficos: z
+    .string()
+    .describe("Ej: flecha señalando, círculo resaltando, check, texto grande, contador — vacío si no aplica"),
+  notaDeEdicion: z
+    .string()
+    .describe("La instrucción concreta del editor para esta escena, ej. 'corta en seco al decir X', 'congela el cuadro aquí'"),
+});
+
+const EvaluacionCriterioSchema = z.object({
+  nota: z.number().describe("Nota de 1 a 10"),
+  comentario: z.string(),
+});
+
+const PlanEdicionSchema = z.object({
+  ritmoGeneral: z.object({
+    recomendacion: z.enum(["Muy dinámico", "Dinámico", "Medio", "Tranquilo"]),
+    porQue: z.string(),
+  }),
+  porEscena: z.array(PorEscenaEdicionSchema),
+  bRoll: z.array(z.string()).describe("Tomas de apoyo concretas al contenido de esta pieza, no genéricas"),
+  efectosSonido: z
+    .array(
+      z.object({
+        momento: z.string(),
+        efecto: z
+          .string()
+          .describe("Solo el nombre descriptivo del SFX, ej. impact, bass, paper, hammer, spark, camera"),
+      }),
+    )
+    .describe("Momentos donde usar un efecto de sonido"),
+  musica: z
+    .string()
+    .describe("Dirección de música por tramo, ej. 'intro: tensión ascendente; tips: beat constante; cierre: resolución'"),
+  color: z.object({
+    recomendacion: z.string().describe("Ej: natural, cálido, frío, documental, publicidad, contraste alto"),
+    porQue: z.string(),
+  }),
+  animaciones: z.array(z.string()).describe("Cuándo animar texto, íconos, logo o CTA"),
+  pausas: z.array(z.string()).describe("Dónde conviene una pausa o silencio deliberado"),
+  evaluacionCta: z.object({
+    analisis: z.string().describe("Si el CTA está bien ubicado y por qué"),
+    mejoraSugerida: z.string(),
+  }),
+  evaluacionFinal: z.object({
+    gancho: EvaluacionCriterioSchema,
+    claridad: EvaluacionCriterioSchema,
+    retencion: EvaluacionCriterioSchema,
+    ritmo: EvaluacionCriterioSchema,
+    valorEducativo: EvaluacionCriterioSchema,
+    potencialViralidad: EvaluacionCriterioSchema,
+    recomendaciones: z.array(z.string()).describe("2-3 recomendaciones concretas de mejora"),
+  }),
+});
+
+export type PlanEdicion = z.infer<typeof PlanEdicionSchema>;
+
+export type PlanEdicionInput = {
+  formato: string;
+  identidadCompilada: string;
+  texto: string;
+  escenas: {
+    numero: number;
+    duracionSegundos: number;
+    descripcion: string;
+    guionHablado: string;
+    textoEnPantalla: string;
+  }[];
+};
+
+/**
+ * DIRECTOR DE EDICIÓN
+ * ------------------------------------------------------------------
+ * Etapa posterior a la generación: analiza una pieza YA GENERADA y entrega
+ * un plan de edición profesional para que el usuario edite manualmente en
+ * CapCut/Premiere/DaVinci. No automatiza edición ni genera más prompts de
+ * contenido — opina y guía como un editor senior. Se dispara solo al
+ * presionar el botón (nunca automáticamente al generar la pieza) y el
+ * resultado se guarda una sola vez en `bloques.planEdicionJson`.
+ * ------------------------------------------------------------------
+ */
+export async function generarPlanEdicion(input: PlanEdicionInput): Promise<PlanEdicion> {
+  const escenasTexto = input.escenas
+    .map(
+      (e) =>
+        `Escena ${e.numero} (${e.duracionSegundos}s): ${e.descripcion}\n` +
+        `Guion: ${e.guionHablado || "(sin diálogo)"}\n` +
+        `Texto en pantalla: ${e.textoEnPantalla || "(ninguno)"}`,
+    )
+    .join("\n\n");
+
+  const prompt =
+    `Actúa como un director de edición senior especializado en contenido corto para redes sociales ` +
+    `(TikTok, Reels, Shorts). No editas tú mismo ni generas contenido nuevo — analizas una pieza YA ` +
+    `GENERADA y entregas un plan de edición profesional y concreto para que el usuario lo siga a mano ` +
+    `en CapCut, Premiere o DaVinci. Tus indicaciones deben ser accionables, como si dijeras "si yo ` +
+    `editara este video, haría exactamente esto" — nunca genéricas. Adapta el tono de tus ` +
+    `recomendaciones al formato de esta pieza: "${input.formato}".\n\n` +
+    `Esta es la identidad de marca del proyecto — tu plan debe ser coherente con ella. Si el Estilo ` +
+    `pide un ritmo o cámara específicos, síguelos; si te apartas de lo que pide, justifica ` +
+    `explícitamente por qué en tu recomendación:\n\n${input.identidadCompilada}\n\n` +
+    `Contenido completo de la pieza (copy, hashtags, CTA, narración):\n\n${input.texto}\n\n` +
+    `Desglose de las ${input.escenas.length} escenas reales, numeradas — tu plan por escena DEBE ` +
+    `cubrir cada una de ellas, en el mismo orden y con los mismos números, sin inventar escenas que no ` +
+    `existen:\n\n${escenasTexto}`;
+
+  return generarEstructurado(prompt, PlanEdicionSchema, 6144);
+}

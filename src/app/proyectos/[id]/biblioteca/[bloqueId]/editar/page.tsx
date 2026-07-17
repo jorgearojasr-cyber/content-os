@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   generarImagenParaEscena,
+  generarPlanEdicionAction,
   getActivos,
   getAvatares,
   getBloque,
@@ -29,6 +30,7 @@ export default async function EditarBloquePage({
   const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateBloque.bind(null, proyectoId, bloqueId);
   const boundGenerarImagen = generarImagenParaEscena.bind(null, proyectoId, bloqueId);
+  const boundGenerarPlanEdicion = generarPlanEdicionAction.bind(null, proyectoId, bloqueId);
 
   if (bloque.escenasJson !== null) {
     const escenas = parseEscenas(bloque.escenasJson);
@@ -38,6 +40,7 @@ export default async function EditarBloquePage({
         escenasIniciales={escenas}
         onUpdate={boundUpdate}
         onGenerarImagen={boundGenerarImagen}
+        onGenerarPlanEdicion={boundGenerarPlanEdicion}
         identidad={identidad}
         activosCount={activos.length}
         tienePersonaje={personajes.length > 0}
