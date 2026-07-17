@@ -238,6 +238,11 @@ export type IdentidadPorSeccion = {
   avatar: boolean;
   personaje: boolean;
   estilo: boolean;
+  /** No forma parte del checklist de "entrenamiento" (Contacto es opcional
+   * y no afecta qué tan genérico sale el contenido) — se agrega aquí solo
+   * porque otras pantallas (ej. las secciones plegables de Identidad)
+   * necesitan el mismo criterio de "¿tiene contenido?" para Contacto. */
+  contacto: boolean;
 };
 
 /**
@@ -252,5 +257,42 @@ export function identidadPorSeccion(identidad: Identidad): IdentidadPorSeccion {
     avatar: avatarHasContent(parseAvatar(identidad.avatarJson)),
     personaje: algunCampoConContenido(identidad, CAMPOS_PERSONAJE),
     estilo: algunCampoConContenido(identidad, CAMPOS_ESTILO),
+    contacto: algunCampoConContenido(identidad, CAMPOS_CONTACTO),
+  };
+}
+
+function primerValorConContenido(identidad: Identidad, campos: ReadonlyArray<CampoTextoIdentidad>): string {
+  for (const campo of campos) {
+    const valor = identidad[campo];
+    if (valor && valor.trim().length > 0) return valor.trim();
+  }
+  return "";
+}
+
+export type ResumenPorSeccion = {
+  marca: string;
+  avatar: string;
+  personaje: string;
+  estilo: string;
+  contacto: string;
+};
+
+/**
+ * El primer campo con contenido de cada sección — para el resumen de una
+ * línea que se muestra cuando una sección viene plegada en la pantalla
+ * Identidad. Mismos grupos de campos que `identidadPorSeccion`; ningún
+ * criterio nuevo de qué pertenece a cada sección.
+ */
+export function resumenPorSeccion(identidad: Identidad): ResumenPorSeccion {
+  const avatar = parseAvatar(identidad.avatarJson);
+  const avatarResumen = ETIQUETAS_AVATAR.map(([campo]) => avatar[campo]).find(
+    (valor) => valor?.trim().length > 0,
+  );
+  return {
+    marca: primerValorConContenido(identidad, CAMPOS_MARCA),
+    avatar: avatarResumen?.trim() ?? "",
+    personaje: primerValorConContenido(identidad, CAMPOS_PERSONAJE),
+    estilo: primerValorConContenido(identidad, CAMPOS_ESTILO),
+    contacto: primerValorConContenido(identidad, CAMPOS_CONTACTO),
   };
 }

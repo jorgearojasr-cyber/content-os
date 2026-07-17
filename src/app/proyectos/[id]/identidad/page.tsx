@@ -18,6 +18,9 @@ import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
 import { FotosPersonaje } from "@/components/fotos-personaje";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
+import { SeccionColapsable } from "@/components/seccion-colapsable";
+import { identidadPorSeccion, resumenPorSeccion } from "@/lib/identity-compiler";
+import { extraerFragmento } from "@/lib/reutilizacion";
 import { parseAvatar, parseFotosPersonaje } from "@/lib/types";
 import {
   EJEMPLOS_AVATAR,
@@ -27,6 +30,8 @@ import {
 } from "@/lib/identidad-ejemplos";
 import { IdentidadAiTools } from "./ai-tools";
 import { ConocimientoLista } from "./conocimiento-lista";
+
+const LARGO_RESUMEN = 80;
 
 export default async function IdentidadPage({
   params,
@@ -48,6 +53,13 @@ export default async function IdentidadPage({
   const avatar = parseAvatar(identidad.avatarJson);
   const fotosPersonaje = parseFotosPersonaje(identidad.fotosUrlsJson);
 
+  const porSeccion = identidadPorSeccion(identidad);
+  const resumen = resumenPorSeccion(identidad);
+  const tieneConocimiento = conocimiento.length > 0;
+  const resumenConocimiento = tieneConocimiento
+    ? `${conocimiento.length} entrada${conocimiento.length === 1 ? "" : "s"}`
+    : "";
+
   return (
     <div className="space-y-5">
       <p className="text-sm text-text-muted">
@@ -62,8 +74,12 @@ export default async function IdentidadPage({
       />
 
       <form action={boundUpdate} className="space-y-5">
-        <Card>
-          <SectionTitle subtitle="La voz, las reglas y el rumbo del proyecto.">Marca</SectionTitle>
+        <SeccionColapsable
+          titulo="Marca"
+          subtitulo="La voz, las reglas y el rumbo del proyecto."
+          tieneContenido={porSeccion.marca}
+          resumen={extraerFragmento(resumen.marca, LARGO_RESUMEN)}
+        >
           <FieldWithHelp
             label="Voz y personalidad"
             name="voz"
@@ -85,12 +101,14 @@ export default async function IdentidadPage({
             ejemplos={OBJETIVOS_SUGERIDOS}
             multiline={false}
           />
-        </Card>
+        </SeccionColapsable>
 
-        <Card>
-          <SectionTitle subtitle="Quién recibe tu contenido — mientras más real lo imagines, más preciso será cada texto.">
-            Avatar del cliente ideal
-          </SectionTitle>
+        <SeccionColapsable
+          titulo="Avatar del cliente ideal"
+          subtitulo="Quién recibe tu contenido — mientras más real lo imagines, más preciso será cada texto."
+          tieneContenido={porSeccion.avatar}
+          resumen={extraerFragmento(resumen.avatar, LARGO_RESUMEN)}
+        >
           <div className="grid gap-x-4 sm:grid-cols-2">
             <FieldWithHelp
               label="Nombre ficticio"
@@ -158,12 +176,14 @@ export default async function IdentidadPage({
             multiline={false}
             {...EJEMPLOS_AVATAR.lenguaje}
           />
-        </Card>
+        </SeccionColapsable>
 
-        <Card>
-          <SectionTitle subtitle="Quién aparece, si aplica. Se repite igual en cada pieza.">
-            Personaje
-          </SectionTitle>
+        <SeccionColapsable
+          titulo="Personaje"
+          subtitulo="Quién aparece, si aplica. Se repite igual en cada pieza."
+          tieneContenido={porSeccion.personaje}
+          resumen={extraerFragmento(resumen.personaje, LARGO_RESUMEN)}
+        >
           <FieldWithHelp
             label="Nombre"
             name="personajeNombre"
@@ -219,10 +239,14 @@ export default async function IdentidadPage({
               onEliminar={boundEliminarFoto}
             />
           </div>
-        </Card>
+        </SeccionColapsable>
 
-        <Card>
-          <SectionTitle subtitle="Cómo se ve y se siente cada pieza.">Estilo</SectionTitle>
+        <SeccionColapsable
+          titulo="Estilo"
+          subtitulo="Cómo se ve y se siente cada pieza."
+          tieneContenido={porSeccion.estilo}
+          resumen={extraerFragmento(resumen.estilo, LARGO_RESUMEN)}
+        >
           <FieldWithHelp
             label="Paleta de colores"
             name="paleta"
@@ -272,12 +296,14 @@ export default async function IdentidadPage({
             </p>
             <FileUploader name="logoUrl" defaultValue={identidad.logoUrl} onUpload={boundSubirLogo} />
           </div>
-        </Card>
+        </SeccionColapsable>
 
-        <Card>
-          <SectionTitle subtitle="Estos datos solo se incluyen en el contenido cuando tú lo actives al crear.">
-            Contacto (opcional)
-          </SectionTitle>
+        <SeccionColapsable
+          titulo="Contacto (opcional)"
+          subtitulo="Estos datos solo se incluyen en el contenido cuando tú lo actives al crear."
+          tieneContenido={porSeccion.contacto}
+          resumen={extraerFragmento(resumen.contacto, LARGO_RESUMEN)}
+        >
           <FieldWithHelp
             label="Sitio web"
             name="sitioWeb"
@@ -299,15 +325,21 @@ export default async function IdentidadPage({
             placeholder="Ej: Av. Siempre Viva 123, Santiago"
             multiline={false}
           />
-        </Card>
+        </SeccionColapsable>
 
-        <BotonGuardar texto="Guardar identidad" />
+        <div className="sticky bottom-4 z-10 flex justify-center sm:justify-start">
+          <div className="rounded-xl bg-surface p-1.5 shadow-[var(--shadow-card)]">
+            <BotonGuardar texto="Guardar identidad" />
+          </div>
+        </div>
       </form>
 
-      <Card>
-        <SectionTitle subtitle="Material de referencia de este proyecto — la IA lo usa cuando es relevante para el tema que estás creando.">
-          Conocimiento
-        </SectionTitle>
+      <SeccionColapsable
+        titulo="Conocimiento"
+        subtitulo="Material de referencia de este proyecto — la IA lo usa cuando es relevante para el tema que estás creando."
+        tieneContenido={tieneConocimiento}
+        resumen={resumenConocimiento}
+      >
         <form action={boundCreateConocimiento} className="mb-4 border-b border-border pb-4">
           <Label htmlFor="conocimientoTitulo">Título</Label>
           <Input
@@ -327,7 +359,7 @@ export default async function IdentidadPage({
           <BotonGuardar texto="Agregar" textoConfirmado="Agregado ✓" className="mt-3" />
         </form>
         <ConocimientoLista entradas={conocimiento} onDelete={boundDeleteConocimiento} />
-      </Card>
+      </SeccionColapsable>
 
       <Card>
         <SectionTitle subtitle="Esto es exactamente lo que el Compilador de Identidad produce ahora mismo — lo que se usará en cada generación futura, sin resumir.">

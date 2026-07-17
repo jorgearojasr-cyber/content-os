@@ -4,6 +4,7 @@ import {
   identidadPorSeccion,
   identidadTieneContacto,
   identityHasContent,
+  resumenPorSeccion,
 } from "./identity-compiler";
 import type { AvatarCliente, Identidad } from "./types";
 
@@ -197,9 +198,15 @@ describe("identidadTieneContacto", () => {
 });
 
 describe("identidadPorSeccion", () => {
-  it("las 4 secciones son falsas para una identidad totalmente vacía", () => {
+  it("las 5 secciones son falsas para una identidad totalmente vacía", () => {
     const estado = identidadPorSeccion(baseIdentidad());
-    expect(estado).toEqual({ marca: false, avatar: false, personaje: false, estilo: false });
+    expect(estado).toEqual({
+      marca: false,
+      avatar: false,
+      personaje: false,
+      estilo: false,
+      contacto: false,
+    });
   });
 
   it("marca solo depende de voz/reglas/objetivo, no del resto de la identidad", () => {
@@ -234,7 +241,7 @@ describe("identidadPorSeccion", () => {
     expect(identidadPorSeccion(soloLogo).estilo).toBe(false);
   });
 
-  it("las 4 secciones son verdaderas cuando la identidad está completa", () => {
+  it("las 4 secciones de entrenamiento son verdaderas cuando la identidad está completa (contacto sigue aparte)", () => {
     const identidad = baseIdentidad({
       voz: "Directa",
       reglas: "Sin tecnicismos",
@@ -244,6 +251,40 @@ describe("identidadPorSeccion", () => {
       paleta: "Azul marino",
     });
     const estado = identidadPorSeccion(identidad);
-    expect(estado).toEqual({ marca: true, avatar: true, personaje: true, estilo: true });
+    expect(estado).toEqual({
+      marca: true,
+      avatar: true,
+      personaje: true,
+      estilo: true,
+      contacto: false,
+    });
+  });
+
+  it("contacto es verdadero con al menos un dato de contacto cargado", () => {
+    const identidad = baseIdentidad({ telefono: "+56911111111" });
+    expect(identidadPorSeccion(identidad).contacto).toBe(true);
+  });
+});
+
+describe("resumenPorSeccion", () => {
+  it("toma el primer campo con contenido de cada sección, en el mismo orden que el checklist", () => {
+    const identidad = baseIdentidad({
+      reglas: "Sin tecnicismos",
+      avatarJson: avatarJsonCon({ profesion: "Arquitecta" }),
+      personajePersonalidad: "Cercano y paciente",
+      camara: "Formato vertical 9:16",
+      telefono: "+56911111111",
+    });
+    const resumen = resumenPorSeccion(identidad);
+    expect(resumen.marca).toBe("Sin tecnicismos");
+    expect(resumen.avatar).toBe("Arquitecta");
+    expect(resumen.personaje).toBe("Cercano y paciente");
+    expect(resumen.estilo).toBe("Formato vertical 9:16");
+    expect(resumen.contacto).toBe("+56911111111");
+  });
+
+  it("devuelve cadenas vacías para las secciones sin contenido", () => {
+    const resumen = resumenPorSeccion(baseIdentidad());
+    expect(resumen).toEqual({ marca: "", avatar: "", personaje: "", estilo: "", contacto: "" });
   });
 });
