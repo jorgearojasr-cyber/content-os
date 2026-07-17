@@ -84,6 +84,7 @@ export type Identidad = {
   camara: string;
   ritmo: string;
   estructuraCta: string;
+  logoUrl: string;
 
   updatedAt: string;
 };
@@ -273,15 +274,13 @@ export const ESTILOS_IMAGEN = [
 ] as const;
 
 export const TIPOS_ACTIVO = [
-  { value: "logo", label: "Logo", archivo: true },
   { value: "foto", label: "Fotografía", archivo: true },
   { value: "video", label: "Video", archivo: true },
   { value: "musica", label: "Música", archivo: true },
   { value: "icono", label: "Ícono", archivo: true },
-  { value: "documento", label: "Documento", archivo: true },
-  { value: "tipografia", label: "Tipografía", archivo: false },
-  { value: "color", label: "Color", archivo: false },
   { value: "prompt", label: "Prompt", archivo: false },
   { value: "voz", label: "Voz", archivo: false },
+  { value: "documento", label: "Documento", archivo: true },
+  { value: "recurso_grafico", label: "Recurso gráfico", archivo: true },
   { value: "otro", label: "Otro", archivo: false },
 ] as const;

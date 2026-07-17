@@ -108,6 +108,7 @@ export function compileIdentity(identidad: Identidad): string {
     ["Cámara", identidad.camara],
     ["Ritmo", identidad.ritmo],
     ["Estructura de CTA", identidad.estructuraCta],
+    ["Logo", identidad.logoUrl],
   ]);
 
   const secciones = [marca, personaje, estilo].filter(Boolean);
@@ -137,6 +138,7 @@ const CAMPOS_DE_CONTENIDO = [
   "camara",
   "ritmo",
   "estructuraCta",
+  "logoUrl",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 /** True si al menos un campo de contenido de la identidad tiene texto. */
@@ -159,6 +161,9 @@ const CAMPOS_PERSONAJE = [
   "muletillas",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
+// Los 6 campos de texto del Estilo — a propósito sin `logoUrl`, que es una
+// referencia de medio, no contenido de texto de la sección (mismo criterio
+// que excluye `fotoUrl` de CAMPOS_PERSONAJE).
 const CAMPOS_ESTILO = [
   "paleta",
   "tipografia",

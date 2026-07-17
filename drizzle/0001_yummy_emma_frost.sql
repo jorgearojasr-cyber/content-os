@@ -1,0 +1,1 @@
+ALTER TABLE "identidades" ADD COLUMN "logo_url" text DEFAULT '' NOT NULL;

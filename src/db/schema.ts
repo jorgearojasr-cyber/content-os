@@ -49,6 +49,7 @@ export const identidades = pgTable("identidades", {
   camara: text("camara").notNull().default(""),
   ritmo: text("ritmo").notNull().default(""),
   estructuraCta: text("estructura_cta").notNull().default(""),
+  logoUrl: text("logo_url").notNull().default(""),
 
   updatedAt: text("updated_at")
     .notNull()

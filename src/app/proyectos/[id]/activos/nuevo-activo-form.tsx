@@ -49,7 +49,7 @@ export function NuevoActivoForm({
       <Input
         id="nombre"
         name="nombre"
-        placeholder="Ej: Logo principal, Paleta de marca, Prompt de fotos"
+        placeholder="Ej: Foto de producto, Ícono de la app, Prompt de fotos"
         required
       />
 

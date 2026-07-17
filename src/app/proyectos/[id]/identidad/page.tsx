@@ -8,6 +8,7 @@ import {
   getConocimiento,
   getIdentidad,
   subirFotoPersonaje,
+  subirLogo,
   updateIdentidad,
 } from "@/lib/actions";
 import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
@@ -37,6 +38,7 @@ export default async function IdentidadPage({
   const conocimiento = await getConocimiento(proyectoId);
   const boundUpdate = updateIdentidad.bind(null, proyectoId);
   const boundSubirFoto = subirFotoPersonaje.bind(null, proyectoId);
+  const boundSubirLogo = subirLogo.bind(null, proyectoId);
   const boundCreateConocimiento = createConocimiento.bind(null, proyectoId);
   const boundDeleteConocimiento = deleteConocimiento.bind(null, proyectoId);
   const avatar = parseAvatar(identidad.avatarJson);
@@ -259,6 +261,14 @@ export default async function IdentidadPage({
             multiline={false}
             {...EJEMPLOS_IDENTIDAD.estructuraCta}
           />
+          <div className="mt-3.5">
+            <label className="mb-1 block text-[12.5px] text-text-muted">Logo</label>
+            <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">
+              Sube una imagen desde tu computador, arrástrala, pégala con Ctrl+V, o usa un
+              enlace público.
+            </p>
+            <FileUploader name="logoUrl" defaultValue={identidad.logoUrl} onUpload={boundSubirLogo} />
+          </div>
         </Card>
 
         <Button type="submit">Guardar identidad</Button>

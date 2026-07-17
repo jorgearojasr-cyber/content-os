@@ -102,6 +102,7 @@ const IDENTIDAD_CAMPOS = [
   "camara",
   "ritmo",
   "estructuraCta",
+  "logoUrl",
 ] as const satisfies ReadonlyArray<Exclude<keyof IdentidadInput, "avatarJson">>;
 
 const AVATAR_CAMPOS = [
@@ -149,6 +150,25 @@ export async function subirFotoPersonaje(proyectoId: string, formData: FormData)
   await db
     .update(identidades)
     .set({ fotoUrl: url, updatedAt: new Date().toISOString() })
+    .where(eq(identidades.proyectoId, proyectoId));
+
+  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  return url;
+}
+
+/** Sube el logo del proyecto y lo persiste de inmediato — mismo patrón que
+ * `subirFotoPersonaje`, pero para la capa Estilo en vez de Personaje. Lee la
+ * clave "foto" del FormData (no "logo") porque `FileUploader` — reutilizado
+ * tal cual, sin duplicarlo — siempre manda el archivo bajo esa clave fija. */
+export async function subirLogo(proyectoId: string, formData: FormData): Promise<string> {
+  const archivo = formData.get("foto");
+  if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
+
+  const url = await guardarArchivoSubido(archivo);
+
+  await db
+    .update(identidades)
+    .set({ logoUrl: url, updatedAt: new Date().toISOString() })
     .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);

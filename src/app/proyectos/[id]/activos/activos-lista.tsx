@@ -7,7 +7,7 @@ import { urlImagenVisible } from "@/lib/imagen-url";
 import { TIPOS_ACTIVO } from "@/lib/types";
 import type { Activo } from "@/lib/types";
 
-const TIPOS_CON_PREVIEW = new Set(["foto", "logo", "icono"]);
+const TIPOS_CON_PREVIEW = new Set(["foto", "icono", "recurso_grafico"]);
 
 function esArchivo(tipo: string) {
   return TIPOS_ACTIVO.find((t) => t.value === tipo)?.archivo ?? false;

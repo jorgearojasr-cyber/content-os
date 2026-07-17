@@ -24,6 +24,7 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     camara: "",
     ritmo: "",
     estructuraCta: "",
+    logoUrl: "",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -152,6 +153,11 @@ describe("identidadPorSeccion", () => {
   it("estilo es verdadero con al menos uno de sus 6 campos", () => {
     const identidad = baseIdentidad({ camara: "Formato vertical 9:16" });
     expect(identidadPorSeccion(identidad).estilo).toBe(true);
+  });
+
+  it("estilo es falso con solo logoUrl — logoUrl NO cuenta como campo de estilo", () => {
+    const soloLogo = baseIdentidad({ logoUrl: "/uploads/logo.png" });
+    expect(identidadPorSeccion(soloLogo).estilo).toBe(false);
   });
 
   it("las 4 secciones son verdaderas cuando la identidad está completa", () => {
