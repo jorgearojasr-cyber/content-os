@@ -57,6 +57,13 @@
       "when": 1784313922683,
       "tag": "0007_mean_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784316343285,
+      "tag": "0008_thin_colossus",
+      "breakpoints": true
     }
   ]
 }

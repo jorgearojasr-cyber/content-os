@@ -95,6 +95,15 @@ function seccion(titulo: string, entradas: Entrada[]): string {
   return `## ${titulo}\n${contenido}`;
 }
 
+export type PosicionLogo = "superior-izquierda" | "superior-derecha" | "inferior-izquierda" | "inferior-derecha";
+
+const ETIQUETAS_POSICION_LOGO: Record<PosicionLogo, string> = {
+  "superior-izquierda": "esquina superior izquierda",
+  "superior-derecha": "esquina superior derecha",
+  "inferior-izquierda": "esquina inferior izquierda",
+  "inferior-derecha": "esquina inferior derecha",
+};
+
 export type OpcionesCompilado = {
   /** Si es `false`, omite toda la sección "## Marca" (voz, reglas, objetivo
    * y Avatar del cliente ideal incluidos). Por defecto `true` — no cambia
@@ -113,6 +122,11 @@ export type OpcionesCompilado = {
   /** El Avatar SELECCIONADO para esta compilación. `null`/`undefined` =
    * sin Avatar, el sub-bloque se omite. */
   avatar?: Avatar | null;
+  /** Si se pasa (y la identidad tiene `logoUrl`), agrega una instrucción
+   * explícita de posicionamiento del logo en cada imagen/video de esta
+   * pieza — más allá de la mención informativa que "Logo" ya tiene siempre
+   * dentro de "## Estilo". `null`/`undefined` = sin instrucción extra. */
+  posicionLogo?: PosicionLogo | null;
 };
 
 /**
@@ -134,6 +148,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
     incluirContacto = false,
     personaje = null,
     avatar = null,
+    posicionLogo = null,
   } = opciones;
 
   const avatarFormateado = formatearAvatar(avatar);
@@ -180,7 +195,15 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
       ])
     : "";
 
-  const secciones = [marca, personajeSeccion, estilo, contacto].filter(Boolean);
+  const logoConPosicion =
+    posicionLogo && identidad.logoUrl.trim().length > 0
+      ? seccion("Logo en esta pieza", [
+          `Incluye el logo del proyecto (${identidad.logoUrl.trim()}) visible en la ` +
+            `${ETIQUETAS_POSICION_LOGO[posicionLogo]} de cada imagen o video generado para esta pieza.`,
+        ])
+      : "";
+
+  const secciones = [marca, personajeSeccion, estilo, contacto, logoConPosicion].filter(Boolean);
 
   if (secciones.length === 0) {
     return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";

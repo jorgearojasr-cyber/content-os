@@ -7,6 +7,7 @@ import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { activos, avatares, bloques, identidades, notas, personajes, proyectos } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
+import type { PosicionLogo } from "./identity-compiler";
 import {
   completarProyecto,
   generarContenido,
@@ -501,12 +502,42 @@ export async function getBloque(proyectoId: string, bloqueId: string) {
   return rows[0] ?? null;
 }
 
+/** Cuando el usuario elige "Automático" en el selector de Personaje (2+
+ * disponibles entre los del proyecto y del estudio), el sistema elige por
+ * palabras clave del tema contra cada Personaje — mismo criterio que el
+ * resto de Reutilización Inteligente, sin gastar un llamado extra a la IA.
+ * Sin coincidencias, cae al más reciente (mismo criterio de "por defecto"
+ * que usa el resto de la app). `null` solo si no hay ningún candidato. */
+async function elegirPersonajeAutomatico(proyectoId: string, tema: string): Promise<Personaje | null> {
+  const [propios, estudio] = await Promise.all([getPersonajes(proyectoId), getPersonajesDelEstudio()]);
+  const candidatos = [...propios, ...estudio];
+  if (candidatos.length === 0) return null;
+
+  const palabrasClave = extraerPalabrasClave(tema);
+  if (palabrasClave.length > 0) {
+    const [mejor] = rankearResultados(
+      candidatos,
+      (p) => `${p.nombre} ${p.personalidad} ${p.fisica} ${p.vestuario} ${p.vozDescrita} ${p.gestos} ${p.muletillas}`,
+      (p) => ({ id: p.id, titulo: p.nombre, fragmento: "" }),
+      palabrasClave,
+      1,
+    );
+    if (mejor) return candidatos.find((c) => c.id === mejor.id) ?? null;
+  }
+  return candidatos[0];
+}
+
 /**
  * Genera una pieza de contenido con IA para el wizard de "Crear". Compila
  * la identidad del proyecto automáticamente — el cliente nunca maneja
  * Marca/Personaje/Estilo/Avatar directamente. No escribe en la base de
  * datos; el usuario revisa el resultado y confirma con "Guardar en
  * Biblioteca" (que sigue siendo `createBloque`, sin cambios).
+ *
+ * Devuelve, junto al contenido, `personajeIdUsado` — el Personaje realmente
+ * usado en la compilación (el elegido a mano, o el que decidió el sistema
+ * si el selector estaba en "Automático"). El cliente lo necesita para
+ * guardar el bloque con el Personaje correcto asociado.
  */
 export async function generarContenidoAction(
   proyectoId: string,
@@ -518,24 +549,32 @@ export async function generarContenidoAction(
     incluirMarca?: boolean;
     incluirContacto?: boolean;
     /** Cuál Personaje/Avatar de la lista del proyecto usar en esta
-     * generación (selector en Crear cuando hay más de uno). Ausente/vacío
-     * = ninguno seleccionado, la sección respectiva se omite. */
+     * generación (selector en Crear cuando hay más de uno). Vacío con
+     * `incluirPersonaje: true` = "Automático", el sistema elige uno.
+     * Ausente con `incluirPersonaje: false` = ninguno, la sección se omite. */
     personajeId?: string;
     avatarId?: string;
+    /** Posición de logo elegida en "Incluir logo" (Paso 4 de Crear).
+     * Ausente/`undefined` = sin instrucción de logo para esta pieza. */
+    posicionLogo?: PosicionLogo;
   },
-): Promise<ContenidoGenerado> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, personajeId, avatarId, ...resto } = input;
-  const [identidad, personaje, avatar] = await Promise.all([
+): Promise<ContenidoGenerado & { personajeIdUsado: string | null }> {
+  const { incluirPersonaje, incluirMarca, incluirContacto, personajeId, avatarId, posicionLogo, ...resto } = input;
+  const personajeAutomatico = Boolean(incluirPersonaje) && !personajeId;
+  const [identidad, personajeExplicito, avatar, personajeAuto] = await Promise.all([
     getIdentidad(proyectoId),
     // Sin acotar por proyecto a propósito: personajeId puede ser un
     // Personaje del estudio, que no pertenece a este (ni a ningún) proyecto.
     personajeId ? getPersonaje(personajeId) : Promise.resolve(null),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
+    personajeAutomatico ? elegirPersonajeAutomatico(proyectoId, resto.tema) : Promise.resolve(null),
   ]);
+  const personaje = personajeExplicito ?? personajeAuto;
   const identidadCompilada = identidad
-    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personaje, avatar })
+    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personaje, avatar, posicionLogo })
     : "";
-  return generarContenido({ ...resto, identidadCompilada });
+  const contenido = await generarContenido({ ...resto, identidadCompilada });
+  return { ...contenido, personajeIdUsado: personaje?.id ?? null };
 }
 
 /**
@@ -675,6 +714,56 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
   await db
     .update(bloques)
     .set(actualizacion)
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
+}
+
+/**
+ * Pide el embed oEmbed de Instagram para un link de publicación (post,
+ * carrusel o reel — no Stories, que son públicas por 24h y la API no las
+ * cubre) y lo cachea junto al bloque, para no volver a pedirlo cada vez
+ * que se abre (el límite es 200 llamadas/hora a nivel de app). Requiere
+ * `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` configuradas en el entorno —
+ * sin ellas, o si la llamada falla (link inválido, contenido no público),
+ * retorna `null` y la UI cae al fallback: un botón "Ver publicación" con
+ * el link crudo, sin romper nada.
+ */
+async function obtenerEmbedInstagram(link: string): Promise<string | null> {
+  const appId = process.env.INSTAGRAM_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET;
+  if (!appId || !appSecret) return null;
+
+  try {
+    const url =
+      `https://graph.facebook.com/v25.0/instagram_oembed?url=${encodeURIComponent(link)}` +
+      `&access_token=${appId}|${appSecret}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    const html = (data as { html?: unknown })?.html;
+    return typeof html === "string" && html.trim() ? html : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Guarda el link de evidencia de publicación de un bloque (Paso 5 de la
+ * ronda de ajustes UX) e intenta obtener y cachear su embed de Instagram.
+ * Se guarda el link igual aunque el embed falle — el fallback vive en la
+ * UI, no acá.
+ */
+export async function guardarLinkPublicacion(proyectoId: string, bloqueId: string, formData: FormData) {
+  const link = String(formData.get("link") ?? "").trim();
+  if (!link) throw new Error("Pega el link de la publicación.");
+
+  const instagramEmbedHtml = await obtenerEmbedInstagram(link);
+
+  await db
+    .update(bloques)
+    .set({ linkPublicacion: link, instagramEmbedHtml })
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);

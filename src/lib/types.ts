@@ -134,6 +134,12 @@ export type Bloque = {
   /** Columna `jsonb`, nullable — el Plan de Edición generado por el Director
    * de Edición (o `null` si todavía no se generó). Usar `parsePlanEdicion()`. */
   planEdicionJson: unknown;
+  /** Link a la publicación real (Instagram, por ahora) pegado como
+   * evidencia — `null` hasta que el usuario lo agrega. */
+  linkPublicacion: string | null;
+  /** HTML del embed de Instagram oEmbed, cacheado — `null` si todavía no se
+   * pidió, si la llamada falló, o si no hay credenciales configuradas. */
+  instagramEmbedHtml: string | null;
   createdAt: string;
 };
 

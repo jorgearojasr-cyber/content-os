@@ -153,6 +153,15 @@ export const bloques = pgTable("bloques", {
   // usuario presiona "Generar Plan de Edición" — se genera una sola vez y
   // se conserva, no se recalcula en cada visita.
   planEdicionJson: jsonb("plan_edicion_json"),
+  // Link a la publicación real (Instagram por ahora) que el usuario pegó
+  // como evidencia — null hasta que lo hace. Ver `instagramEmbedHtml`.
+  linkPublicacion: text("link_publicacion"),
+  // HTML del embed de Instagram oEmbed, cacheado en el momento en que se
+  // guarda `linkPublicacion` — nunca se vuelve a pedir a la API al abrir
+  // el bloque (el límite es 200 llamadas/hora a nivel de app). Null si
+  // falló la llamada, no hay credenciales configuradas, o el link no es
+  // válido — ahí la UI cae al botón "Ver publicación" con el link crudo.
+  instagramEmbedHtml: text("instagram_embed_html"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

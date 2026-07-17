@@ -8,7 +8,15 @@ import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campo
 import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
+import type { PosicionLogo } from "@/lib/identity-compiler";
 import type { Avatar, Identidad, Personaje } from "@/lib/types";
+
+const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
+  { value: "superior-izquierda", etiqueta: "Esquina superior izquierda" },
+  { value: "superior-derecha", etiqueta: "Esquina superior derecha" },
+  { value: "inferior-izquierda", etiqueta: "Esquina inferior izquierda" },
+  { value: "inferior-derecha", etiqueta: "Esquina inferior derecha" },
+];
 
 type Modo = "rapido" | "guiado" | "profesional";
 
@@ -32,6 +40,15 @@ function Cronometro() {
 function segundosDesdeDuracion(duracion: string): number | undefined {
   const match = duracion.match(/^(\d+)s$/);
   return match ? Number(match[1]) : undefined;
+}
+
+/** La única opción es de proyecto -> se auto-selecciona sin selector (cero
+ * fricción). Cualquier otro caso con al menos 2 opciones (de proyecto y/o
+ * de estudio), o con la única opción siendo del estudio, sí muestra
+ * selector — un Personaje del estudio nunca se elige solo. */
+function haySelectorDePersonaje(personajes: Personaje[], personajesEstudio: Personaje[]): boolean {
+  const total = personajes.length + personajesEstudio.length;
+  return total > 1 || (total === 1 && personajes.length === 0);
 }
 
 /**
@@ -61,6 +78,11 @@ function QueIncluir({
   mostrarContacto,
   incluirContacto,
   setIncluirContacto,
+  logoUrl,
+  incluirLogo,
+  setIncluirLogo,
+  posicionLogo,
+  setPosicionLogo,
 }: {
   mostrarPersonaje: boolean;
   incluirPersonaje: boolean;
@@ -77,13 +99,15 @@ function QueIncluir({
   mostrarContacto: boolean;
   incluirContacto: boolean;
   setIncluirContacto: (v: boolean) => void;
+  /** `identidad.logoUrl` tal cual — vacío = sin logo cargado en Identidad,
+   * la casilla "Incluir logo" queda deshabilitada. */
+  logoUrl: string;
+  incluirLogo: boolean;
+  setIncluirLogo: (v: boolean) => void;
+  posicionLogo: PosicionLogo;
+  setPosicionLogo: (v: PosicionLogo) => void;
 }) {
-  const totalPersonajes = personajes.length + personajesEstudio.length;
-  // La única opción es de proyecto -> se auto-selecciona sin selector
-  // (cero fricción, igual que antes). Cualquier otro caso con al menos 2
-  // opciones, o con la única opción siendo del estudio, sí muestra
-  // selector — un Personaje del estudio nunca se elige solo.
-  const mostrarSelectorPersonaje = totalPersonajes > 1 || (totalPersonajes === 1 && personajes.length === 0);
+  const mostrarSelectorPersonaje = haySelectorDePersonaje(personajes, personajesEstudio);
 
   return (
     <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
@@ -105,7 +129,7 @@ function QueIncluir({
                 onChange={(e) => setPersonajeId(e.target.value)}
                 className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
               >
-                {!personajeId ? <option value="">— Elige un personaje —</option> : null}
+                <option value="">✨ Automático (que la IA elija según el contexto)</option>
                 {personajes.length > 0 ? (
                   <optgroup label="De este proyecto">
                     {personajes.map((p) => (
@@ -161,6 +185,37 @@ function QueIncluir({
             Incluir datos de contacto
           </label>
         ) : null}
+        <div>
+          <label
+            className={`flex items-center gap-2 text-[13px] ${logoUrl.trim() ? "text-text" : "text-text-muted"}`}
+          >
+            <input
+              type="checkbox"
+              checked={incluirLogo}
+              disabled={!logoUrl.trim()}
+              onChange={(e) => setIncluirLogo(e.target.checked)}
+            />
+            Incluir logo
+          </label>
+          {!logoUrl.trim() ? (
+            <p className="mt-1 text-[11.5px] text-text-muted">
+              Carga un logo en Identidad para poder incluirlo.
+            </p>
+          ) : null}
+          {incluirLogo && logoUrl.trim() ? (
+            <select
+              value={posicionLogo}
+              onChange={(e) => setPosicionLogo(e.target.value as PosicionLogo)}
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
+            >
+              {OPCIONES_POSICION_LOGO.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.etiqueta}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -190,8 +245,9 @@ export function CrearModos({
       incluirContacto?: boolean;
       personajeId?: string;
       avatarId?: string;
+      posicionLogo?: PosicionLogo;
     },
-  ) => Promise<ContenidoGenerado>;
+  ) => Promise<ContenidoGenerado & { personajeIdUsado: string | null }>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
 }) {
@@ -214,14 +270,25 @@ export function CrearModos({
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
   const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
-  // Más reciente por defecto (personajes/avatares ya vienen ordenados así).
-  const [personajeId, setPersonajeId] = useState(personajes[0]?.id ?? "");
+  // Con selector (2+ opciones), arranca en "Automático" — sin selector, el
+  // único disponible (más reciente si hubiera más de uno de proyecto, pero
+  // ahí ya habría selector) tal como antes.
+  const [personajeId, setPersonajeId] = useState(
+    haySelectorDePersonaje(personajes, personajesEstudio) ? "" : (personajes[0]?.id ?? ""),
+  );
+  // El Personaje realmente usado en la última generación (el elegido a
+  // mano, o el que decidió el sistema en "Automático") — es lo que se
+  // guarda con el bloque, no el valor crudo del selector.
+  const [personajeIdUsado, setPersonajeIdUsado] = useState<string | null>(null);
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
+  const [incluirLogo, setIncluirLogo] = useState(false);
+  const [posicionLogo, setPosicionLogo] = useState<PosicionLogo>("inferior-derecha");
 
   function empezarDeNuevo() {
     setResultado(null);
+    setPersonajeIdUsado(null);
     setInferencia(null);
     setIdea("");
     setConfig(CONFIG_VACIA);
@@ -282,8 +349,11 @@ export function CrearModos({
         incluirContacto,
         personajeId: incluirPersonaje ? personajeId || undefined : undefined,
         avatarId: incluirMarca ? avatarId || undefined : undefined,
+        posicionLogo: incluirLogo ? posicionLogo : undefined,
       });
-      setResultado(resultadoGenerado);
+      const { personajeIdUsado: idUsado, ...contenido } = resultadoGenerado;
+      setPersonajeIdUsado(idUsado);
+      setResultado(contenido);
     } catch (e) {
       setError(explicarError(e));
     } finally {
@@ -297,7 +367,7 @@ export function CrearModos({
         proyectoId={proyectoId}
         resultado={resultado}
         formato={config.tipoContenido}
-        personajeId={incluirPersonaje ? personajeId : ""}
+        personajeId={personajeIdUsado ?? ""}
         tema={config.tema}
         onGuardar={onGuardar}
         onEmpezarDeNuevo={empezarDeNuevo}
@@ -371,6 +441,11 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
+                logoUrl={identidad.logoUrl}
+                incluirLogo={incluirLogo}
+                setIncluirLogo={setIncluirLogo}
+                posicionLogo={posicionLogo}
+                setPosicionLogo={setPosicionLogo}
               />
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
@@ -432,6 +507,11 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
+                logoUrl={identidad.logoUrl}
+                incluirLogo={incluirLogo}
+                setIncluirLogo={setIncluirLogo}
+                posicionLogo={posicionLogo}
+                setPosicionLogo={setPosicionLogo}
               />
               <Button type="button" onClick={generar}>
                 🚀 Crear contenido
@@ -468,6 +548,11 @@ export function CrearModos({
               mostrarContacto={tieneContacto}
               incluirContacto={incluirContacto}
               setIncluirContacto={setIncluirContacto}
+              logoUrl={identidad.logoUrl}
+              incluirLogo={incluirLogo}
+              setIncluirLogo={setIncluirLogo}
+              posicionLogo={posicionLogo}
+              setPosicionLogo={setPosicionLogo}
             />
             <Button
               type="button"
