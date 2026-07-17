@@ -180,6 +180,20 @@ export async function getPersonajes(proyectoId: string): Promise<Personaje[]> {
   return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/** Todos los personajes de todos los proyectos, con el nombre de su
+ * proyecto ya resuelto — usado por la pantalla global /personajes. Más
+ * reciente primero, mismo criterio (y mismo motivo) que `getPersonajes`. */
+export async function getTodosLosPersonajes(): Promise<(Personaje & { proyectoNombre: string })[]> {
+  const [todosPersonajes, todosProyectos] = await Promise.all([
+    db.select().from(personajes),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosPersonajes
+    .map((p) => ({ ...p, proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "" }))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
 export async function getPersonaje(proyectoId: string, personajeId: string): Promise<Personaje | null> {
   const rows = await db
     .select()
@@ -423,6 +437,21 @@ export async function getBloques(proyectoId: string) {
   return rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/** Los bloques activos de TODOS los proyectos (sin archivados ni
+ * papelera), con el nombre de su proyecto ya resuelto — usado por la
+ * pantalla global /biblioteca. Más recientes primero. */
+export async function getTodosLosBloquesActivos() {
+  await purgarPapeleraVencida();
+  const [todosBloques, todosProyectos] = await Promise.all([
+    db.select().from(bloques).where(eq(bloques.estado, "activo")),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosBloques
+    .map((b) => ({ ...b, proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "" }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
 export async function getBloquesArchivados(proyectoId: string) {
   const rows = await db
     .select()
@@ -572,6 +601,7 @@ export async function createBloque(proyectoId: string, formData: FormData) {
   });
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 /** Actualiza título/formato/texto y, opcionalmente, `escenasJson`.
@@ -603,6 +633,7 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 /**
@@ -662,6 +693,7 @@ export async function renombrarBloque(proyectoId: string, bloqueId: string, form
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 export async function duplicarBloque(proyectoId: string, bloqueId: string) {
@@ -680,6 +712,7 @@ export async function duplicarBloque(proyectoId: string, bloqueId: string) {
   });
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 export async function moverBloqueAProyecto(
@@ -694,6 +727,7 @@ export async function moverBloqueAProyecto(
 
   revalidatePath(`/proyectos/${proyectoActualId}/biblioteca`);
   revalidatePath(`/proyectos/${nuevoProyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 export async function archivarBloque(proyectoId: string, bloqueId: string) {
@@ -702,6 +736,7 @@ export async function archivarBloque(proyectoId: string, bloqueId: string) {
     .set({ estado: "archivado" })
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 export async function desarchivarBloque(proyectoId: string, bloqueId: string) {
@@ -710,6 +745,7 @@ export async function desarchivarBloque(proyectoId: string, bloqueId: string) {
     .set({ estado: "activo" })
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 /** Elimina "suavemente": el bloque va a la papelera y desaparece de
@@ -720,6 +756,7 @@ export async function moverAPapelera(proyectoId: string, bloqueId: string) {
     .set({ estado: "papelera", eliminadoAt: new Date().toISOString() })
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 export async function restaurarBloque(proyectoId: string, bloqueId: string) {
@@ -728,6 +765,7 @@ export async function restaurarBloque(proyectoId: string, bloqueId: string) {
     .set({ estado: "activo", eliminadoAt: "" })
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 /** Elimina para siempre, sin pasar por la papelera (o desde la papelera). */
@@ -736,6 +774,7 @@ export async function eliminarBloquePermanente(proyectoId: string, bloqueId: str
     .delete(bloques)
     .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+  revalidatePath("/biblioteca");
 }
 
 // ---------------------------------------------------------------------

@@ -3,9 +3,15 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 
-/** Las 3 pantallas globales — cualquier otra ruta (ej. dentro de un
+/** Las 5 pantallas globales — cualquier otra ruta (ej. dentro de un
  * proyecto) se sirve tal cual, sin sidebar, sin tocar su layout actual. */
-const RUTAS_CON_SIDEBAR = new Set(["/", "/proyectos", "/segundo-cerebro"]);
+const RUTAS_CON_SIDEBAR = new Set([
+  "/",
+  "/proyectos",
+  "/segundo-cerebro",
+  "/personajes",
+  "/biblioteca",
+]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

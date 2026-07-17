@@ -17,8 +17,8 @@ import { ConfirmDialog, PromptDialog, SelectDialog } from "@/components/confirm-
 import { formatearFechaChile } from "@/lib/fecha";
 import type { Bloque } from "@/lib/types";
 
-type BloqueConDias = Bloque & { diasRestantes?: number };
-type Vista = "activos" | "archivados" | "papelera";
+export type BloqueConDias = Bloque & { diasRestantes?: number };
+export type Vista = "activos" | "archivados" | "papelera";
 
 export function BibliotecaLista({
   proyectoId,
@@ -46,16 +46,22 @@ export function BibliotecaLista({
   );
 }
 
-function BloqueCard({
+export function BloqueCard({
   proyectoId,
   vista,
   bloque,
   otrosProyectos,
+  nombreProyecto,
 }: {
   proyectoId: string;
   vista: Vista;
   bloque: BloqueConDias;
   otrosProyectos: { id: string; nombre: string }[];
+  /** Se muestra como una etiqueta extra junto al formato — solo lo pasa la
+   * pantalla global /biblioteca, que mezcla piezas de varios proyectos. La
+   * Biblioteca de un proyecto (donde ya se sabe de cuál se trata) no lo
+   * necesita y lo deja sin pasar. */
+  nombreProyecto?: string;
 }) {
   const [confirmPapelera, setConfirmPapelera] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
@@ -66,7 +72,10 @@ function BloqueCard({
     <Card>
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <Chip>{bloque.formato}</Chip>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Chip>{bloque.formato}</Chip>
+            {nombreProyecto ? <Chip>{nombreProyecto}</Chip> : null}
+          </div>
           <div className="mt-1.5 font-display text-[16px]">{bloque.titulo}</div>
           {vista === "papelera" ? (
             <p className="mt-1 text-[12px] text-text-muted">

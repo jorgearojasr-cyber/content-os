@@ -4,12 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/** Exactamente 3 ítems — no hay Personajes, Recursos, Campañas ni
- * Configuración en esta app, así que no se agregan aquí tampoco. */
+/** Exactamente 5 ítems — no hay Recursos, Campañas ni Configuración en
+ * esta app, así que no se agregan aquí tampoco. */
 const ITEMS = [
   { href: "/", label: "Inicio" },
   { href: "/proyectos", label: "Proyectos" },
   { href: "/segundo-cerebro", label: "Segundo Cerebro" },
+  { href: "/personajes", label: "Personajes" },
+  { href: "/biblioteca", label: "Biblioteca" },
 ] as const;
 
 export function Sidebar({ className = "" }: { className?: string }) {
