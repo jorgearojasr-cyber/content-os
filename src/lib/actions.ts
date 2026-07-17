@@ -52,7 +52,7 @@ export async function createProyecto(formData: FormData) {
   await db.insert(identidades).values({ id: randomUUID(), proyectoId });
 
   revalidatePath("/proyectos");
-  redirect(`/proyectos/${proyectoId}/identidad`);
+  redirect(`/proyectos/${proyectoId}/crear`);
 }
 
 export async function updateProyecto(id: string, formData: FormData) {

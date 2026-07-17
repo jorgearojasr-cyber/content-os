@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   buscarContenidoRelacionado,
@@ -31,10 +32,10 @@ export default async function CrearPage({
     <div className="space-y-5">
       {!tieneIdentidad ? (
         <p className="rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-3 text-[13px] text-text">
-          Esta identidad todavía está vacía. Complétala en la pestaña{" "}
-          <span className="font-semibold">Identidad</span> primero — la IA usa
-          automáticamente lo que hayas cargado ahí para generar contenido que
-          realmente suene a tu proyecto.
+          Sin Identidad completa, el contenido será más genérico —{" "}
+          <Link href={`/proyectos/${proyectoId}/identidad`} className="font-semibold text-accent underline">
+            Completar Identidad
+          </Link>
         </p>
       ) : null}
 

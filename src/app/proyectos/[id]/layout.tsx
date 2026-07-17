@@ -17,12 +17,20 @@ export default async function ProyectoLayout({
   return (
     <div className="mx-auto max-w-[760px] px-4 py-6 sm:py-8">
       <header className="mb-5 border-b border-border pb-4">
-        <Link
-          href="/proyectos"
-          className="font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted hover:text-accent"
-        >
-          ← Todos los proyectos
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent hover:text-accent/80"
+          >
+            Content OS
+          </Link>
+          <Link
+            href="/proyectos"
+            className="font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted hover:text-accent"
+          >
+            ← Todos los proyectos
+          </Link>
+        </div>
         <h1 className="mt-1 font-display text-2xl font-normal tracking-wide">
           {proyecto.nombre}
         </h1>
