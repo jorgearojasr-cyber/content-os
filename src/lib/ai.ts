@@ -125,10 +125,6 @@ export type ContenidoInput = {
   tipoProduccion: string;
   tema: string;
   identidadCompilada: string;
-  /** Entradas de la Base de Conocimiento del proyecto relevantes para
-   * `tema` (encontradas por `buscarContenidoRelacionado`); opcional —
-   * cadena vacía o undefined si no hay ninguna coincidencia. */
-  conocimientoRelevante?: string;
   plataforma?: string;
   duracionSegundos?: number;
   numeroEscenas?: number;
@@ -171,11 +167,6 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
     `Eres el equipo creativo (Director de Marketing + Director Creativo) de este proyecto de ` +
     `contenido. Esta es la identidad de marca — síguela al pie de la letra, sin resumirla ni ` +
     `contradecirla:\n\n${input.identidadCompilada}\n\n` +
-    (input.conocimientoRelevante
-      ? `Este es material de referencia de la Base de Conocimiento del proyecto, relevante para ` +
-        `este tema — úsalo para que el contenido sea preciso y específico, sin inventar datos ` +
-        `que lo contradigan:\n\n${input.conocimientoRelevante}\n\n`
-      : "") +
     `Genera contenido de tipo "${input.tipoContenido}", producido como "${input.tipoProduccion}", ` +
     `sobre este tema: "${input.tema}". ${opciones} ` +
     `Recuerda: "escenas" es la unidad estructural universal — para Carrusel cada elemento es una ` +

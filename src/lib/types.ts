@@ -337,6 +337,8 @@ export type Nota = {
   id: string;
   texto: string;
   proyectoId: string | null;
+  estado: string;
+  bloqueId: string | null;
   createdAt: string;
 };
 

@@ -2,17 +2,14 @@ import { notFound } from "next/navigation";
 import {
   completarProyectoAction,
   createAvatar,
-  createConocimiento,
   createPersonaje,
   deleteAvatar,
-  deleteConocimiento,
   deletePersonaje,
   eliminarArchivoTemporal,
   eliminarFotoPersonaje,
   generarPersonajeAction,
   getActivos,
   getAvatares,
-  getConocimiento,
   getIdentidad,
   getPersonajes,
   subirArchivoTemporal,
@@ -22,7 +19,7 @@ import {
   updateIdentidad,
   updatePersonaje,
 } from "@/lib/actions";
-import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { Card, SectionTitle } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
@@ -36,7 +33,6 @@ import {
   OBJETIVOS_SUGERIDOS,
 } from "@/lib/identidad-ejemplos";
 import { IdentidadAiTools } from "./ai-tools";
-import { ConocimientoLista } from "./conocimiento-lista";
 import { PersonajesLista } from "./personajes-lista";
 import { AvataresLista } from "./avatares-lista";
 
@@ -52,13 +48,10 @@ export default async function IdentidadPage({
   if (!identidad) notFound();
 
   const activos = await getActivos(proyectoId);
-  const conocimiento = await getConocimiento(proyectoId);
   const personajes = await getPersonajes(proyectoId);
   const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateIdentidad.bind(null, proyectoId);
   const boundSubirLogo = subirLogo.bind(null, proyectoId);
-  const boundCreateConocimiento = createConocimiento.bind(null, proyectoId);
-  const boundDeleteConocimiento = deleteConocimiento.bind(null, proyectoId);
   // Un Personaje creado desde la Identidad de un proyecto siempre es DE ESE
   // proyecto (nunca del estudio) — updatePersonaje/deletePersonaje/subirFoto/
   // eliminarFoto ya no necesitan proyectoId (personajeId es suficiente y
@@ -72,10 +65,6 @@ export default async function IdentidadPage({
   const tieneAvatar = avatares.length > 0;
   const porSeccion = identidadPorSeccion(identidad, { tienePersonaje, tieneAvatar });
   const resumen = resumenPorSeccion(identidad);
-  const tieneConocimiento = conocimiento.length > 0;
-  const resumenConocimiento = tieneConocimiento
-    ? `${conocimiento.length} entrada${conocimiento.length === 1 ? "" : "s"}`
-    : "";
   const resumenPersonajes = tienePersonaje
     ? `${personajes.length} personaje${personajes.length === 1 ? "" : "s"}`
     : "";
@@ -251,33 +240,6 @@ export default async function IdentidadPage({
           onUpdate={boundUpdateAvatar}
           onDelete={boundDeleteAvatar}
         />
-      </SeccionColapsable>
-
-      <SeccionColapsable
-        titulo="Conocimiento"
-        subtitulo="Material de referencia de este proyecto — la IA lo usa cuando es relevante para el tema que estás creando."
-        tieneContenido={tieneConocimiento}
-        resumen={resumenConocimiento}
-      >
-        <form action={boundCreateConocimiento} className="mb-4 border-b border-border pb-4">
-          <Label htmlFor="conocimientoTitulo">Título</Label>
-          <Input
-            id="conocimientoTitulo"
-            name="titulo"
-            placeholder="Ej: Normativa chilena de radieres"
-            required
-          />
-          <Label htmlFor="conocimientoContenido">Contenido</Label>
-          <Textarea
-            id="conocimientoContenido"
-            name="contenido"
-            placeholder="Pega o escribe el contenido de referencia"
-            className="min-h-[100px]"
-            required
-          />
-          <BotonGuardar texto="Agregar" textoConfirmado="Agregado ✓" className="mt-3" />
-        </form>
-        <ConocimientoLista entradas={conocimiento} onDelete={boundDeleteConocimiento} />
       </SeccionColapsable>
 
       <Card>

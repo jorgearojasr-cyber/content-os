@@ -91,6 +91,7 @@ export function ResultadoTabs({
   resultado,
   formato,
   personajeId,
+  tema,
   onGuardar,
   onEmpezarDeNuevo,
 }: {
@@ -101,6 +102,10 @@ export function ResultadoTabs({
    * corresponde) — se guarda junto con el bloque para que la generación de
    * imagen use su foto de referencia. "" si no había ninguno. */
   personajeId?: string;
+  /** El tema/idea con el que se generó esta pieza — se usa para detectar si
+   * hizo match con una nota pendiente de Segundo Cerebro y marcarla como
+   * trabajada al guardar. */
+  tema?: string;
   onGuardar: (formData: FormData) => Promise<void>;
   onEmpezarDeNuevo: () => void;
 }) {
@@ -147,6 +152,7 @@ export function ResultadoTabs({
       fd.set("texto", construirTextoPlano({ copy, hashtags, cta, narracion, miniatura, escenas }) || "(sin contenido)");
       fd.set("escenasJson", escenas.length > 0 ? JSON.stringify(escenas) : "");
       if (personajeId) fd.set("personajeId", personajeId);
+      if (tema) fd.set("tema", tema);
       await onGuardar(fd);
       router.push(`/proyectos/${proyectoId}/biblioteca`);
     } catch (e) {

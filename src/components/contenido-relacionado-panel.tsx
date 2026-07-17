@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Chip } from "@/components/ui";
-import type { ContenidoRelacionado } from "@/lib/actions";
+import Link from "next/link";
+import type { ContenidoRelacionado, NotaRelacionada } from "@/lib/actions";
 import type { ResultadoRelacionado } from "@/lib/reutilizacion";
 
 const DEBOUNCE_MS = 500;
@@ -50,8 +50,7 @@ export function ContenidoRelacionadoPanel({
   // anterior — no mostrar resultados de un tema que ya no es el actual.
   if (tema.trim().length < LARGO_MINIMO_TEMA) return null;
   if (!resultado) return null;
-  const total =
-    resultado.biblioteca.length + resultado.conocimiento.length + resultado.segundoCerebro.length;
+  const total = resultado.biblioteca.length + resultado.segundoCerebro.length;
   if (total === 0) return null;
 
   return (
@@ -68,29 +67,70 @@ export function ContenidoRelacionadoPanel({
       {abierto ? (
         <div className="mt-3 space-y-3">
           <SeccionRelacionada titulo="En tu Biblioteca" resultados={resultado.biblioteca} />
-          <SeccionRelacionada
-            titulo="En tu Base de Conocimiento"
-            resultados={resultado.conocimiento}
-            etiqueta="Conocimiento"
-          />
-          <SeccionRelacionada titulo="En tu Segundo Cerebro" resultados={resultado.segundoCerebro} />
+          <SeccionSegundoCerebro proyectoId={proyectoId} notas={resultado.segundoCerebro} />
         </div>
       ) : null}
     </div>
   );
 }
 
-function SeccionRelacionada({
-  titulo,
-  resultados,
-  etiqueta,
-}: {
-  titulo: string;
-  resultados: ResultadoRelacionado[];
-  /** Chip mostrado junto a cada resultado, para dejar claro de dónde sale
-   * (ej. "Conocimiento" en los resultados de Base de Conocimiento). */
-  etiqueta?: string;
-}) {
+function SeccionSegundoCerebro({ proyectoId, notas }: { proyectoId: string; notas: NotaRelacionada[] }) {
+  const [descartadas, setDescartadas] = useState<Set<string>>(new Set());
+  if (notas.length === 0) return null;
+
+  const pendientes = notas.filter((n) => n.estado !== "trabajada");
+  const trabajadas = notas.filter((n) => n.estado === "trabajada" && !descartadas.has(n.id));
+
+  return (
+    <div className="space-y-1.5">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        En tu Segundo Cerebro
+      </p>
+      <ul className="space-y-1.5">
+        {trabajadas.map((n) => (
+          <li key={n.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
+            <p>
+              ✅ Ya creaste contenido sobre esto
+              {n.bloqueTitulo ? (
+                <>
+                  : <span className="font-medium">{n.bloqueTitulo}</span>
+                  {n.bloqueFormato ? ` (${n.bloqueFormato})` : ""}
+                </>
+              ) : null}
+            </p>
+            <div className="mt-1.5 flex items-center gap-3">
+              {n.bloqueId ? (
+                <Link
+                  href={`/proyectos/${proyectoId}/biblioteca/${n.bloqueId}/editar`}
+                  className="text-[12px] font-medium text-accent underline"
+                >
+                  Ver en Biblioteca
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setDescartadas((prev) => new Set(prev).add(n.id))}
+                className="text-[12px] text-text-muted underline hover:text-text"
+              >
+                Continuar de todas formas
+              </button>
+            </div>
+          </li>
+        ))}
+        {pendientes.map((n) => (
+          <li key={n.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
+            <span className="font-medium">{n.titulo}</span>
+            {n.fragmento && n.fragmento !== n.titulo ? (
+              <span className="block text-text-muted">{n.fragmento}</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SeccionRelacionada({ titulo, resultados }: { titulo: string; resultados: ResultadoRelacionado[] }) {
   if (resultados.length === 0) return null;
   return (
     <div>
@@ -100,10 +140,7 @@ function SeccionRelacionada({
       <ul className="space-y-1.5">
         {resultados.map((r) => (
           <li key={r.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="font-medium">{r.titulo}</span>
-              {etiqueta ? <Chip>{etiqueta}</Chip> : null}
-            </span>
+            <span className="font-medium">{r.titulo}</span>
             {r.fragmento && r.fragmento !== r.titulo ? (
               <span className="block text-text-muted">{r.fragmento}</span>
             ) : null}

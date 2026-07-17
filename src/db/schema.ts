@@ -190,6 +190,14 @@ export const notas = pgTable("notas", {
   id: text("id").primaryKey(),
   texto: text("texto").notNull(),
   proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "set null" }),
+  // 'pendiente' | 'trabajada' — pasa a 'trabajada' automáticamente cuando
+  // el usuario genera y guarda una pieza que hizo match con esta nota (ver
+  // createBloque en actions.ts). Nunca se marca a mano.
+  estado: text("estado").notNull().default("pendiente"),
+  // Qué bloque de Biblioteca se creó a partir de esta nota — null hasta
+  // que estado pasa a 'trabajada'. Si el bloque se borra, la nota no
+  // desaparece, solo pierde el enlace (onDelete: "set null").
+  bloqueId: text("bloque_id").references(() => bloques.id, { onDelete: "set null" }),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

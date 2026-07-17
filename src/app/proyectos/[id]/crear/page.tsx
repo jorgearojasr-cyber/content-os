@@ -6,7 +6,6 @@ import {
   generarContenidoAction,
   getActivos,
   getAvatares,
-  getConocimiento,
   getIdentidad,
   getPersonajes,
   getPersonajesDelEstudio,
@@ -27,7 +26,6 @@ export default async function CrearPage({
   if (!identidad) notFound();
 
   const activos = await getActivos(proyectoId);
-  const conocimiento = await getConocimiento(proyectoId);
   const personajes = await getPersonajes(proyectoId);
   const personajesEstudio = await getPersonajesDelEstudio();
   const avatares = await getAvatares(proyectoId);
@@ -56,7 +54,6 @@ export default async function CrearPage({
         personajes={personajes}
         personajesEstudio={personajesEstudio}
         avatares={avatares}
-        tieneConocimiento={conocimiento.length > 0}
         onInferir={boundInferir}
         onGenerar={boundGenerar}
         onGuardar={boundCreate}

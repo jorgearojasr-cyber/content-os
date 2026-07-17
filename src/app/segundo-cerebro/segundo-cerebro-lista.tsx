@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { formatearFechaChile } from "@/lib/fecha";
@@ -108,7 +109,20 @@ function NotaCard({
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
-        <Chip>{nombreProyecto || "Sin vincular"}</Chip>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Chip>{nombreProyecto || "Sin vincular"}</Chip>
+          {nota.estado === "trabajada" ? (
+            nota.bloqueId && nota.proyectoId ? (
+              <Link href={`/proyectos/${nota.proyectoId}/biblioteca/${nota.bloqueId}/editar`}>
+                <Chip>✅ Trabajada</Chip>
+              </Link>
+            ) : (
+              <Chip>✅ Trabajada</Chip>
+            )
+          ) : (
+            <Chip>⏳ Pendiente</Chip>
+          )}
+        </div>
         <Button
           variant="danger"
           className="px-2.5 py-1 text-[12.5px]"

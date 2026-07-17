@@ -61,9 +61,6 @@ function QueIncluir({
   mostrarContacto,
   incluirContacto,
   setIncluirContacto,
-  mostrarConocimiento,
-  incluirConocimiento,
-  setIncluirConocimiento,
 }: {
   mostrarPersonaje: boolean;
   incluirPersonaje: boolean;
@@ -80,9 +77,6 @@ function QueIncluir({
   mostrarContacto: boolean;
   incluirContacto: boolean;
   setIncluirContacto: (v: boolean) => void;
-  mostrarConocimiento: boolean;
-  incluirConocimiento: boolean;
-  setIncluirConocimiento: (v: boolean) => void;
 }) {
   const totalPersonajes = personajes.length + personajesEstudio.length;
   // La única opción es de proyecto -> se auto-selecciona sin selector
@@ -167,16 +161,6 @@ function QueIncluir({
             Incluir datos de contacto
           </label>
         ) : null}
-        {mostrarConocimiento ? (
-          <label className="flex items-center gap-2 text-[13px] text-text">
-            <input
-              type="checkbox"
-              checked={incluirConocimiento}
-              onChange={(e) => setIncluirConocimiento(e.target.checked)}
-            />
-            Usar Base de Conocimiento
-          </label>
-        ) : null}
       </div>
     </div>
   );
@@ -188,7 +172,6 @@ export function CrearModos({
   personajes,
   personajesEstudio,
   avatares,
-  tieneConocimiento,
   onInferir,
   onGenerar,
   onGuardar,
@@ -199,14 +182,12 @@ export function CrearModos({
   personajes: Personaje[];
   personajesEstudio: Personaje[];
   avatares: Avatar[];
-  tieneConocimiento: boolean;
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
   onGenerar: (
     input: Omit<ContenidoInput, "identidadCompilada"> & {
       incluirPersonaje?: boolean;
       incluirMarca?: boolean;
       incluirContacto?: boolean;
-      incluirConocimiento?: boolean;
       personajeId?: string;
       avatarId?: string;
     },
@@ -238,7 +219,6 @@ export function CrearModos({
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
-  const [incluirConocimiento, setIncluirConocimiento] = useState(true);
 
   function empezarDeNuevo() {
     setResultado(null);
@@ -300,7 +280,6 @@ export function CrearModos({
         incluirPersonaje,
         incluirMarca,
         incluirContacto,
-        incluirConocimiento,
         personajeId: incluirPersonaje ? personajeId || undefined : undefined,
         avatarId: incluirMarca ? avatarId || undefined : undefined,
       });
@@ -319,6 +298,7 @@ export function CrearModos({
         resultado={resultado}
         formato={config.tipoContenido}
         personajeId={incluirPersonaje ? personajeId : ""}
+        tema={config.tema}
         onGuardar={onGuardar}
         onEmpezarDeNuevo={empezarDeNuevo}
       />
@@ -391,9 +371,6 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
-                mostrarConocimiento={tieneConocimiento}
-                incluirConocimiento={incluirConocimiento}
-                setIncluirConocimiento={setIncluirConocimiento}
               />
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
@@ -455,9 +432,6 @@ export function CrearModos({
                 mostrarContacto={tieneContacto}
                 incluirContacto={incluirContacto}
                 setIncluirContacto={setIncluirContacto}
-                mostrarConocimiento={tieneConocimiento}
-                incluirConocimiento={incluirConocimiento}
-                setIncluirConocimiento={setIncluirConocimiento}
               />
               <Button type="button" onClick={generar}>
                 🚀 Crear contenido
@@ -494,9 +468,6 @@ export function CrearModos({
               mostrarContacto={tieneContacto}
               incluirContacto={incluirContacto}
               setIncluirContacto={setIncluirContacto}
-              mostrarConocimiento={tieneConocimiento}
-              incluirConocimiento={incluirConocimiento}
-              setIncluirConocimiento={setIncluirConocimiento}
             />
             <Button
               type="button"

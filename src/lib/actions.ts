@@ -3,9 +3,9 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { activos, avatares, bloques, conocimiento, identidades, notas, personajes, proyectos } from "@/db/schema";
+import { activos, avatares, bloques, identidades, notas, personajes, proyectos } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
 import {
   completarProyecto,
@@ -510,17 +510,13 @@ export async function getBloque(proyectoId: string, bloqueId: string) {
  */
 export async function generarContenidoAction(
   proyectoId: string,
-  input: Omit<ContenidoInput, "identidadCompilada" | "conocimientoRelevante"> & {
+  input: Omit<ContenidoInput, "identidadCompilada"> & {
     /** Casillas "Qué incluir en esta pieza" de Crear — controlan qué
      * secciones del Compilador se pasan a esta generación en particular.
      * Nunca se guardan; solo viven mientras dura este llamado. */
     incluirPersonaje?: boolean;
     incluirMarca?: boolean;
     incluirContacto?: boolean;
-    /** Por defecto true (mismo criterio que las otras casillas cuando no
-     * llegan). En false, ni siquiera se consulta la Base de Conocimiento —
-     * no solo se omite del prompt. */
-    incluirConocimiento?: boolean;
     /** Cuál Personaje/Avatar de la lista del proyecto usar en esta
      * generación (selector en Crear cuando hay más de uno). Ausente/vacío
      * = ninguno seleccionado, la sección respectiva se omite. */
@@ -528,8 +524,7 @@ export async function generarContenidoAction(
     avatarId?: string;
   },
 ): Promise<ContenidoGenerado> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, incluirConocimiento, personajeId, avatarId, ...resto } =
-    input;
+  const { incluirPersonaje, incluirMarca, incluirContacto, personajeId, avatarId, ...resto } = input;
   const [identidad, personaje, avatar] = await Promise.all([
     getIdentidad(proyectoId),
     // Sin acotar por proyecto a propósito: personajeId puede ser un
@@ -540,13 +535,7 @@ export async function generarContenidoAction(
   const identidadCompilada = identidad
     ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personaje, avatar })
     : "";
-  const conocimientoRelevante =
-    incluirConocimiento === false ? "" : await conocimientoRelevantePara(proyectoId, input.tema);
-  return generarContenido({
-    ...resto,
-    identidadCompilada,
-    conocimientoRelevante: conocimientoRelevante || undefined,
-  });
+  return generarContenido({ ...resto, identidadCompilada });
 }
 
 /**
@@ -605,6 +594,7 @@ export async function createBloque(proyectoId: string, formData: FormData) {
 
   const personajeId = String(formData.get("personajeId") ?? "").trim() || null;
   const avatarId = String(formData.get("avatarId") ?? "").trim() || null;
+  const tema = String(formData.get("tema") ?? "").trim();
 
   const [identidad, personaje, avatar] = await Promise.all([
     getIdentidad(proyectoId),
@@ -613,8 +603,9 @@ export async function createBloque(proyectoId: string, formData: FormData) {
   ]);
   const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
 
+  const bloqueId = randomUUID();
   await db.insert(bloques).values({
-    id: randomUUID(),
+    id: bloqueId,
     proyectoId,
     personajeId,
     titulo,
@@ -624,8 +615,38 @@ export async function createBloque(proyectoId: string, formData: FormData) {
     escenasJson,
   });
 
+  if (tema) await marcarNotaComoTrabajadaSiHizoMatch(proyectoId, tema, bloqueId);
+
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
   revalidatePath("/biblioteca");
+}
+
+/** Si `tema` (la idea con la que se generó esta pieza) hace match por
+ * palabras clave con alguna nota 'pendiente' de este proyecto, esa nota
+ * pasa a 'trabajada' con el bloque recién creado — es la misma idea que
+ * originó la pieza. Usa el mismo ranking que el panel "Esto ya existe
+ * sobre este tema", así el match es consistente. Sin coincidencias, no
+ * toca nada. */
+async function marcarNotaComoTrabajadaSiHizoMatch(proyectoId: string, tema: string, bloqueId: string) {
+  const palabrasClave = extraerPalabrasClave(tema);
+  if (palabrasClave.length === 0) return;
+
+  const notasPendientes = await db
+    .select()
+    .from(notas)
+    .where(and(eq(notas.proyectoId, proyectoId), eq(notas.estado, "pendiente")));
+
+  const [mejorMatch] = rankearResultados(
+    notasPendientes,
+    (n) => n.texto,
+    (n) => ({ id: n.id, titulo: n.texto, fragmento: n.texto }),
+    palabrasClave,
+    1,
+  );
+  if (!mejorMatch) return;
+
+  await db.update(notas).set({ estado: "trabajada", bloqueId }).where(eq(notas.id, mejorMatch.id));
+  revalidatePath("/segundo-cerebro");
 }
 
 /** Actualiza título/formato/texto y, opcionalmente, `escenasJson`.
@@ -940,49 +961,33 @@ export async function deleteNota(notaId: string) {
 }
 
 // ---------------------------------------------------------------------
-// Base de Conocimiento
-// ---------------------------------------------------------------------
-
-export async function getConocimiento(proyectoId: string) {
-  const rows = await db.select().from(conocimiento).where(eq(conocimiento.proyectoId, proyectoId));
-  return rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-}
-
-export async function createConocimiento(proyectoId: string, formData: FormData) {
-  const titulo = String(formData.get("titulo") ?? "").trim();
-  const contenido = String(formData.get("contenido") ?? "").trim();
-  if (!titulo || !contenido) throw new Error("La entrada necesita título y contenido.");
-
-  await db.insert(conocimiento).values({ id: randomUUID(), proyectoId, titulo, contenido });
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-}
-
-export async function deleteConocimiento(proyectoId: string, conocimientoId: string) {
-  await db
-    .delete(conocimiento)
-    .where(and(eq(conocimiento.id, conocimientoId), eq(conocimiento.proyectoId, proyectoId)));
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-}
-
-// ---------------------------------------------------------------------
 // Reutilización Inteligente
 // ---------------------------------------------------------------------
 
 const MAX_RESULTADOS_POR_FUENTE = 5;
 
+/** Una nota que hizo match, con su estado — el panel de Crear la trata
+ * distinto según esto: 'pendiente' es solo informativa; 'trabajada' avisa
+ * explícitamente que ya existe una pieza creada a partir de ella. */
+export type NotaRelacionada = ResultadoRelacionado & {
+  estado: string;
+  bloqueId: string | null;
+  bloqueTitulo: string;
+  bloqueFormato: string;
+};
+
 export type ContenidoRelacionado = {
   biblioteca: ResultadoRelacionado[];
-  conocimiento: ResultadoRelacionado[];
-  segundoCerebro: ResultadoRelacionado[];
+  segundoCerebro: NotaRelacionada[];
 };
 
 /**
  * Busca coincidencias simples por palabras clave (sin embeddings, sin
- * búsqueda semántica) entre `tema` y tres fuentes de este proyecto:
- * Biblioteca (bloques activos), Base de Conocimiento, y las notas del
- * Segundo Cerebro ya vinculadas a este proyecto. Máximo 5 resultados por
- * fuente; ninguno si el tema no tiene palabras clave reales o no hay
- * coincidencias razonables.
+ * búsqueda semántica) entre `tema` y dos fuentes de este proyecto:
+ * Biblioteca (bloques activos) y las notas del Segundo Cerebro ya
+ * vinculadas a este proyecto. Máximo 5 resultados por fuente; ninguno si
+ * el tema no tiene palabras clave reales o no hay coincidencias
+ * razonables.
  */
 export async function buscarContenidoRelacionado(
   proyectoId: string,
@@ -990,12 +995,11 @@ export async function buscarContenidoRelacionado(
 ): Promise<ContenidoRelacionado> {
   const palabrasClave = extraerPalabrasClave(tema);
   if (palabrasClave.length === 0) {
-    return { biblioteca: [], conocimiento: [], segundoCerebro: [] };
+    return { biblioteca: [], segundoCerebro: [] };
   }
 
-  const [bloquesProyecto, conocimientoProyecto, notasProyecto] = await Promise.all([
+  const [bloquesProyecto, notasProyecto] = await Promise.all([
     db.select().from(bloques).where(and(eq(bloques.proyectoId, proyectoId), eq(bloques.estado, "activo"))),
-    db.select().from(conocimiento).where(eq(conocimiento.proyectoId, proyectoId)),
     db.select().from(notas).where(eq(notas.proyectoId, proyectoId)),
   ]);
 
@@ -1007,15 +1011,7 @@ export async function buscarContenidoRelacionado(
     MAX_RESULTADOS_POR_FUENTE,
   );
 
-  const conocimientoResultados = rankearResultados(
-    conocimientoProyecto,
-    (c) => `${c.titulo} ${c.contenido}`,
-    (c) => ({ id: c.id, titulo: c.titulo, fragmento: extraerFragmento(c.contenido) }),
-    palabrasClave,
-    MAX_RESULTADOS_POR_FUENTE,
-  );
-
-  const segundoCerebro = rankearResultados(
+  const segundoCerebroBase = rankearResultados(
     notasProyecto,
     (n) => n.texto,
     (n) => ({ id: n.id, titulo: extraerFragmento(n.texto, 40), fragmento: extraerFragmento(n.texto) }),
@@ -1023,33 +1019,43 @@ export async function buscarContenidoRelacionado(
     MAX_RESULTADOS_POR_FUENTE,
   );
 
-  return { biblioteca, conocimiento: conocimientoResultados, segundoCerebro };
-}
+  // Para notas 'trabajada' hace falta el título/formato del bloque
+  // vinculado — se resuelve aparte porque ese bloque puede no estar entre
+  // los `bloquesProyecto` activos ya traídos (pudo archivarse desde).
+  const notaPorId = new Map(notasProyecto.map((n) => [n.id, n]));
+  const idsBloquesAResolver = [
+    ...new Set(
+      segundoCerebroBase
+        .map((r) => notaPorId.get(r.id))
+        .filter((n) => n?.estado === "trabajada" && n.bloqueId)
+        .map((n) => n!.bloqueId as string),
+    ),
+  ];
+  const infoPorBloque =
+    idsBloquesAResolver.length > 0
+      ? new Map(
+          (
+            await db
+              .select({ id: bloques.id, titulo: bloques.titulo, formato: bloques.formato })
+              .from(bloques)
+              .where(inArray(bloques.id, idsBloquesAResolver))
+          ).map((b) => [b.id, b]),
+        )
+      : new Map<string, { id: string; titulo: string; formato: string }>();
 
-/**
- * Igual que la búsqueda de Conocimiento dentro de `buscarContenidoRelacionado`,
- * pero para inyectar en el prompt de generación en vez de mostrar en el
- * panel — por eso usa el `contenido` completo de cada entrada, no el
- * fragmento recortado para UI. Devuelve "" si no hay coincidencias.
- */
-async function conocimientoRelevantePara(proyectoId: string, tema: string): Promise<string> {
-  const palabrasClave = extraerPalabrasClave(tema);
-  if (palabrasClave.length === 0) return "";
+  const segundoCerebro: NotaRelacionada[] = segundoCerebroBase.map((r) => {
+    const nota = notaPorId.get(r.id)!;
+    const infoBloque = nota.bloqueId ? infoPorBloque.get(nota.bloqueId) : undefined;
+    return {
+      ...r,
+      estado: nota.estado,
+      bloqueId: nota.bloqueId,
+      bloqueTitulo: infoBloque?.titulo ?? "",
+      bloqueFormato: infoBloque?.formato ?? "",
+    };
+  });
 
-  const conocimientoProyecto = await db
-    .select()
-    .from(conocimiento)
-    .where(eq(conocimiento.proyectoId, proyectoId));
-
-  const relevante = rankearResultados(
-    conocimientoProyecto,
-    (c) => `${c.titulo} ${c.contenido}`,
-    (c) => ({ id: c.id, titulo: c.titulo, fragmento: c.contenido }),
-    palabrasClave,
-    MAX_RESULTADOS_POR_FUENTE,
-  );
-
-  return relevante.map((r) => `${r.titulo}\n${r.fragmento}`).join("\n\n");
+  return { biblioteca, segundoCerebro };
 }
 
 // ---------------------------------------------------------------------
