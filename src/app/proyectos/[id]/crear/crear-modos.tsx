@@ -1,15 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Textarea } from "@/components/ui";
+import Link from "next/link";
+import { Button, Card, SectionTitle, Textarea } from "@/components/ui";
+import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { explicarError } from "@/lib/errores";
+import { formatearFechaChile } from "@/lib/fecha";
 import { identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
+import { urlImagenVisible } from "@/lib/imagen-url";
+import { extraerFragmento } from "@/lib/reutilizacion";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { PosicionLogo } from "@/lib/identity-compiler";
-import type { Avatar, Identidad, Personaje } from "@/lib/types";
+import { iconoFormato, parseFotosPersonaje } from "@/lib/types";
+import type { Avatar, Bloque, Identidad, Personaje } from "@/lib/types";
 
 const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
   { value: "superior-izquierda", etiqueta: "Esquina superior izquierda" },
@@ -53,6 +59,63 @@ function segundosDesdeDuracion(duracion: string): number | undefined {
 function haySelectorDePersonaje(personajes: Personaje[], personajesEstudio: Personaje[]): boolean {
   const total = personajes.length + personajesEstudio.length;
   return total > 1 || (total === 1 && personajes.length === 0);
+}
+
+/** Fila de miniaturas de los Personajes DEL PROYECTO (no del estudio) en
+ * "Identidad activa" — clic marca cuál queda "destacado para esta sesión".
+ * Sin límite artificial: si hay más de 2, la fila hace scroll horizontal
+ * con scroll-snap (2 miniaturas completas caben en el ancho normal). */
+function PersonajeThumbnails({
+  personajes,
+  destacadoId,
+  onSelect,
+}: {
+  personajes: Personaje[];
+  destacadoId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (personajes.length === 0) return null;
+
+  return (
+    <div
+      className="flex gap-3 overflow-x-auto pb-1"
+      style={{ scrollSnapType: "x mandatory" }}
+    >
+      {personajes.map((p) => {
+        const foto = parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null;
+        const activo = p.id === destacadoId;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onSelect(p.id)}
+            style={{ scrollSnapAlign: "start" }}
+            className={`flex w-[calc(50%-0.375rem)] shrink-0 flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-center transition-colors ${
+              activo ? "border-accent bg-accent-soft" : "border-border bg-surface-2 hover:border-accent/50"
+            }`}
+          >
+            {foto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={urlImagenVisible(foto)}
+                alt={p.nombre || "Personaje"}
+                className="h-12 w-12 rounded-full object-cover"
+              />
+            ) : (
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface font-display text-[16px] text-text-muted">
+                {(p.nombre || "?").trim().charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span
+              className={`w-full truncate text-[12px] ${activo ? "font-semibold text-accent" : "text-text"}`}
+            >
+              {p.nombre || "Sin nombre"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -231,6 +294,8 @@ export function CrearModos({
   personajes,
   personajesEstudio,
   avatares,
+  activosCount,
+  bloquesRecientes,
   onInferir,
   onGenerar,
   onGuardar,
@@ -241,6 +306,8 @@ export function CrearModos({
   personajes: Personaje[];
   personajesEstudio: Personaje[];
   avatares: Avatar[];
+  activosCount: number;
+  bloquesRecientes: Bloque[];
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
   onGenerar: (
     input: Omit<ContenidoInput, "identidadCompilada"> & {
@@ -274,16 +341,25 @@ export function CrearModos({
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
   const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
-  // Con selector (2+ opciones), arranca en "Automático" — sin selector, el
-  // único disponible (más reciente si hubiera más de uno de proyecto, pero
-  // ahí ya habría selector) tal como antes.
-  const [personajeId, setPersonajeId] = useState(
-    haySelectorDePersonaje(personajes, personajesEstudio) ? "" : (personajes[0]?.id ?? ""),
-  );
+  // No existe un campo "predeterminado" real en el modelo de Personajes —
+  // el criterio de "predeterminado" en toda la app es el más reciente
+  // (personajes[0], ya vienen ordenados así). Arranca como el destacado de
+  // la sesión Y como el valor inicial del selector de Paso 4; un clic en
+  // una miniatura de "Identidad activa" cambia ambos, pero solo en memoria
+  // — se pierde al recargar la página, aposta.
+  const [personajeDestacadoId, setPersonajeDestacadoId] = useState(personajes[0]?.id ?? "");
+  const [personajeId, setPersonajeId] = useState(personajes[0]?.id ?? "");
   // El Personaje realmente usado en la última generación (el elegido a
   // mano, o el que decidió el sistema en "Automático") — es lo que se
   // guarda con el bloque, no el valor crudo del selector.
   const [personajeIdUsado, setPersonajeIdUsado] = useState<string | null>(null);
+
+  function seleccionarDestacado(id: string) {
+    setPersonajeDestacadoId(id);
+    setPersonajeId(id);
+  }
+
+  const personajeDestacado = personajes.find((p) => p.id === personajeDestacadoId) ?? personajes[0] ?? null;
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
@@ -365,33 +441,110 @@ export function CrearModos({
     }
   }
 
+  // Se repite en las 3 ramas de abajo (resultado / cargando / formulario) —
+  // Identidad activa y Contenido reciente siempre se muestran, sin importar
+  // en qué paso del flujo esté el usuario. Una sola definición para no
+  // triplicar el JSX.
+  const identidadActivaYReciente = (
+    <>
+      <Card>
+        <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que la IA usa automáticamente, sin que tengas que volver a seleccionarlo.">
+          Identidad activa
+        </SectionTitle>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          {personajes.length > 0 ? (
+            <div className="sm:w-[45%]">
+              <PersonajeThumbnails
+                personajes={personajes}
+                destacadoId={personajeDestacadoId}
+                onSelect={seleccionarDestacado}
+              />
+              {personajeDestacado ? (
+                <div className="mt-2.5">
+                  <p className="font-display text-[15px]">
+                    {personajeDestacado.nombre || "Personaje sin nombre"}
+                  </p>
+                  {personajeDestacado.personalidad ? (
+                    <p className="mt-0.5 text-[12.5px] text-text-muted">
+                      {extraerFragmento(personajeDestacado.personalidad, 90)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex-1">
+            <IdentidadChecklist
+              identidad={identidad}
+              activosCount={activosCount}
+              tienePersonaje={personajes.length > 0}
+              tieneAvatar={avatares.length > 0}
+              personaje={personajeDestacado}
+              avatar={avatares[0] ?? null}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {bloquesRecientes.length > 0 ? (
+        <Card>
+          <SectionTitle>Contenido reciente de este proyecto</SectionTitle>
+          <div className="space-y-1.5">
+            {bloquesRecientes.map((bloque) => (
+              <Link
+                key={bloque.id}
+                href={`/proyectos/${proyectoId}/biblioteca/${bloque.id}/editar`}
+                className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 transition-colors hover:border-accent/50"
+              >
+                <span className="text-[18px] leading-none">{iconoFormato(bloque.formato)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13.5px] text-text">{bloque.titulo}</p>
+                  <p className="mt-0.5 text-[11.5px] text-text-muted">
+                    {formatearFechaChile(bloque.createdAt)}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+    </>
+  );
+
   if (resultado) {
     return (
-      <ResultadoTabs
-        proyectoId={proyectoId}
-        resultado={resultado}
-        formato={config.tipoContenido}
-        personajeId={personajeIdUsado ?? ""}
-        tema={config.tema}
-        onGuardar={onGuardar}
-        onEmpezarDeNuevo={empezarDeNuevo}
-      />
+      <>
+        <ResultadoTabs
+          proyectoId={proyectoId}
+          resultado={resultado}
+          formato={config.tipoContenido}
+          personajeId={personajeIdUsado ?? ""}
+          tema={config.tema}
+          onGuardar={onGuardar}
+          onEmpezarDeNuevo={empezarDeNuevo}
+        />
+        {identidadActivaYReciente}
+      </>
     );
   }
 
   if (cargando) {
     return (
-      <Card className="text-center">
-        <p className="font-display text-[16px]">✨ Creando tu contenido…</p>
-        <p className="mt-2 text-[13px] text-text-muted">
-          Esto puede tardar 20-40 segundos — Claude está trabajando, no se colgó la app.
-        </p>
-        <Cronometro />
-      </Card>
+      <>
+        <Card className="text-center">
+          <p className="font-display text-[16px]">✨ Creando tu contenido…</p>
+          <p className="mt-2 text-[13px] text-text-muted">
+            Esto puede tardar 20-40 segundos — Claude está trabajando, no se colgó la app.
+          </p>
+          <Cronometro />
+        </Card>
+        {identidadActivaYReciente}
+      </>
     );
   }
 
   return (
+    <>
     <Card>
       <div className="mb-5 grid grid-cols-1 gap-2 border-b border-border pb-5 sm:grid-cols-3">
         {MODOS.map((m) => (
@@ -577,5 +730,7 @@ export function CrearModos({
         </div>
       ) : null}
     </Card>
+    {identidadActivaYReciente}
+    </>
   );
 }
