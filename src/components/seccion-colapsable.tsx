@@ -33,7 +33,7 @@ export function SeccionColapsable({
         type="button"
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
-        className="flex w-full items-start justify-between gap-3 text-left"
+        className="-m-1.5 flex w-[calc(100%+0.75rem)] cursor-pointer items-start justify-between gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-surface-2"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -50,12 +50,20 @@ export function SeccionColapsable({
             <p className="mt-1 text-sm text-text-muted">{subtitulo}</p>
           ) : null}
         </div>
-        <span
-          className={`mt-1 shrink-0 text-[12px] text-text-muted transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
+        <svg
+          viewBox="0 0 20 20"
+          fill="none"
+          className={`mt-1 h-5 w-5 shrink-0 text-text-muted transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
           aria-hidden
         >
-          ▾
-        </span>
+          <path
+            d="M5 7.5L10 12.5L15 7.5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       <div
