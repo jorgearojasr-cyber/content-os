@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { get } from "@vercel/blob";
 import OpenAI, {
   APIConnectionError,
   APIConnectionTimeoutError,
@@ -25,10 +25,10 @@ import type { CalidadImagen } from "./types";
 
 const MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 
-// GPT Image solo acepta jpeg/png/webp como imagen de referencia. `toFile`
-// no adivina el tipo MIME a partir de un Buffer + nombre de archivo — hay
-// que indicarlo explícitamente o OpenAI la recibe como
-// application/octet-stream y la rechaza.
+// GPT Image solo acepta jpeg/png/webp como imagen de referencia. Blob
+// guarda el content-type real del archivo subido, pero por si acaso llega
+// vacío o genérico, hay un respaldo por extensión del pathname.
+const MIME_ACEPTADOS_GPT_IMAGE = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MIME_POR_EXTENSION: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -36,8 +36,8 @@ const MIME_POR_EXTENSION: Record<string, string> = {
   webp: "image/webp",
 };
 
-function mimeDeRuta(rutaLocal: string): string {
-  const extension = path.extname(rutaLocal).replace(".", "").toLowerCase();
+function mimeDePathname(pathname: string): string {
+  const extension = path.extname(pathname).replace(".", "").toLowerCase();
   return MIME_POR_EXTENSION[extension] ?? "image/png";
 }
 
@@ -55,12 +55,12 @@ function getClient(): OpenAI {
 
 /**
  * Genera una imagen real con la API de imágenes de OpenAI. Si se pasa
- * `fotoReferenciaUrl` (ruta local `/uploads/xxx.jpg`, típicamente la foto
- * del Personaje en Identidad), usa el endpoint de EDICIÓN con esa imagen
- * como referencia; si no, genera de texto a imagen normal. Guarda el
- * resultado con el mismo `guardarArchivoSubido` que ya usan Activos y la
- * foto de Personaje (no duplica lógica de guardado), y devuelve la ruta
- * pública final (`/uploads/xxx.png`).
+ * `fotoReferenciaUrl` (URL de Vercel Blob, típicamente la foto del
+ * Personaje en Identidad), la descarga desde Blob y usa el endpoint de
+ * EDICIÓN con esa imagen como referencia; si no, genera de texto a imagen
+ * normal. Guarda el resultado con el mismo `guardarArchivoSubido` que ya
+ * usan Activos y la foto de Personaje (no duplica lógica de guardado), y
+ * devuelve la URL de Blob final.
  */
 export async function generarImagenIA(
   prompt: string,
@@ -72,13 +72,22 @@ export async function generarImagenIA(
   let imagenReferencia: File | undefined;
   if (fotoReferenciaUrl) {
     try {
-      const rutaLocal = path.join(process.cwd(), "public", fotoReferenciaUrl);
-      const buffer = await readFile(rutaLocal);
-      imagenReferencia = await toFile(buffer, path.basename(rutaLocal), { type: mimeDeRuta(rutaLocal) });
+      const resultado = await get(fotoReferenciaUrl, {
+        access: "private",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      if (!resultado?.stream) {
+        throw new Error("Blob no devolvió contenido para la foto de referencia.");
+      }
+      const buffer = Buffer.from(await new Response(resultado.stream).arrayBuffer());
+      const contentType = MIME_ACEPTADOS_GPT_IMAGE.has(resultado.blob.contentType ?? "")
+        ? (resultado.blob.contentType as string)
+        : mimeDePathname(resultado.blob.pathname);
+      imagenReferencia = await toFile(buffer, resultado.blob.pathname, { type: contentType });
     } catch (err) {
       console.error(err);
       throw new Error(
-        "No se encontró la foto de referencia del Personaje en el servidor. Vuelve a subirla en Identidad.",
+        "No se encontró la foto de referencia del Personaje en Blob. Vuelve a subirla en Identidad.",
       );
     }
   }

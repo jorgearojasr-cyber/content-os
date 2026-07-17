@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Card, Chip } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { urlImagenVisible } from "@/lib/imagen-url";
 import { TIPOS_ACTIVO } from "@/lib/types";
 import type { Activo } from "@/lib/types";
 
@@ -61,13 +62,13 @@ function ActivoCard({
         TIPOS_CON_PREVIEW.has(activo.tipo) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={activo.valor}
+            src={urlImagenVisible(activo.valor)}
             alt={activo.nombre}
             className="mt-2 h-28 w-full rounded-lg object-cover"
           />
         ) : (
           <a
-            href={activo.valor}
+            href={urlImagenVisible(activo.valor)}
             target="_blank"
             rel="noreferrer"
             className="mt-2 block text-[13px] text-accent underline"

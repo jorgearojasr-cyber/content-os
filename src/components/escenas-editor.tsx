@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { explicarError } from "@/lib/errores";
+import { urlImagenVisible } from "@/lib/imagen-url";
 import type { CalidadImagen, Escena } from "@/lib/types";
 
 const OPCIONES_CALIDAD: { value: CalidadImagen; label: string }[] = [
@@ -61,7 +62,7 @@ function GenerarImagenControl({
       {escena.imagenGeneradaUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={escena.imagenGeneradaUrl}
+          src={urlImagenVisible(escena.imagenGeneradaUrl)}
           alt={`Imagen generada — Escena ${escena.numero}`}
           className="mb-2 h-40 w-full rounded-lg object-cover"
         />

@@ -1,6 +1,10 @@
 import type { Identidad } from "./types";
 import { avatarHasContent, parseAvatar } from "./types";
 
+/** Todos los campos de `Identidad` salvo `avatarJson` (que es `unknown`,
+ * columna `jsonb` — no un campo de texto simple como el resto). */
+type CampoTextoIdentidad = Exclude<keyof Identidad, "avatarJson">;
+
 const ETIQUETAS_AVATAR: Array<[keyof ReturnType<typeof parseAvatar>, string]> = [
   ["nombreFicticio", "Nombre ficticio"],
   ["edad", "Edad"],
@@ -18,7 +22,7 @@ const ETIQUETAS_AVATAR: Array<[keyof ReturnType<typeof parseAvatar>, string]> = 
  * Renderiza el avatar campo por campo (no lo resume): cada dato guardado
  * se antepone con su propia etiqueta, igual que el resto del compilador.
  */
-function formatearAvatar(avatarJson: string): string {
+function formatearAvatar(avatarJson: unknown): string {
   const avatar = parseAvatar(avatarJson);
   if (!avatarHasContent(avatar)) return "";
   return ETIQUETAS_AVATAR.filter(([campo]) => avatar[campo]?.trim().length > 0)
@@ -133,7 +137,7 @@ const CAMPOS_DE_CONTENIDO = [
   "camara",
   "ritmo",
   "estructuraCta",
-] as const satisfies ReadonlyArray<keyof Identidad>;
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 /** True si al menos un campo de contenido de la identidad tiene texto. */
 export function identityHasContent(identidad: Identidad): boolean {
@@ -141,7 +145,7 @@ export function identityHasContent(identidad: Identidad): boolean {
   return CAMPOS_DE_CONTENIDO.some((campo) => identidad[campo]?.trim().length > 0);
 }
 
-const CAMPOS_MARCA = ["voz", "reglas", "objetivo"] as const satisfies ReadonlyArray<keyof Identidad>;
+const CAMPOS_MARCA = ["voz", "reglas", "objetivo"] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 // Los 7 campos de texto del Personaje — a propósito sin `fotoUrl`, que es una
 // referencia de medio, no contenido de texto de la sección.
@@ -153,7 +157,7 @@ const CAMPOS_PERSONAJE = [
   "vozDescrita",
   "gestos",
   "muletillas",
-] as const satisfies ReadonlyArray<keyof Identidad>;
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 const CAMPOS_ESTILO = [
   "paleta",
@@ -162,9 +166,9 @@ const CAMPOS_ESTILO = [
   "camara",
   "ritmo",
   "estructuraCta",
-] as const satisfies ReadonlyArray<keyof Identidad>;
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
-function algunCampoConContenido(identidad: Identidad, campos: ReadonlyArray<keyof Identidad>): boolean {
+function algunCampoConContenido(identidad: Identidad, campos: ReadonlyArray<CampoTextoIdentidad>): boolean {
   return campos.some((campo) => identidad[campo]?.trim().length > 0);
 }
 

@@ -9,7 +9,7 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     voz: "",
     reglas: "",
     objetivo: "",
-    avatarJson: "{}",
+    avatarJson: {},
     personajeNombre: "",
     personajePersonalidad: "",
     fisica: "",
@@ -29,8 +29,8 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
   };
 }
 
-function avatarJsonCon(overrides: Partial<AvatarCliente>): string {
-  return JSON.stringify(overrides);
+function avatarJsonCon(overrides: Partial<AvatarCliente>): Partial<AvatarCliente> {
+  return overrides;
 }
 
 describe("compileIdentity", () => {
@@ -95,7 +95,7 @@ describe("compileIdentity", () => {
     expect(salida).not.toContain("Profesión:");
   });
 
-  it("un avatarJson vacío ('{}') no agrega el bloque de avatar", () => {
+  it("un avatarJson vacío ({}) no agrega el bloque de avatar", () => {
     const identidad = baseIdentidad({ voz: "Directa" });
     const salida = compileIdentity(identidad);
     expect(salida).not.toContain("Avatar del cliente ideal");
@@ -115,7 +115,7 @@ describe("identityHasContent", () => {
     expect(identityHasContent(baseIdentidad({ objetivo: "Vender servicios" }))).toBe(true);
   });
 
-  it("es verdadero si solo el avatar (avatarJson distinto de '{}') tiene datos", () => {
+  it("es verdadero si solo el avatar (avatarJson con al menos un campo) tiene datos", () => {
     const identidad = baseIdentidad({ avatarJson: avatarJsonCon({ edad: "30" }) });
     expect(identityHasContent(identidad)).toBe(true);
   });

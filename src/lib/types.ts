@@ -35,14 +35,15 @@ export const AVATAR_VACIO: AvatarCliente = {
   lenguaje: "",
 };
 
-/** Parsea `avatarJson`; ante JSON inválido o vacío, devuelve el avatar vacío. */
-export function parseAvatar(json: string): AvatarCliente {
-  try {
-    const datos = JSON.parse(json);
-    return { ...AVATAR_VACIO, ...datos };
-  } catch {
-    return { ...AVATAR_VACIO };
+/**
+ * Adapta `avatarJson` (columna `jsonb` — Postgres/Drizzle ya lo entrega como
+ * objeto, no como string) al tipo `AvatarCliente`; ante un valor ausente o
+ * con forma inesperada, devuelve el avatar vacío. */
+export function parseAvatar(json: unknown): AvatarCliente {
+  if (json && typeof json === "object") {
+    return { ...AVATAR_VACIO, ...(json as Partial<AvatarCliente>) };
   }
+  return { ...AVATAR_VACIO };
 }
 
 /** True si el avatar tiene al menos un campo con contenido. */
@@ -63,7 +64,8 @@ export type Identidad = {
   voz: string;
   reglas: string;
   objetivo: string;
-  avatarJson: string;
+  /** Columna `jsonb` — ya es un objeto (o `{}`), no un string. Usar `parseAvatar()`. */
+  avatarJson: unknown;
 
   // Capa Personaje — quién aparece, si aplica
   personajeNombre: string;
@@ -97,7 +99,8 @@ export type Bloque = {
   identidadCompilada: string;
   estado: string;
   eliminadoAt: string;
-  escenasJson: string | null;
+  /** Columna `jsonb`, nullable — ya es un arreglo (o `null`), no un string. Usar `parseEscenas()`. */
+  escenasJson: unknown;
   createdAt: string;
 };
 
@@ -128,14 +131,10 @@ export type Escena = {
 
 export type CalidadImagen = "low" | "medium" | "high";
 
-export function parseEscenas(json: string | null): Escena[] {
-  if (!json) return [];
-  try {
-    const datos = JSON.parse(json);
-    return Array.isArray(datos) ? datos : [];
-  } catch {
-    return [];
-  }
+/** Adapta `escenasJson` (columna `jsonb`, nullable) al tipo `Escena[]`; ante
+ * un valor ausente o con forma inesperada, devuelve un arreglo vacío. */
+export function parseEscenas(json: unknown): Escena[] {
+  return Array.isArray(json) ? (json as Escena[]) : [];
 }
 
 /** Arma el bloque de texto plano (sin el encabezado `## Escenas`) a partir

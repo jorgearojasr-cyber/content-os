@@ -18,8 +18,8 @@ import type {
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
 import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
-import { guardarArchivoSubido } from "./storage";
-import { parseEscenas } from "./types";
+import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
+import { parseEscenas, TIPOS_ACTIVO } from "./types";
 import type { AvatarCliente, CalidadImagen, Identidad, IdentidadInput } from "./types";
 
 const PAPELERA_RETENCION_DIAS = 7;
@@ -48,13 +48,8 @@ export async function createProyecto(formData: FormData) {
 
   const proyectoId = randomUUID();
 
-  db.insert(proyectos)
-    .values({ id: proyectoId, nombre, descripcion })
-    .run();
-
-  db.insert(identidades)
-    .values({ id: randomUUID(), proyectoId })
-    .run();
+  await db.insert(proyectos).values({ id: proyectoId, nombre, descripcion });
+  await db.insert(identidades).values({ id: randomUUID(), proyectoId });
 
   revalidatePath("/proyectos");
   redirect(`/proyectos/${proyectoId}/identidad`);
@@ -65,17 +60,14 @@ export async function updateProyecto(id: string, formData: FormData) {
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   if (!nombre) throw new Error("El proyecto necesita un nombre.");
 
-  db.update(proyectos)
-    .set({ nombre, descripcion })
-    .where(eq(proyectos.id, id))
-    .run();
+  await db.update(proyectos).set({ nombre, descripcion }).where(eq(proyectos.id, id));
 
   revalidatePath("/proyectos");
   revalidatePath(`/proyectos/${id}`);
 }
 
 export async function deleteProyecto(id: string) {
-  db.delete(proyectos).where(eq(proyectos.id, id)).run();
+  await db.delete(proyectos).where(eq(proyectos.id, id));
   revalidatePath("/proyectos");
   redirect("/proyectos");
 }
@@ -137,10 +129,10 @@ export async function updateIdentidad(proyectoId: string, formData: FormData) {
     ]),
   ) as unknown as AvatarCliente;
 
-  db.update(identidades)
-    .set({ ...valores, avatarJson: JSON.stringify(avatar), updatedAt: new Date().toISOString() })
-    .where(eq(identidades.proyectoId, proyectoId))
-    .run();
+  await db
+    .update(identidades)
+    .set({ ...valores, avatarJson: avatar, updatedAt: new Date().toISOString() })
+    .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
   revalidatePath(`/proyectos/${proyectoId}/crear`);
@@ -154,10 +146,10 @@ export async function subirFotoPersonaje(proyectoId: string, formData: FormData)
 
   const url = await guardarArchivoSubido(archivo);
 
-  db.update(identidades)
+  await db
+    .update(identidades)
     .set({ fotoUrl: url, updatedAt: new Date().toISOString() })
-    .where(eq(identidades.proyectoId, proyectoId))
-    .run();
+    .where(eq(identidades.proyectoId, proyectoId));
 
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
   return url;
@@ -192,9 +184,9 @@ export async function completarProyectoAction(
 async function purgarPapeleraVencida() {
   const corteMs = Date.now() - PAPELERA_RETENCION_DIAS * 24 * 60 * 60 * 1000;
   const corte = new Date(corteMs).toISOString();
-  db.delete(bloques)
-    .where(and(eq(bloques.estado, "papelera"), lt(bloques.eliminadoAt, corte)))
-    .run();
+  await db
+    .delete(bloques)
+    .where(and(eq(bloques.estado, "papelera"), lt(bloques.eliminadoAt, corte)));
 }
 
 function diasRestantesEnPapelera(eliminadoAt: string): number {
@@ -275,6 +267,18 @@ export async function inferirConfiguracionAction(
   return inferirConfiguracion(idea, identidadCompilada);
 }
 
+/** Parsea el `escenasJson` que llega serializado como string desde un
+ * FormData (siempre string, incluso para campos que representan JSON) al
+ * valor que espera la columna `jsonb`. Ante JSON inválido, no revienta el
+ * guardado del resto del bloque — simplemente no guarda escenas. */
+function parsearEscenasDeFormData(valor: string): unknown {
+  try {
+    return JSON.parse(valor);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Crea un bloque manualmente o desde una generación de IA, y guarda, junto
  * con el texto, el bloque de identidad exacto que el Compilador produjo en
@@ -289,22 +293,23 @@ export async function createBloque(proyectoId: string, formData: FormData) {
   if (!titulo || !texto) throw new Error("El bloque necesita título y texto.");
 
   const escenasJsonRaw = formData.get("escenasJson");
-  const escenasJson = typeof escenasJsonRaw === "string" && escenasJsonRaw.trim() ? escenasJsonRaw : null;
+  const escenasJson =
+    typeof escenasJsonRaw === "string" && escenasJsonRaw.trim()
+      ? parsearEscenasDeFormData(escenasJsonRaw)
+      : null;
 
   const identidad = await getIdentidad(proyectoId);
   const identidadCompilada = identidad ? compileIdentity(identidad) : "";
 
-  db.insert(bloques)
-    .values({
-      id: randomUUID(),
-      proyectoId,
-      titulo,
-      formato,
-      texto,
-      identidadCompilada,
-      escenasJson,
-    })
-    .run();
+  await db.insert(bloques).values({
+    id: randomUUID(),
+    proyectoId,
+    titulo,
+    formato,
+    texto,
+    identidadCompilada,
+    escenasJson,
+  });
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
@@ -320,7 +325,7 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
   const texto = String(formData.get("texto") ?? "").trim();
   if (!titulo || !texto) throw new Error("El bloque necesita título y texto.");
 
-  const actualizacion: { titulo: string; formato: string; texto: string; escenasJson?: string | null } = {
+  const actualizacion: { titulo: string; formato: string; texto: string; escenasJson?: unknown } = {
     titulo,
     formato,
     texto,
@@ -329,13 +334,13 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
   const escenasJsonRaw = formData.get("escenasJson");
   if (escenasJsonRaw !== null) {
     const valor = String(escenasJsonRaw);
-    actualizacion.escenasJson = valor.trim() ? valor : null;
+    actualizacion.escenasJson = valor.trim() ? parsearEscenasDeFormData(valor) : null;
   }
 
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set(actualizacion)
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
@@ -372,10 +377,10 @@ export async function generarImagenParaEscena(
 
   const nuevasEscenas = escenas.map((e, i) => (i === index ? { ...e, imagenGeneradaUrl } : e));
 
-  db.update(bloques)
-    .set({ escenasJson: JSON.stringify(nuevasEscenas) })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+  await db
+    .update(bloques)
+    .set({ escenasJson: nuevasEscenas })
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca/${bloqueId}/editar`);
 
@@ -386,10 +391,10 @@ export async function renombrarBloque(proyectoId: string, bloqueId: string, form
   const titulo = String(formData.get("titulo") ?? "").trim();
   if (!titulo) throw new Error("El bloque necesita un título.");
 
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ titulo })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
@@ -398,18 +403,16 @@ export async function duplicarBloque(proyectoId: string, bloqueId: string) {
   const original = await getBloque(proyectoId, bloqueId);
   if (!original) throw new Error("El bloque ya no existe.");
 
-  db.insert(bloques)
-    .values({
-      id: randomUUID(),
-      proyectoId,
-      titulo: `${original.titulo} (copia)`,
-      formato: original.formato,
-      texto: original.texto,
-      identidadCompilada: original.identidadCompilada,
-      escenasJson: original.escenasJson,
-      estado: "activo",
-    })
-    .run();
+  await db.insert(bloques).values({
+    id: randomUUID(),
+    proyectoId,
+    titulo: `${original.titulo} (copia)`,
+    formato: original.formato,
+    texto: original.texto,
+    identidadCompilada: original.identidadCompilada,
+    escenasJson: original.escenasJson,
+    estado: "activo",
+  });
 
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
@@ -419,54 +422,54 @@ export async function moverBloqueAProyecto(
   proyectoActualId: string,
   nuevoProyectoId: string,
 ) {
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ proyectoId: nuevoProyectoId })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoActualId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoActualId)));
 
   revalidatePath(`/proyectos/${proyectoActualId}/biblioteca`);
   revalidatePath(`/proyectos/${nuevoProyectoId}/biblioteca`);
 }
 
 export async function archivarBloque(proyectoId: string, bloqueId: string) {
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ estado: "archivado" })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
 
 export async function desarchivarBloque(proyectoId: string, bloqueId: string) {
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ estado: "activo" })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
 
 /** Elimina "suavemente": el bloque va a la papelera y desaparece de
  * inmediato de la Biblioteca, pero se puede recuperar durante 7 días. */
 export async function moverAPapelera(proyectoId: string, bloqueId: string) {
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ estado: "papelera", eliminadoAt: new Date().toISOString() })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
 
 export async function restaurarBloque(proyectoId: string, bloqueId: string) {
-  db.update(bloques)
+  await db
+    .update(bloques)
     .set({ estado: "activo", eliminadoAt: "" })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
 
 /** Elimina para siempre, sin pasar por la papelera (o desde la papelera). */
 export async function eliminarBloquePermanente(proyectoId: string, bloqueId: string) {
-  db.delete(bloques)
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)))
-    .run();
+  await db
+    .delete(bloques)
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
 }
 
@@ -486,7 +489,7 @@ export async function createActivoTexto(proyectoId: string, formData: FormData) 
   const notas = String(formData.get("notas") ?? "").trim();
   if (!tipo || !nombre) throw new Error("El activo necesita tipo y nombre.");
 
-  db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas }).run();
+  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas });
   revalidatePath(`/proyectos/${proyectoId}/activos`);
 }
 
@@ -500,7 +503,7 @@ export async function createActivoArchivo(proyectoId: string, formData: FormData
 
   const valor = await guardarArchivoSubido(archivo);
 
-  db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas }).run();
+  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas });
   revalidatePath(`/proyectos/${proyectoId}/activos`);
 }
 
@@ -511,14 +514,11 @@ export async function deleteActivo(proyectoId: string, activoId: string) {
     .where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)));
   const activo = rows[0];
 
-  db.delete(activos)
-    .where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)))
-    .run();
+  await db.delete(activos).where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)));
 
-  if (activo?.valor.startsWith("/uploads/")) {
-    const { unlink } = await import("node:fs/promises");
-    const path = await import("node:path");
-    await unlink(path.join(process.cwd(), "public", activo.valor)).catch(() => {});
+  const esTipoArchivo = TIPOS_ACTIVO.find((t) => t.value === activo?.tipo)?.archivo ?? false;
+  if (activo?.valor && esTipoArchivo) {
+    await eliminarArchivoSubido(activo.valor).catch(() => {});
   }
 
   revalidatePath(`/proyectos/${proyectoId}/activos`);
@@ -541,7 +541,7 @@ export async function createNota(formData: FormData) {
   const texto = String(formData.get("texto") ?? "").trim();
   if (!texto) throw new Error("La nota necesita texto.");
 
-  db.insert(notas).values({ id: randomUUID(), texto }).run();
+  await db.insert(notas).values({ id: randomUUID(), texto });
   revalidatePath("/segundo-cerebro");
   revalidatePath("/");
 }
@@ -549,14 +549,14 @@ export async function createNota(formData: FormData) {
 /** Vincula o desvincula (proyectoId null) una nota a un proyecto — siempre
  * una acción manual del usuario, la IA nunca decide esto por su cuenta. */
 export async function vincularNota(notaId: string, proyectoId: string | null) {
-  db.update(notas).set({ proyectoId }).where(eq(notas.id, notaId)).run();
+  await db.update(notas).set({ proyectoId }).where(eq(notas.id, notaId));
   revalidatePath("/segundo-cerebro");
   revalidatePath("/");
 }
 
 /** Borrado directo, sin papelera — son apuntes rápidos de bajo riesgo. */
 export async function deleteNota(notaId: string) {
-  db.delete(notas).where(eq(notas.id, notaId)).run();
+  await db.delete(notas).where(eq(notas.id, notaId));
   revalidatePath("/segundo-cerebro");
   revalidatePath("/");
 }
@@ -575,14 +575,14 @@ export async function createConocimiento(proyectoId: string, formData: FormData)
   const contenido = String(formData.get("contenido") ?? "").trim();
   if (!titulo || !contenido) throw new Error("La entrada necesita título y contenido.");
 
-  db.insert(conocimiento).values({ id: randomUUID(), proyectoId, titulo, contenido }).run();
+  await db.insert(conocimiento).values({ id: randomUUID(), proyectoId, titulo, contenido });
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
 }
 
 export async function deleteConocimiento(proyectoId: string, conocimientoId: string) {
-  db.delete(conocimiento)
-    .where(and(eq(conocimiento.id, conocimientoId), eq(conocimiento.proyectoId, proyectoId)))
-    .run();
+  await db
+    .delete(conocimiento)
+    .where(and(eq(conocimiento.id, conocimientoId), eq(conocimiento.proyectoId, proyectoId)));
   revalidatePath(`/proyectos/${proyectoId}/identidad`);
 }
 

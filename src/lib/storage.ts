@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+import { del, put } from "@vercel/blob";
 
 const EXTENSIONES_PERMITIDAS: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -17,27 +15,39 @@ const EXTENSIONES_PERMITIDAS: Record<string, string> = {
   "application/pdf": "pdf",
 };
 
-const TAMANO_MAXIMO_BYTES = 15 * 1024 * 1024;
+// La subida simple del servidor a Vercel Blob (put() desde una Server
+// Action) tiene un límite de 4.5MB por archivo — no es un límite de Blob
+// en sí, sino del cuerpo de la función serverless que la recibe. Archivos
+// más grandes necesitarían subida por partes directo desde el cliente,
+// fuera de alcance por ahora.
+const TAMANO_MAXIMO_BYTES = 4.5 * 1024 * 1024;
 
 /**
- * Guarda un archivo subido en `public/uploads/` con un nombre único y
- * devuelve su ruta pública (ej: "/uploads/<uuid>.png"). Compartido por
- * la foto de referencia del personaje y por los Activos de tipo archivo.
+ * Sube un archivo a Vercel Blob (acceso PRIVADO — requiere el token de la
+ * app para leerlo, ver `imagenes/route.ts`) con un nombre único, y
+ * devuelve su URL de Blob. Compartido por la foto de referencia del
+ * Personaje, los Activos de tipo archivo, y las imágenes generadas por IA.
  */
 export async function guardarArchivoSubido(file: File): Promise<string> {
   if (!file || file.size === 0) throw new Error("El archivo está vacío.");
   if (file.size > TAMANO_MAXIMO_BYTES) {
-    throw new Error("El archivo supera los 15 MB permitidos.");
+    throw new Error("El archivo supera los 4.5 MB permitidos por subida.");
   }
-
-  await mkdir(UPLOADS_DIR, { recursive: true });
 
   const extensionOriginal = path.extname(file.name).replace(".", "").toLowerCase();
   const extension = EXTENSIONES_PERMITIDAS[file.type] ?? (extensionOriginal || "bin");
   const nombreArchivo = `${randomUUID()}.${extension}`;
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOADS_DIR, nombreArchivo), buffer);
+  const blob = await put(nombreArchivo, file, {
+    access: "private",
+    addRandomSuffix: false,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  });
 
-  return `/uploads/${nombreArchivo}`;
+  return blob.url;
+}
+
+/** Borra un archivo previamente subido a Vercel Blob, dada su URL. */
+export async function eliminarArchivoSubido(url: string): Promise<void> {
+  await del(url, { token: process.env.BLOB_READ_WRITE_TOKEN });
 }

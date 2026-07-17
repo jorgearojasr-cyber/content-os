@@ -1,24 +1,24 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { jsonb, pgTable, text } from "drizzle-orm/pg-core";
 
 /**
  * Un Proyecto es el contenedor superior (OBRABIEN, INJAR, futuros).
  * Todo lo demás cuelga de un proyecto y nunca se mezcla entre proyectos.
  */
-export const proyectos = sqliteTable("proyectos", {
+export const proyectos = pgTable("proyectos", {
   id: text("id").primaryKey(),
   nombre: text("nombre").notNull(),
   descripcion: text("descripcion").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });
 
 /**
  * Identidad: el núcleo del producto. Una por proyecto (relación 1 a 1).
  * Se divide en tres capas: Marca, Personaje, Estilo.
  */
-export const identidades = sqliteTable("identidades", {
+export const identidades = pgTable("identidades", {
   id: text("id").primaryKey(),
   proyectoId: text("proyecto_id")
     .notNull()
@@ -29,8 +29,8 @@ export const identidades = sqliteTable("identidades", {
   voz: text("voz").notNull().default(""),
   reglas: text("reglas").notNull().default(""),
   objetivo: text("objetivo").notNull().default(""),
-  // Avatar del cliente ideal, serializado como JSON (ver AvatarCliente en types.ts)
-  avatarJson: text("avatar_json").notNull().default("{}"),
+  // Avatar del cliente ideal (ver AvatarCliente en types.ts)
+  avatarJson: jsonb("avatar_json").notNull().default({}),
 
   // Capa Personaje
   personajeNombre: text("personaje_nombre").notNull().default(""),
@@ -52,7 +52,7 @@ export const identidades = sqliteTable("identidades", {
 
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });
 
 /**
@@ -61,7 +61,7 @@ export const identidades = sqliteTable("identidades", {
  * identidad compilado en el momento de creación, como evidencia de que
  * el Compilador se usó y de qué produjo exactamente.
  */
-export const bloques = sqliteTable("bloques", {
+export const bloques = pgTable("bloques", {
   id: text("id").primaryKey(),
   proyectoId: text("proyecto_id")
     .notNull()
@@ -74,13 +74,13 @@ export const bloques = sqliteTable("bloques", {
   estado: text("estado").notNull().default("activo"),
   // ISO string de cuándo se movió a la papelera; "" si no está eliminado
   eliminadoAt: text("eliminado_at").notNull().default(""),
-  // Arreglo de Escena serializado (ver Escena en types.ts); null si el
-  // bloque no tiene desglose estructurado (creado a mano, o formato sin
-  // escenas). Permite editar y regenerar por escena más adelante.
-  escenasJson: text("escenas_json"),
+  // Arreglo de Escena (ver Escena en types.ts); null si el bloque no tiene
+  // desglose estructurado (creado a mano, o formato sin escenas). Permite
+  // editar y regenerar por escena más adelante.
+  escenasJson: jsonb("escenas_json"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });
 
 /**
@@ -89,7 +89,7 @@ export const bloques = sqliteTable("bloques", {
  * `valor` guarda una ruta de archivo subido, una URL, o texto libre
  * (hex de color, prompt, etc.) según el `tipo`.
  */
-export const activos = sqliteTable("activos", {
+export const activos = pgTable("activos", {
   id: text("id").primaryKey(),
   proyectoId: text("proyecto_id")
     .notNull()
@@ -100,7 +100,7 @@ export const activos = sqliteTable("activos", {
   notas: text("notas").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });
 
 /**
@@ -111,13 +111,13 @@ export const activos = sqliteTable("activos", {
  * esto sola). Si el proyecto vinculado se borra, la nota no desaparece —
  * solo se desvincula (onDelete: "set null").
  */
-export const notas = sqliteTable("notas", {
+export const notas = pgTable("notas", {
   id: text("id").primaryKey(),
   texto: text("texto").notNull(),
   proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "set null" }),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });
 
 /**
@@ -125,7 +125,7 @@ export const notas = sqliteTable("notas", {
  * de las notas del Segundo Cerebro, siempre pertenece a un proyecto).
  * Solo texto plano en esta fase — sin archivos adjuntos.
  */
-export const conocimiento = sqliteTable("conocimiento", {
+export const conocimiento = pgTable("conocimiento", {
   id: text("id").primaryKey(),
   proyectoId: text("proyecto_id")
     .notNull()
@@ -134,5 +134,5 @@ export const conocimiento = sqliteTable("conocimiento", {
   contenido: text("contenido").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(current_timestamp)`),
+    .default(sql`now()`),
 });

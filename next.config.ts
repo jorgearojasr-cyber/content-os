@@ -2,10 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // El límite por defecto es 1 MB; las fotos de personaje y activos
-    // suben como multipart/form-data y lo superan fácilmente.
+    // Vercel Blob (put() simple, sin subida por partes) rechaza archivos de
+    // más de 4.5 MB — este límite solo necesita cubrir eso más el overhead
+    // de multipart/form-data.
     serverActions: {
-      bodySizeLimit: "16mb",
+      bodySizeLimit: "5mb",
     },
   },
 };

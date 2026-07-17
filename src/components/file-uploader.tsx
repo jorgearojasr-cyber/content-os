@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Input } from "./ui";
 import { explicarError } from "@/lib/errores";
+import { urlImagenVisible } from "@/lib/imagen-url";
 
 const TAMANO_MAXIMO_BYTES = 15 * 1024 * 1024;
 
@@ -74,7 +75,7 @@ export function FileUploader({
       >
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="Vista previa" className="h-24 w-24 rounded-lg object-cover" />
+          <img src={urlImagenVisible(value)} alt="Vista previa" className="h-24 w-24 rounded-lg object-cover" />
         ) : null}
         <span>{pending ? "Subiendo…" : label}</span>
         <input
