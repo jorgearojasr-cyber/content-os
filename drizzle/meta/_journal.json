@@ -43,6 +43,13 @@
       "when": 1784308724696,
       "tag": "0005_yielding_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784310242731,
+      "tag": "0006_small_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

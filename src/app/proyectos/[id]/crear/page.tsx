@@ -9,6 +9,7 @@ import {
   getConocimiento,
   getIdentidad,
   getPersonajes,
+  getPersonajesDelEstudio,
   inferirConfiguracionAction,
 } from "@/lib/actions";
 import { identityHasContent } from "@/lib/identity-compiler";
@@ -28,6 +29,7 @@ export default async function CrearPage({
   const activos = await getActivos(proyectoId);
   const conocimiento = await getConocimiento(proyectoId);
   const personajes = await getPersonajes(proyectoId);
+  const personajesEstudio = await getPersonajesDelEstudio();
   const avatares = await getAvatares(proyectoId);
   const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
   const boundGenerar = generarContenidoAction.bind(null, proyectoId);
@@ -52,6 +54,7 @@ export default async function CrearPage({
         proyectoId={proyectoId}
         identidad={identidad}
         personajes={personajes}
+        personajesEstudio={personajesEstudio}
         avatares={avatares}
         tieneConocimiento={conocimiento.length > 0}
         onInferir={boundInferir}

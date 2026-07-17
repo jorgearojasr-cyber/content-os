@@ -231,7 +231,10 @@ export function PersonajesLista({
   );
 }
 
-function PersonajeForm({
+/** Exportado para reutilizarse tal cual desde la pantalla global
+ * /personajes (creación/edición de Personajes del estudio) — no se
+ * duplica. */
+export function PersonajeForm({
   titulo,
   personaje,
   onSubmit,

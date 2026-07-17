@@ -74,9 +74,10 @@ export const identidades = pgTable("identidades", {
  */
 export const personajes = pgTable("personajes", {
   id: text("id").primaryKey(),
-  proyectoId: text("proyecto_id")
-    .notNull()
-    .references(() => proyectos.id, { onDelete: "cascade" }),
+  // Nullable: null = "Personaje del estudio", reutilizable en cualquier
+  // proyecto (no pertenece a ninguno). Con un proyecto asignado, sigue
+  // siendo el Personaje de ESE proyecto únicamente, como antes.
+  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
   nombre: text("nombre").notNull().default(""),
   personalidad: text("personalidad").notNull().default(""),
   fisica: text("fisica").notNull().default(""),

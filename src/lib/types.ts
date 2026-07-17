@@ -145,7 +145,10 @@ export type Bloque = {
  */
 export type Personaje = {
   id: string;
-  proyectoId: string;
+  /** `null` = Personaje DEL ESTUDIO — no pertenece a ningún proyecto,
+   * reutilizable en cualquiera. Con un proyecto asignado, sigue siendo
+   * exclusivo de ese proyecto, como antes. */
+  proyectoId: string | null;
   nombre: string;
   personalidad: string;
   fisica: string;

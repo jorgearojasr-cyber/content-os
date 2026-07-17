@@ -39,15 +39,18 @@ function segundosDesdeDuracion(duracion: string): number | undefined {
  * en los 3 modos (un solo componente, no una copia por modo). Controlan
  * qué secciones del Compilador se pasan a esta generación en particular
  * (ver `OpcionesCompilado` en identity-compiler.ts); no cambian nada
- * guardado en Identidad. Cuando el proyecto tiene más de un Personaje o
- * Avatar, aparece un selector de cuál usar (por defecto, el más reciente)
- * — con uno solo, no hay selector, cero fricción agregada.
+ * guardado en Identidad. Cuando hay más de un Personaje disponible (de
+ * este proyecto y/o del estudio) o más de un Avatar, aparece un selector
+ * de cuál usar — con uno solo DE PROYECTO, no hay selector, cero fricción
+ * agregada; un Personaje del estudio, en cambio, siempre requiere elección
+ * explícita del usuario, incluso si es la única opción disponible.
  */
 function QueIncluir({
   mostrarPersonaje,
   incluirPersonaje,
   setIncluirPersonaje,
   personajes,
+  personajesEstudio,
   personajeId,
   setPersonajeId,
   incluirMarca,
@@ -66,6 +69,7 @@ function QueIncluir({
   incluirPersonaje: boolean;
   setIncluirPersonaje: (v: boolean) => void;
   personajes: Personaje[];
+  personajesEstudio: Personaje[];
   personajeId: string;
   setPersonajeId: (v: string) => void;
   incluirMarca: boolean;
@@ -80,6 +84,13 @@ function QueIncluir({
   incluirConocimiento: boolean;
   setIncluirConocimiento: (v: boolean) => void;
 }) {
+  const totalPersonajes = personajes.length + personajesEstudio.length;
+  // La única opción es de proyecto -> se auto-selecciona sin selector
+  // (cero fricción, igual que antes). Cualquier otro caso con al menos 2
+  // opciones, o con la única opción siendo del estudio, sí muestra
+  // selector — un Personaje del estudio nunca se elige solo.
+  const mostrarSelectorPersonaje = totalPersonajes > 1 || (totalPersonajes === 1 && personajes.length === 0);
+
   return (
     <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Qué incluir en esta pieza</p>
@@ -94,17 +105,31 @@ function QueIncluir({
               />
               Usar Personaje
             </label>
-            {incluirPersonaje && personajes.length > 1 ? (
+            {incluirPersonaje && mostrarSelectorPersonaje ? (
               <select
                 value={personajeId}
                 onChange={(e) => setPersonajeId(e.target.value)}
                 className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
               >
-                {personajes.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre || "Personaje sin nombre"}
-                  </option>
-                ))}
+                {!personajeId ? <option value="">— Elige un personaje —</option> : null}
+                {personajes.length > 0 ? (
+                  <optgroup label="De este proyecto">
+                    {personajes.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre || "Personaje sin nombre"}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {personajesEstudio.length > 0 ? (
+                  <optgroup label="Del estudio">
+                    {personajesEstudio.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre || "Personaje sin nombre"}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             ) : null}
           </div>
@@ -161,6 +186,7 @@ export function CrearModos({
   proyectoId,
   identidad,
   personajes,
+  personajesEstudio,
   avatares,
   tieneConocimiento,
   onInferir,
@@ -171,6 +197,7 @@ export function CrearModos({
   proyectoId: string;
   identidad: Identidad;
   personajes: Personaje[];
+  personajesEstudio: Personaje[];
   avatares: Avatar[];
   tieneConocimiento: boolean;
   onInferir: (idea: string) => Promise<ConfiguracionInferida>;
@@ -192,6 +219,11 @@ export function CrearModos({
     tieneAvatar: avatares.length > 0,
   });
   const tieneContacto = identidadTieneContacto(identidad);
+  // A diferencia del checklist de Identidad (que solo cuenta Personajes
+  // PROPIOS del proyecto), acá la casilla "Usar Personaje" debe aparecer
+  // apenas haya CUALQUIER Personaje disponible — de este proyecto o del
+  // estudio — porque ambos funcionan igual al generar.
+  const hayPersonajeDisponible = personajes.length > 0 || personajesEstudio.length > 0;
 
   const [modo, setModo] = useState<Modo>("rapido");
   const [config, setConfig] = useState<ConfigCreacion>(CONFIG_VACIA);
@@ -344,10 +376,11 @@ export function CrearModos({
             {error ? <p className="mt-3 text-[12.5px] text-danger">{error}</p> : null}
             <div className="mt-4">
               <QueIncluir
-                mostrarPersonaje={seccionesInfo.personaje}
+                mostrarPersonaje={hayPersonajeDisponible}
                 incluirPersonaje={incluirPersonaje}
                 setIncluirPersonaje={setIncluirPersonaje}
                 personajes={personajes}
+                personajesEstudio={personajesEstudio}
                 personajeId={personajeId}
                 setPersonajeId={setPersonajeId}
                 incluirMarca={incluirMarca}
@@ -407,10 +440,11 @@ export function CrearModos({
               <p className="mb-1 text-[12.5px] text-text-muted">Paso 5</p>
               {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
               <QueIncluir
-                mostrarPersonaje={seccionesInfo.personaje}
+                mostrarPersonaje={hayPersonajeDisponible}
                 incluirPersonaje={incluirPersonaje}
                 setIncluirPersonaje={setIncluirPersonaje}
                 personajes={personajes}
+                personajesEstudio={personajesEstudio}
                 personajeId={personajeId}
                 setPersonajeId={setPersonajeId}
                 incluirMarca={incluirMarca}
@@ -445,10 +479,11 @@ export function CrearModos({
           <div className="mt-5 border-t border-border pt-4">
             {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
             <QueIncluir
-              mostrarPersonaje={seccionesInfo.personaje}
+              mostrarPersonaje={hayPersonajeDisponible}
               incluirPersonaje={incluirPersonaje}
               setIncluirPersonaje={setIncluirPersonaje}
               personajes={personajes}
+              personajesEstudio={personajesEstudio}
               personajeId={personajeId}
               setPersonajeId={setPersonajeId}
               incluirMarca={incluirMarca}

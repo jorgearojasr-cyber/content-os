@@ -59,11 +59,11 @@ export default async function IdentidadPage({
   const boundSubirLogo = subirLogo.bind(null, proyectoId);
   const boundCreateConocimiento = createConocimiento.bind(null, proyectoId);
   const boundDeleteConocimiento = deleteConocimiento.bind(null, proyectoId);
+  // Un Personaje creado desde la Identidad de un proyecto siempre es DE ESE
+  // proyecto (nunca del estudio) — updatePersonaje/deletePersonaje/subirFoto/
+  // eliminarFoto ya no necesitan proyectoId (personajeId es suficiente y
+  // único), así que se pasan tal cual, sin bind.
   const boundCreatePersonaje = createPersonaje.bind(null, proyectoId);
-  const boundUpdatePersonaje = updatePersonaje.bind(null, proyectoId);
-  const boundDeletePersonaje = deletePersonaje.bind(null, proyectoId);
-  const boundSubirFotoPersonaje = subirFotoPersonaje.bind(null, proyectoId);
-  const boundEliminarFotoPersonaje = eliminarFotoPersonaje.bind(null, proyectoId);
   const boundCreateAvatar = createAvatar.bind(null, proyectoId);
   const boundUpdateAvatar = updateAvatar.bind(null, proyectoId);
   const boundDeleteAvatar = deleteAvatar.bind(null, proyectoId);
@@ -229,10 +229,10 @@ export default async function IdentidadPage({
         <PersonajesLista
           personajes={personajes}
           onCreate={boundCreatePersonaje}
-          onUpdate={boundUpdatePersonaje}
-          onDelete={boundDeletePersonaje}
-          onSubirFoto={boundSubirFotoPersonaje}
-          onEliminarFoto={boundEliminarFotoPersonaje}
+          onUpdate={updatePersonaje}
+          onDelete={deletePersonaje}
+          onSubirFoto={subirFotoPersonaje}
+          onEliminarFoto={eliminarFotoPersonaje}
           onSubirTemporal={subirArchivoTemporal}
           onEliminarTemporal={eliminarArchivoTemporal}
           onGenerarPersonaje={generarPersonajeAction}

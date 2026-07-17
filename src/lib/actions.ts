@@ -194,9 +194,19 @@ export async function getPersonajes(proyectoId: string): Promise<Personaje[]> {
   return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-/** Todos los personajes de todos los proyectos, con el nombre de su
- * proyecto ya resuelto — usado por la pantalla global /personajes. Más
- * reciente primero, mismo criterio (y mismo motivo) que `getPersonajes`. */
+/** Personajes DEL ESTUDIO (`proyectoId` null) — no pertenecen a ningún
+ * proyecto, reutilizables en cualquiera. Mismo criterio de orden que
+ * `getPersonajes`. */
+export async function getPersonajesDelEstudio(): Promise<Personaje[]> {
+  const rows = await db.select().from(personajes).where(isNull(personajes.proyectoId));
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/** Todos los personajes de todos los proyectos MÁS los del estudio, con el
+ * nombre de su proyecto ya resuelto (`""` para los del estudio — la
+ * pantalla decide mostrar "Estudio" mirando `proyectoId === null`) — usado
+ * por la pantalla global /personajes. Más reciente primero, mismo criterio
+ * (y mismo motivo) que `getPersonajes`. */
 export async function getTodosLosPersonajes(): Promise<(Personaje & { proyectoNombre: string })[]> {
   const [todosPersonajes, todosProyectos] = await Promise.all([
     db.select().from(personajes),
@@ -204,16 +214,28 @@ export async function getTodosLosPersonajes(): Promise<(Personaje & { proyectoNo
   ]);
   const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
   return todosPersonajes
-    .map((p) => ({ ...p, proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "" }))
+    .map((p) => ({ ...p, proyectoNombre: p.proyectoId ? (nombrePorProyecto.get(p.proyectoId) ?? "") : "" }))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export async function getPersonaje(proyectoId: string, personajeId: string): Promise<Personaje | null> {
-  const rows = await db
-    .select()
-    .from(personajes)
-    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+/** `personajeId` es globalmente único — no se acota por proyecto (y no se
+ * podría de forma uniforme: un Personaje del estudio no tiene proyecto al
+ * que acotar). Esto es lo que permite que un Personaje del estudio
+ * funcione idéntico a uno de proyecto en cualquier generación. */
+export async function getPersonaje(personajeId: string): Promise<Personaje | null> {
+  const rows = await db.select().from(personajes).where(eq(personajes.id, personajeId));
   return rows[0] ?? null;
+}
+
+/** Revalida las rutas que muestran este Personaje: siempre la lista
+ * global, y además Identidad/Crear del proyecto dueño si tiene uno (los
+ * del estudio no aparecen en ninguna pantalla de proyecto). */
+function revalidarRutasPersonaje(proyectoId: string | null) {
+  revalidatePath("/personajes");
+  if (proyectoId) {
+    revalidatePath(`/proyectos/${proyectoId}/identidad`);
+    revalidatePath(`/proyectos/${proyectoId}/crear`);
+  }
 }
 
 const PERSONAJE_CAMPOS = [
@@ -242,60 +264,56 @@ function leerFotosDeFormData(formData: FormData): string[] {
 
 /** Crea un Personaje nuevo — nunca sobrescribe uno existente, ni siquiera
  * desde los botones de IA ("Generar personaje" crea uno nuevo en la lista,
- * ver ai-tools.tsx / personajes-lista.tsx). */
-export async function createPersonaje(proyectoId: string, formData: FormData): Promise<{ id: string }> {
+ * ver ai-tools.tsx / personajes-lista.tsx). `proyectoId: null` = Personaje
+ * del estudio. */
+export async function createPersonaje(
+  proyectoId: string | null,
+  formData: FormData,
+): Promise<{ id: string }> {
   const valores = leerCamposPersonaje(formData);
   const fotosUrlsJson = leerFotosDeFormData(formData);
   const id = randomUUID();
 
   await db.insert(personajes).values({ id, proyectoId, ...valores, fotosUrlsJson });
 
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  revalidatePath(`/proyectos/${proyectoId}/crear`);
+  revalidarRutasPersonaje(proyectoId);
   return { id };
 }
 
-export async function updatePersonaje(proyectoId: string, personajeId: string, formData: FormData) {
+export async function updatePersonaje(personajeId: string, formData: FormData) {
   const valores = leerCamposPersonaje(formData);
   const fotosUrlsJson = leerFotosDeFormData(formData);
 
-  await db
+  const [actualizado] = await db
     .update(personajes)
     .set({ ...valores, fotosUrlsJson })
-    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+    .where(eq(personajes.id, personajeId))
+    .returning({ proyectoId: personajes.proyectoId });
 
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  revalidatePath(`/proyectos/${proyectoId}/crear`);
+  revalidarRutasPersonaje(actualizado?.proyectoId ?? null);
 }
 
-export async function deletePersonaje(proyectoId: string, personajeId: string) {
-  const existente = await getPersonaje(proyectoId, personajeId);
+export async function deletePersonaje(personajeId: string) {
+  const existente = await getPersonaje(personajeId);
 
-  await db
-    .delete(personajes)
-    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+  await db.delete(personajes).where(eq(personajes.id, personajeId));
 
   for (const url of parseFotosPersonaje(existente?.fotosUrlsJson)) {
     await eliminarArchivoSubido(url).catch(() => {});
   }
 
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
-  revalidatePath(`/proyectos/${proyectoId}/crear`);
+  revalidarRutasPersonaje(existente?.proyectoId ?? null);
 }
 
 /** Sube una foto de referencia a un Personaje YA GUARDADO (hasta
  * `MAX_FOTOS_PERSONAJE`) y persiste de inmediato — no espera a que se
  * guarde el resto del formulario. Para un Personaje todavía sin guardar
  * ("+ Nuevo personaje"), usar `subirArchivoTemporal` en su lugar. */
-export async function subirFotoPersonaje(
-  proyectoId: string,
-  personajeId: string,
-  formData: FormData,
-): Promise<string[]> {
+export async function subirFotoPersonaje(personajeId: string, formData: FormData): Promise<string[]> {
   const archivo = formData.get("foto");
   if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
 
-  const personaje = await getPersonaje(proyectoId, personajeId);
+  const personaje = await getPersonaje(personajeId);
   const fotosActuales = parseFotosPersonaje(personaje?.fotosUrlsJson);
   if (fotosActuales.length >= MAX_FOTOS_PERSONAJE) {
     throw new Error(`Ya tienes ${MAX_FOTOS_PERSONAJE} fotos de referencia — elimina una antes de subir otra.`);
@@ -304,32 +322,22 @@ export async function subirFotoPersonaje(
   const url = await guardarArchivoSubido(archivo);
   const fotosNuevas = [...fotosActuales, url];
 
-  await db
-    .update(personajes)
-    .set({ fotosUrlsJson: fotosNuevas })
-    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+  await db.update(personajes).set({ fotosUrlsJson: fotosNuevas }).where(eq(personajes.id, personajeId));
 
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
   return fotosNuevas;
 }
 
 /** Elimina una foto de referencia (y su blob) de un Personaje ya guardado. */
-export async function eliminarFotoPersonaje(
-  proyectoId: string,
-  personajeId: string,
-  url: string,
-): Promise<string[]> {
-  const personaje = await getPersonaje(proyectoId, personajeId);
+export async function eliminarFotoPersonaje(personajeId: string, url: string): Promise<string[]> {
+  const personaje = await getPersonaje(personajeId);
   const fotosNuevas = parseFotosPersonaje(personaje?.fotosUrlsJson).filter((f) => f !== url);
 
-  await db
-    .update(personajes)
-    .set({ fotosUrlsJson: fotosNuevas })
-    .where(and(eq(personajes.id, personajeId), eq(personajes.proyectoId, proyectoId)));
+  await db.update(personajes).set({ fotosUrlsJson: fotosNuevas }).where(eq(personajes.id, personajeId));
 
   await eliminarArchivoSubido(url).catch(() => {});
 
-  revalidatePath(`/proyectos/${proyectoId}/identidad`);
+  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
   return fotosNuevas;
 }
 
@@ -524,7 +532,9 @@ export async function generarContenidoAction(
     input;
   const [identidad, personaje, avatar] = await Promise.all([
     getIdentidad(proyectoId),
-    personajeId ? getPersonaje(proyectoId, personajeId) : Promise.resolve(null),
+    // Sin acotar por proyecto a propósito: personajeId puede ser un
+    // Personaje del estudio, que no pertenece a este (ni a ningún) proyecto.
+    personajeId ? getPersonaje(personajeId) : Promise.resolve(null),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
   ]);
   const identidadCompilada = identidad
@@ -598,7 +608,7 @@ export async function createBloque(proyectoId: string, formData: FormData) {
 
   const [identidad, personaje, avatar] = await Promise.all([
     getIdentidad(proyectoId),
-    personajeId ? getPersonaje(proyectoId, personajeId) : Promise.resolve(null),
+    personajeId ? getPersonaje(personajeId) : Promise.resolve(null),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
   ]);
   const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
@@ -680,7 +690,7 @@ export async function generarImagenParaEscena(
   // Usa la PRIMERA foto del Personaje asociado al bloque como referencia —
   // múltiples referencias a la vez sería una mejora futura del proveedor de
   // imagen, no de esta ronda (ver comentario en imagen-provider.ts).
-  const personaje = bloque.personajeId ? await getPersonaje(proyectoId, bloque.personajeId) : null;
+  const personaje = bloque.personajeId ? await getPersonaje(bloque.personajeId) : null;
   const fotoReferenciaUrl = parseFotosPersonaje(personaje?.fotosUrlsJson).at(0);
 
   const imagenGeneradaUrl = await generarImagenIA(promptImagen, fotoReferenciaUrl, calidad);
