@@ -447,43 +447,41 @@ export function CrearModos({
   // triplicar el JSX.
   const identidadActivaYReciente = (
     <>
+      {personajes.length > 0 ? (
+        <Card>
+          <SectionTitle>Personajes</SectionTitle>
+          <PersonajeThumbnails
+            personajes={personajes}
+            destacadoId={personajeDestacadoId}
+            onSelect={seleccionarDestacado}
+          />
+          {personajeDestacado ? (
+            <div className="mt-2.5">
+              <p className="font-display text-[15px]">
+                {personajeDestacado.nombre || "Personaje sin nombre"}
+              </p>
+              {personajeDestacado.personalidad ? (
+                <p className="mt-0.5 text-[12.5px] text-text-muted">
+                  {extraerFragmento(personajeDestacado.personalidad, 90)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card>
         <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que la IA usa automáticamente, sin que tengas que volver a seleccionarlo.">
           Identidad activa
         </SectionTitle>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          {personajes.length > 0 ? (
-            <div className="sm:w-[45%]">
-              <PersonajeThumbnails
-                personajes={personajes}
-                destacadoId={personajeDestacadoId}
-                onSelect={seleccionarDestacado}
-              />
-              {personajeDestacado ? (
-                <div className="mt-2.5">
-                  <p className="font-display text-[15px]">
-                    {personajeDestacado.nombre || "Personaje sin nombre"}
-                  </p>
-                  {personajeDestacado.personalidad ? (
-                    <p className="mt-0.5 text-[12.5px] text-text-muted">
-                      {extraerFragmento(personajeDestacado.personalidad, 90)}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="flex-1">
-            <IdentidadChecklist
-              identidad={identidad}
-              activosCount={activosCount}
-              tienePersonaje={personajes.length > 0}
-              tieneAvatar={avatares.length > 0}
-              personaje={personajeDestacado}
-              avatar={avatares[0] ?? null}
-            />
-          </div>
-        </div>
+        <IdentidadChecklist
+          identidad={identidad}
+          activosCount={activosCount}
+          tienePersonaje={personajes.length > 0}
+          tieneAvatar={avatares.length > 0}
+          personaje={personajeDestacado}
+          avatar={avatares[0] ?? null}
+        />
       </Card>
 
       {bloquesRecientes.length > 0 ? (
