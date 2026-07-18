@@ -9,7 +9,7 @@ const DEBOUNCE_MS = 500;
 const LARGO_MINIMO_TEMA = 4;
 
 /**
- * "Esto ya existe sobre este tema" — un solo componente reutilizado en los
+ * "Contenido relacionado que podrías revisar" — un solo componente reutilizado en los
  * 3 modos de Crear (vía CamposCreacion, que ya es compartido). Busca con
  * debounce mientras el usuario escribe el tema; si no hay resultados, no
  * renderiza nada (nunca muestra una sección vacía).
@@ -60,7 +60,7 @@ export function ContenidoRelacionadoPanel({
         onClick={() => setAbierto((v) => !v)}
         className="flex w-full items-center justify-between gap-2 text-left text-[13.5px] font-medium text-text"
       >
-        <span>💡 Esto ya existe sobre este tema ({total})</span>
+        <span>💡 Contenido relacionado que podrías revisar ({total})</span>
         <span className="text-text-muted">{abierto ? "▲" : "▼"}</span>
       </button>
 
@@ -90,7 +90,7 @@ function SeccionSegundoCerebro({ proyectoId, notas }: { proyectoId: string; nota
         {trabajadas.map((n) => (
           <li key={n.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
             <p>
-              ✅ Ya creaste contenido sobre esto
+              💡 Esto podría parecerse a algo que ya creaste
               {n.bloqueTitulo ? (
                 <>
                   : <span className="font-medium">{n.bloqueTitulo}</span>

@@ -55,19 +55,27 @@ export type ResultadoRelacionado = {
   fragmento: string;
 };
 
-/** Puntúa cada item contra las palabras clave, descarta los que no
- * coinciden con nada, ordena por más coincidencias primero, y recorta al
- * límite pedido (3-5 resultados por fuente). */
+/** Puntúa cada item contra las palabras clave, descarta los que no llegan
+ * al umbral, ordena por más coincidencias primero, y recorta al límite
+ * pedido (3-5 resultados por fuente).
+ *
+ * `umbralCoincidencia` por defecto es 1 (cualquier coincidencia cuenta) —
+ * el comportamiento histórico, que sigue usando `elegirPersonajeAutomatico`
+ * en actions.ts a propósito (ahí "algo" es mejor que nada). El panel
+ * "Esto ya existe sobre este tema" en `buscarContenidoRelacionado` pasa un
+ * umbral más estricto para evitar falsos positivos entre temas apenas
+ * relacionados (ver reutilizacion — ronda de suavizado de copy). */
 export function rankearResultados<T>(
   items: T[],
   obtenerTexto: (item: T) => string,
   aResultado: (item: T) => ResultadoRelacionado,
   palabrasClave: string[],
   limite: number,
+  umbralCoincidencia = 1,
 ): ResultadoRelacionado[] {
   return items
     .map((item) => ({ item, score: contarCoincidencias(obtenerTexto(item), palabrasClave) }))
-    .filter(({ score }) => score > 0)
+    .filter(({ score }) => score >= umbralCoincidencia)
     .sort((a, b) => b.score - a.score)
     .slice(0, limite)
     .map(({ item }) => aResultado(item));

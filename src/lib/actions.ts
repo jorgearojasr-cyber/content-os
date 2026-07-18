@@ -663,9 +663,11 @@ export async function createBloque(proyectoId: string, formData: FormData) {
 /** Si `tema` (la idea con la que se generó esta pieza) hace match por
  * palabras clave con alguna nota 'pendiente' de este proyecto, esa nota
  * pasa a 'trabajada' con el bloque recién creado — es la misma idea que
- * originó la pieza. Usa el mismo ranking que el panel "Esto ya existe
- * sobre este tema", así el match es consistente. Sin coincidencias, no
- * toca nada. */
+ * originó la pieza. A propósito usa el umbral laxo de siempre (cualquier
+ * coincidencia cuenta) — no el más estricto del panel "Esto ya existe
+ * sobre este tema" — porque acá "algo" es mejor que nada: si el usuario
+ * generó contenido a partir de una nota, vincularla es una ayuda aunque
+ * el match sea parcial. Sin coincidencias, no toca nada. */
 async function marcarNotaComoTrabajadaSiHizoMatch(proyectoId: string, tema: string, bloqueId: string) {
   const palabrasClave = extraerPalabrasClave(tema);
   if (palabrasClave.length === 0) return;
@@ -1087,6 +1089,16 @@ export async function buscarContenidoRelacionado(
     return { biblioteca: [], segundoCerebro: [] };
   }
 
+  // Antes, una sola palabra clave compartida (score >= 1) alcanzaba para
+  // disparar el panel — bastaba para que temas apenas relacionados (ej.
+  // "5 cosas al recibir una casa nueva" vs. "7 cosas indispensables que
+  // toda casa debe tener", que solo comparten "cosas"/"casa") aparecieran
+  // como si fueran el mismo tema. Ahora exige compartir al menos la mitad
+  // de las palabras clave del tema, para que solo dispare con coincidencias
+  // genuinamente cercanas (mismo tema específico, no solo la misma
+  // categoría general).
+  const umbralCoincidencia = Math.max(1, Math.ceil(palabrasClave.length * 0.5));
+
   const [bloquesProyecto, notasProyecto] = await Promise.all([
     db.select().from(bloques).where(and(eq(bloques.proyectoId, proyectoId), eq(bloques.estado, "activo"))),
     db.select().from(notas).where(eq(notas.proyectoId, proyectoId)),
@@ -1098,6 +1110,7 @@ export async function buscarContenidoRelacionado(
     (b) => ({ id: b.id, titulo: b.titulo, fragmento: extraerFragmento(b.texto) }),
     palabrasClave,
     MAX_RESULTADOS_POR_FUENTE,
+    umbralCoincidencia,
   );
 
   const segundoCerebroBase = rankearResultados(
@@ -1106,6 +1119,7 @@ export async function buscarContenidoRelacionado(
     (n) => ({ id: n.id, titulo: extraerFragmento(n.texto, 40), fragmento: extraerFragmento(n.texto) }),
     palabrasClave,
     MAX_RESULTADOS_POR_FUENTE,
+    umbralCoincidencia,
   );
 
   // Para notas 'trabajada' hace falta el título/formato del bloque
