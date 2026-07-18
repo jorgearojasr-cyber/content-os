@@ -5,6 +5,7 @@ import { ContenidoRelacionadoPanel } from "@/components/contenido-relacionado-pa
 import type { ContenidoRelacionado } from "@/lib/actions";
 import {
   DURACIONES_VIDEO_CORTO,
+  DURACIONES_VIDEO_LARGO_YOUTUBE,
   ESTILOS_IMAGEN,
   NUMEROS_ESCENAS,
   NUMEROS_PAGINAS_CARRUSEL,
@@ -110,6 +111,12 @@ export function CamposCreacion({
   const mostrarPaso4 =
     !progresivo || (!!config.tipoContenido && !!config.tipoProduccion && config.tema.trim().length > 0);
 
+  // YouTube + "Video" es horizontal y de hasta 3 min — el rango de
+  // Duración corto (15-60s, pensado para Reel/Short/Story) no alcanza
+  // para este formato, así que usa un rango propio (60-180s) en su lugar.
+  const esYoutubeVideo = config.plataforma === "YouTube" && config.tipoPublicacion === "Video";
+  const opcionesDuracion = esYoutubeVideo ? DURACIONES_VIDEO_LARGO_YOUTUBE : DURACIONES_VIDEO_CORTO;
+
   return (
     <div className="space-y-5">
       <div>
@@ -189,7 +196,7 @@ export function CamposCreacion({
                 <Select
                   value={config.duracion}
                   onChange={(v) => set("duracion", v)}
-                  opciones={DURACIONES_VIDEO_CORTO}
+                  opciones={opcionesDuracion}
                 />
               </div>
               <div>
@@ -204,7 +211,7 @@ export function CamposCreacion({
                 <Label>Plataforma</Label>
                 <Select
                   value={config.plataforma}
-                  onChange={(v) => onChange({ ...config, plataforma: v, tipoPublicacion: "" })}
+                  onChange={(v) => onChange({ ...config, plataforma: v, tipoPublicacion: "", duracion: "" })}
                   opciones={PLATAFORMAS_CONTENIDO}
                 />
               </div>
@@ -216,7 +223,7 @@ export function CamposCreacion({
               <Label>Tipo de publicación</Label>
               <Select
                 value={config.tipoPublicacion}
-                onChange={(v) => set("tipoPublicacion", v)}
+                onChange={(v) => onChange({ ...config, tipoPublicacion: v, duracion: "" })}
                 opciones={(TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma] ?? []).map((t) => t.value)}
               />
             </div>
