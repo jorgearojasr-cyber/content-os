@@ -6,6 +6,7 @@ import {
   getActivos,
   getAvatares,
   getBloques,
+  getDocumentosDeProyecto,
   getIdentidad,
   getPersonajes,
   getPersonajesDelEstudio,
@@ -33,6 +34,7 @@ export default async function CrearPage({
   const personajes = await getPersonajes(proyectoId);
   const personajesEstudio = await getPersonajesDelEstudio();
   const avatares = await getAvatares(proyectoId);
+  const documentos = await getDocumentosDeProyecto(proyectoId);
   const bloquesRecientes = (await getBloques(proyectoId)).slice(0, 3);
   const activosFoto = activos.filter((a) => a.tipo === "foto");
   const activosVisuales = activosFoto.map((a) => ({ etiqueta: a.nombre, url: a.valor }));
@@ -64,6 +66,7 @@ export default async function CrearPage({
         avatares={avatares}
         activosCount={activosFoto.length}
         activosVisuales={activosVisuales}
+        documentos={documentos}
         bloquesRecientes={bloquesRecientes}
         onGuardar={boundCreate}
         onBuscarRelacionado={buscarContenidoRelacionado}

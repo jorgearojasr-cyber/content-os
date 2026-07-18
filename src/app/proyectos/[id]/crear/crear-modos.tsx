@@ -7,7 +7,7 @@ import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { formatearFechaChile } from "@/lib/fecha";
 import { compileIdentity, identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
 import { urlImagenVisible } from "@/lib/imagen-url";
-import { extraerFragmento } from "@/lib/reutilizacion";
+import { contarCoincidencias, extraerFragmento, extraerPalabrasClave } from "@/lib/reutilizacion";
 import { construirPlantillaExportacion, parsearRespuestaIA } from "@/lib/exportar-contexto";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
@@ -15,7 +15,40 @@ import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { ActivoVisual, PosicionLogo } from "@/lib/identity-compiler";
 import { fotoPrincipal, iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
-import type { Avatar, Bloque, Identidad, Personaje } from "@/lib/types";
+import type { Avatar, Bloque, Documento, Identidad, Personaje } from "@/lib/types";
+
+/** Máximo de documentos de Conocimiento que se incluyen en el contexto
+ * exportado, y largo máximo del contenido citado por documento — para que
+ * el contexto siga siendo pegable sin volverse un libro. */
+const MAX_DOCUMENTOS_EXPORTADOS = 3;
+const LARGO_MAX_CONTENIDO_DOCUMENTO = 800;
+
+/** Los documentos de la Biblioteca de Conocimiento que coinciden con la
+ * idea por palabras clave (sin IA — reutilizacion.ts), formateados como
+ * bloque de texto para "## Conocimiento relevante" del contexto
+ * exportado. "" si nada coincide o la idea no tiene palabras clave. */
+function formatearConocimientoRelevante(documentos: Documento[], tema: string): string {
+  const palabrasClave = extraerPalabrasClave(tema);
+  if (palabrasClave.length === 0 || documentos.length === 0) return "";
+
+  const relevantes = documentos
+    .map((d) => ({
+      d,
+      score: contarCoincidencias(`${d.titulo} ${d.contenido} ${d.etiquetas}`, palabrasClave),
+    }))
+    .filter(({ score }) => score >= 1)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_DOCUMENTOS_EXPORTADOS);
+
+  return relevantes
+    .map(({ d }) => {
+      const partes = [`### ${d.titulo}`];
+      if (d.contenido) partes.push(extraerFragmento(d.contenido, LARGO_MAX_CONTENIDO_DOCUMENTO));
+      if (d.tipo === "link" && d.valor) partes.push(`Fuente: ${d.valor}`);
+      return partes.join("\n");
+    })
+    .join("\n\n");
+}
 
 const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
   { value: "superior-izquierda", etiqueta: "Esquina superior izquierda" },
@@ -421,6 +454,7 @@ export function CrearModos({
   avatares,
   activosCount,
   activosVisuales,
+  documentos,
   bloquesRecientes,
   temaInicial = "",
   onGuardar,
@@ -431,6 +465,10 @@ export function CrearModos({
   /** Idea pre-escrita en el Paso 3 (llega desde "Convertir en contenido"
    * del Banco de Ideas, vía query param) — "" = flujo normal en blanco. */
   temaInicial?: string;
+  /** Documentos de la Biblioteca de Conocimiento disponibles (del proyecto
+   * + globales) — los que coinciden con la idea por palabras clave se
+   * incluyen en "## Conocimiento relevante" del contexto exportado. */
+  documentos: Documento[];
   identidad: Identidad;
   personajes: Personaje[];
   personajesEstudio: Personaje[];
@@ -570,6 +608,7 @@ export function CrearModos({
         numeroEscenas: config.numeroEscenas || undefined,
         numeroPaginas: config.numeroPaginas || undefined,
         estiloImagen: config.estiloImagen || undefined,
+        conocimientoRelevante: formatearConocimientoRelevante(documentos, config.tema),
       })
     : "";
 

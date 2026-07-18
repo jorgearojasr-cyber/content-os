@@ -126,6 +126,27 @@ describe("construirPlantillaExportacion", () => {
     expect(texto).toContain("## Escenas");
   });
 
+  it("incluye la sección de Conocimiento relevante solo cuando llega contenido", () => {
+    const base = {
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Imagen",
+      tipoProduccion: "Solo imágenes",
+      tema: "Aislación de techos",
+    };
+    const con = construirPlantillaExportacion({
+      ...base,
+      conocimientoRelevante: "### Normativa térmica\nResumen de la exigencia de aislación",
+    });
+    expect(con).toContain("## Conocimiento relevante");
+    expect(con).toContain("### Normativa térmica");
+    // El conocimiento va DESPUÉS de la identidad y ANTES de la tarea.
+    expect(con.indexOf("## Marca")).toBeLessThan(con.indexOf("## Conocimiento relevante"));
+    expect(con.indexOf("## Conocimiento relevante")).toBeLessThan(con.indexOf("## Tarea"));
+
+    const sin = construirPlantillaExportacion(base);
+    expect(sin).not.toContain("## Conocimiento relevante");
+  });
+
   it("produce una plantilla cuyo formato de salida el propio parser reconoce como válido si se completa", () => {
     const plantilla = construirPlantillaExportacion({
       identidadCompilada: "",

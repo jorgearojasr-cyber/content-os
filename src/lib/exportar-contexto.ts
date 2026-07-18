@@ -44,6 +44,11 @@ export type ConfigExportable = {
   numeroEscenas?: string;
   numeroPaginas?: string;
   estiloImagen?: string;
+  /** Bloque ya formateado con los documentos de la Biblioteca de
+   * Conocimiento que coinciden con la idea (por palabras clave, sin IA —
+   * ver `formatearConocimientoRelevante` en crear-modos) — "" o ausente =
+   * sin sección de conocimiento. */
+  conocimientoRelevante?: string;
 };
 
 /** Arma el bloque de texto completo para copiar y pegar en una IA externa
@@ -70,6 +75,10 @@ export function construirPlantillaExportacion(config: ConfigExportable): string 
 
   const bloques = [
     config.identidadCompilada,
+    config.conocimientoRelevante
+      ? `## Conocimiento relevante\nMaterial de referencia de la marca que aplica a esta idea — úsalo ` +
+        `como fuente de datos y criterio, sin contradecirlo:\n${config.conocimientoRelevante}`
+      : "",
     `## Tarea\nEres el equipo creativo (Director de Marketing + Director Creativo) de este proyecto ` +
       `de contenido. Sigue la identidad de marca de arriba al pie de la letra, sin resumirla ni ` +
       `contradecirla. Genera contenido de tipo "${config.tipoContenido}", producido como ` +
