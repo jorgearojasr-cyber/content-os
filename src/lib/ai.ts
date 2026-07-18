@@ -257,8 +257,8 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
 
   const prompt =
     `Eres el equipo creativo (Director de Marketing + Director Creativo) de este proyecto de ` +
-    `contenido. Esta es la identidad de marca — síguela al pie de la letra, sin resumirla ni ` +
-    `contradecirla:\n\n${input.identidadCompilada}\n\n` +
+    `contenido. Sigue al pie de la letra la identidad de marca de arriba, sin resumirla ni ` +
+    `contradecirla. ` +
     `Genera contenido de tipo "${input.tipoContenido}", producido como "${input.tipoProduccion}", ` +
     `sobre este tema: "${input.tema}". ${opciones} ` +
     `Recuerda: "escenas" es la unidad estructural universal — para Carrusel cada elemento es una ` +
@@ -277,7 +277,15 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
   // 6144 en vez de 4096: cada escena ahora suma dos campos más
   // (elementoConcreto + promptVisual) — con 8 escenas (ej. un carrusel
   // largo) el límite anterior se quedaba corto y truncaba la respuesta.
-  return generarEstructurado(prompt, ContenidoGeneradoSchema, 6144);
+  // identidadCompilada va como contexto cacheable — es el mismo texto para
+  // todas las piezas que se generen seguidas del mismo proyecto con la
+  // misma selección de Personaje/Marca/Activos (ver generarEstructurado).
+  return generarEstructurado(
+    prompt,
+    ContenidoGeneradoSchema,
+    6144,
+    input.identidadCompilada || undefined,
+  );
 }
 
 // Reutiliza las mismas definiciones/instrucciones de EscenaSchema — así
@@ -328,8 +336,7 @@ export async function revisarEscena(input: RevisionEscenaInput): Promise<EscenaR
     .join("\n");
 
   const prompt =
-    `Eres el equipo creativo de este proyecto de contenido. Esta es la identidad de marca:\n\n` +
-    `${input.identidadCompilada}\n\n` +
+    `Eres el equipo creativo de este proyecto de contenido, siguiendo la identidad de marca de arriba. ` +
     `Estás revisando una pieza de tipo "${input.tipoContenido}", producida como "${input.tipoProduccion}", ` +
     `sobre este tema: "${input.tema}". El usuario editó a mano la Escena ${input.escena.numero} — su ` +
     `contenido actual, que debes respetar tal cual (NO lo reescribas), es:\n` +
@@ -342,7 +349,10 @@ export async function revisarEscena(input: RevisionEscenaInput): Promise<EscenaR
     `promptVideo, elementoConcreto, activoReferenciado) para que reflejen fielmente la Descripción y el ` +
     `Texto en pantalla actuales de arriba, y sean coherentes con el resto de la pieza.`;
 
-  return generarEstructurado(prompt, EscenaRevisadaSchema);
+  // Mismo `identidadCompilada` que generarContenido para esta pieza — si
+  // el usuario ya generó o revisó otra escena de la misma pieza hace poco,
+  // esta llamada reutiliza el contexto cacheado en vez de pagarlo de nuevo.
+  return generarEstructurado(prompt, EscenaRevisadaSchema, 2048, input.identidadCompilada || undefined);
 }
 
 const ConfiguracionInferidaSchema = z.object({
@@ -369,13 +379,15 @@ export async function inferirConfiguracion(
   identidadCompilada: string,
 ): Promise<ConfiguracionInferida> {
   const prompt =
-    `Eres el Director de Marketing de este proyecto de contenido. Esta es su identidad de marca:\n\n` +
-    `${identidadCompilada}\n\n` +
-    `El usuario solo escribió esta idea, sin más detalles: "${idea}". Decide la configuración de ` +
-    `producción más adecuada: tipo de contenido, tipo de producción, plataforma, duración o número ` +
+    `Eres el Director de Marketing de este proyecto de contenido, siguiendo la identidad de marca de ` +
+    `arriba. El usuario solo escribió esta idea, sin más detalles: "${idea}". Decide la configuración ` +
+    `de producción más adecuada: tipo de contenido, tipo de producción, plataforma, duración o número ` +
     `de escenas/páginas según corresponda, y estilo de imagen si aplica. Explica brevemente por qué.`;
 
-  return generarEstructurado(prompt, ConfiguracionInferidaSchema, 1024);
+  // Mismo `identidadCompilada` que la generación real que sigue después
+  // ("Crear rápido" primero infiere, luego genera) — cachearlo acá
+  // significa que la segunda llamada, segundos después, ya lo reutiliza.
+  return generarEstructurado(prompt, ConfiguracionInferidaSchema, 1024, identidadCompilada || undefined);
 }
 
 const PorEscenaEdicionSchema = z.object({
@@ -517,13 +529,16 @@ export async function generarPlanEdicion(input: PlanEdicionInput): Promise<PlanE
 
   const prompt =
     `${instruccionRol} Adapta el tono de tus recomendaciones al formato de esta pieza: "${input.formato}".\n\n` +
-    `Esta es la identidad de marca del proyecto — tu plan debe ser coherente con ella. Si el Estilo ` +
-    `pide un ritmo o cámara específicos, síguelos; si te apartas de lo que pide, justifica ` +
-    `explícitamente por qué en tu recomendación:\n\n${input.identidadCompilada}\n\n` +
+    `Sigue la identidad de marca de arriba — tu plan debe ser coherente con ella. Si el Estilo pide un ` +
+    `ritmo o cámara específicos, síguelos; si te apartas de lo que pide, justifica explícitamente por ` +
+    `qué en tu recomendación.\n\n` +
     `Contenido completo de la pieza (copy, hashtags, CTA, narración):\n\n${input.texto}\n\n` +
     `Desglose de las ${input.escenas.length} ${unidad.toLowerCase()}s reales, numeradas — tu plan por ` +
     `escena DEBE cubrir cada una de ellas, en el mismo orden y con los mismos números, sin inventar ` +
     `${unidad.toLowerCase()}s que no existen:\n\n${escenasTexto}`;
 
-  return generarEstructurado(prompt, PlanEdicionSchema, 6144);
+  // Mismo `identidadCompilada` que se usó para generar esta pieza — si el
+  // usuario pide el Plan de Edición justo después de generar/revisar,
+  // reutiliza el contexto ya cacheado.
+  return generarEstructurado(prompt, PlanEdicionSchema, 6144, input.identidadCompilada || undefined);
 }

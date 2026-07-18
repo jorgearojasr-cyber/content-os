@@ -30,11 +30,24 @@ function getClient(): Anthropic {
 
 /** Pide una respuesta estructurada (validada contra `schema`) al proveedor
  * de IA activo. Traduce cualquier error del SDK a un mensaje en español
- * entendible por el usuario final. */
+ * entendible por el usuario final.
+ *
+ * `contextoCacheable` (opcional): texto estable que se repite igual entre
+ * llamadas sucesivas (ej. la Identidad compilada de un proyecto — misma
+ * Marca/Personaje/Activos para toda una sesión de generación). Va como
+ * bloque `system` separado con `cache_control: "ephemeral"` — Anthropic
+ * cobra precio de entrada completo la primera vez que aparece ese bloque
+ * exacto, y precio reducido (~10%) en cualquier llamada posterior dentro
+ * de la ventana de caché (5 min por defecto) que lo repita byte a byte,
+ * sin importar qué función la originó. `prompt` sigue siendo el mensaje
+ * de usuario normal (la parte que SÍ cambia entre llamadas: tema, opciones,
+ * qué escena se está revisando, etc.) — nunca debe ir ahí nada que varíe
+ * entre llamadas o el prefijo cacheado dejaría de coincidir. */
 export async function generarEstructurado<T>(
   prompt: string,
   schema: z.ZodType<T>,
   maxTokens = 2048,
+  contextoCacheable?: string,
 ): Promise<T> {
   const client = getClient();
 
@@ -43,6 +56,17 @@ export async function generarEstructurado<T>(
     response = await client.messages.parse({
       model: MODEL,
       max_tokens: maxTokens,
+      ...(contextoCacheable
+        ? {
+            system: [
+              {
+                type: "text" as const,
+                text: contextoCacheable,
+                cache_control: { type: "ephemeral" as const },
+              },
+            ],
+          }
+        : {}),
       messages: [{ role: "user", content: prompt }],
       output_config: { format: zodOutputFormat(schema) },
     });
