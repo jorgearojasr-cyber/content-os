@@ -116,6 +116,14 @@ export function parseFotosPersonaje(json: unknown): string[] {
     .slice(0, MAX_FOTOS_PERSONAJE);
 }
 
+/** Adapta `personajeIdsJson` (columna `jsonb` de `bloques`) a un arreglo de
+ * ids; ante un valor ausente (bloques con 0-1 Personaje, o creados antes de
+ * que existiera esta columna) o con forma inesperada, devuelve vacío. */
+export function parsePersonajeIds(json: unknown): string[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+}
+
 export type PersonajeResumen = { nombre: string; fotoUrl: string | null };
 
 /** Mapa id -> {nombre, primera foto} para resolver rápido qué Personaje
@@ -134,8 +142,12 @@ export type Bloque = {
   proyectoId: string;
   /** Qué Personaje estaba seleccionado al generar esta pieza (null si se
    * creó sin Personaje, o antes de que existiera esta columna) — usado por
-   * la generación de imagen para tomar la foto de referencia correcta. */
+   * la generación de imagen para tomar la foto de referencia correcta. Con
+   * 2+ Personajes (ver personajeIdsJson), es el primero de la lista. */
   personajeId: string | null;
+  /** Columna `jsonb`, nullable — arreglo completo de ids cuando se
+   * seleccionaron 2+ Personajes juntos. Usar `parsePersonajeIds()`. */
+  personajeIdsJson: unknown;
   titulo: string;
   formato: string;
   texto: string;

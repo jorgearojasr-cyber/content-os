@@ -111,7 +111,8 @@ const EscenaSchema = z.object({
       + "Banana como herramienta principal) — un solo párrafo en español, "
       + "sintaxis natural y descriptiva, SIN parámetros técnicos de otra "
       + "herramienta (nada de '--ar', '--v', etc.). Combina, cuando aplique: "
-      + "la descripción física exacta del Personaje si esta escena lo usa, "
+      + "la descripción física exacta de cada Personaje que participe en esta "
+      + "escena (todos, si hay más de uno), "
       + "el elementoConcreto de esta escena, la acción o composición (ej. "
       + "'de pie junto a', 'señalando'), el texto en pantalla que debe "
       + "aparecer legible en la imagen, y el estilo visual de marca (colores, "
@@ -155,6 +156,11 @@ export type ContenidoInput = {
    * Reel/Story, "4:5" para Post/Carrusel) — ver TIPOS_PUBLICACION_POR_PLATAFORMA
    * en types.ts. Ausente = sin formato específico, la IA decide el encuadre. */
   aspectRatio?: string;
+  /** `true` cuando `identidadCompilada` incluye 2+ Personajes seleccionados
+   * juntos (sección "## Personajes" del Compilador, no "## Personaje") —
+   * refuerza en el prompt principal que el guion/copy, no solo el prompt
+   * visual, debe reflejar la interacción entre ellos. */
+  variosPersonajes?: boolean;
 };
 
 /**
@@ -188,6 +194,11 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
       ? `Formato/encuadre de esta pieza: ${input.aspectRatio}` +
         `${input.aspectRatio === "9:16" ? " (vertical)" : input.aspectRatio === "16:9" ? " (horizontal)" : input.aspectRatio === "1:1" ? " (cuadrado)" : ""}. ` +
         `Cada "promptVisual" debe describir explícitamente ese encuadre/orientación.`
+      : "",
+    input.variosPersonajes
+      ? `Esta pieza tiene más de un Personaje (ver "## Personajes" arriba). En las escenas donde ` +
+        `coincidan, "guionHablado"/"copy" deben reflejar el diálogo o interacción real entre ellos — ` +
+        `no un narrador único ignorando que son varios.`
       : "",
   ]
     .filter(Boolean)

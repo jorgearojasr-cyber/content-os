@@ -98,30 +98,34 @@ function TilePersonaje({
   );
 }
 
-/** Fila de miniaturas de los Personajes DEL PROYECTO (no del estudio) en
- * la tarjeta "Personajes" — clic marca cuál queda "destacado para esta
- * sesión". "Ninguno" es un tile fijo a la izquierda, fuera del área de
- * scroll, separado por un divisor sutil; a la derecha, los Personajes
- * reales hacen scroll horizontal con scroll-snap si no caben (2 caben
- * completos junto con "Ninguno" en el ancho normal de la tarjeta — 3 en
+/** Fila de miniaturas de los Personajes DEL PROYECTO (no del estudio) en la
+ * tarjeta "Personajes" — clic en un Personaje ALTERNA su selección (se puede
+ * resaltar más de uno a la vez); clic en "Ninguno" deselecciona cualquier
+ * Personaje resaltado (mutuamente excluyente con tener 1+ seleccionados,
+ * incluido implícitamente: en cuanto la selección queda vacía, "Ninguno"
+ * vuelve a quedar resaltado solo). "Ninguno" es un tile fijo a la izquierda,
+ * fuera del área de scroll, separado por un divisor sutil; a la derecha, los
+ * Personajes reales hacen scroll horizontal con scroll-snap si no caben (2
+ * caben completos junto con "Ninguno" en el ancho normal de la tarjeta — 3 en
  * total — sin necesidad de deslizar). */
 function PersonajeThumbnails({
   personajes,
-  destacadoId,
-  onSelect,
+  seleccionadosIds,
+  onToggle,
+  onNinguno,
 }: {
   personajes: Personaje[];
-  /** `null` = "Ninguno" está destacado. */
-  destacadoId: string | null;
-  onSelect: (id: string | null) => void;
+  seleccionadosIds: string[];
+  onToggle: (id: string) => void;
+  onNinguno: () => void;
 }) {
   if (personajes.length === 0) return null;
 
   return (
     <div className="flex gap-3">
       <TilePersonaje
-        activo={destacadoId === null}
-        onClick={() => onSelect(null)}
+        activo={seleccionadosIds.length === 0}
+        onClick={onNinguno}
         etiqueta="Ninguno"
         widthClass="w-[calc(33.333%-0.5rem)]"
         avatar={
@@ -146,8 +150,8 @@ function PersonajeThumbnails({
           return (
             <TilePersonaje
               key={p.id}
-              activo={p.id === destacadoId}
-              onClick={() => onSelect(p.id)}
+              activo={seleccionadosIds.includes(p.id)}
+              onClick={() => onToggle(p.id)}
               etiqueta={p.nombre || "Sin nombre"}
               widthClass="w-[calc(50%-0.375rem)]"
               scrollSnap
@@ -190,8 +194,9 @@ function QueIncluir({
   setIncluirPersonaje,
   personajes,
   personajesEstudio,
-  personajeId,
-  setPersonajeId,
+  personajeIds,
+  onTogglePersonaje,
+  onElegirAutomatico,
   incluirMarca,
   setIncluirMarca,
   avatares,
@@ -211,8 +216,14 @@ function QueIncluir({
   setIncluirPersonaje: (v: boolean) => void;
   personajes: Personaje[];
   personajesEstudio: Personaje[];
-  personajeId: string;
-  setPersonajeId: (v: string) => void;
+  /** Selección múltiple — misma fuente de verdad que el carrusel de la
+   * tarjeta "Personajes" (ver `personajeSeleccion.ids` en `CrearModos`),
+   * nunca un estado separado. */
+  personajeIds: string[];
+  onTogglePersonaje: (id: string) => void;
+  /** "✨ Automático": vacía la selección sin desmarcar "Usar Personaje" —
+   * a diferencia de "Ninguno" en el carrusel, que sí la desmarca. */
+  onElegirAutomatico: () => void;
   incluirMarca: boolean;
   setIncluirMarca: (v: boolean) => void;
   avatares: Avatar[];
@@ -246,31 +257,50 @@ function QueIncluir({
               Usar Personaje
             </label>
             {incluirPersonaje && mostrarSelectorPersonaje ? (
-              <select
-                value={personajeId}
-                onChange={(e) => setPersonajeId(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[12.5px] text-text"
-              >
-                <option value="">✨ Automático (que la IA elija según el contexto)</option>
+              <div className="mt-1.5 space-y-1 rounded-lg border border-border bg-surface px-3 py-2">
+                <label className="flex items-center gap-2 text-[12.5px] text-text">
+                  <input
+                    type="checkbox"
+                    checked={personajeIds.length === 0}
+                    onChange={onElegirAutomatico}
+                  />
+                  ✨ Automático (que la IA elija según el contexto)
+                </label>
                 {personajes.length > 0 ? (
-                  <optgroup label="De este proyecto">
+                  <div className="mt-1.5">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                      De este proyecto
+                    </p>
                     {personajes.map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <label key={p.id} className="flex items-center gap-2 text-[12.5px] text-text">
+                        <input
+                          type="checkbox"
+                          checked={personajeIds.includes(p.id)}
+                          onChange={() => onTogglePersonaje(p.id)}
+                        />
                         {p.nombre || "Personaje sin nombre"}
-                      </option>
+                      </label>
                     ))}
-                  </optgroup>
+                  </div>
                 ) : null}
                 {personajesEstudio.length > 0 ? (
-                  <optgroup label="Del estudio">
+                  <div className="mt-1.5">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                      Del estudio
+                    </p>
                     {personajesEstudio.map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <label key={p.id} className="flex items-center gap-2 text-[12.5px] text-text">
+                        <input
+                          type="checkbox"
+                          checked={personajeIds.includes(p.id)}
+                          onChange={() => onTogglePersonaje(p.id)}
+                        />
                         {p.nombre || "Personaje sin nombre"}
-                      </option>
+                      </label>
                     ))}
-                  </optgroup>
+                  </div>
                 ) : null}
-              </select>
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -369,11 +399,11 @@ export function CrearModos({
       incluirPersonaje?: boolean;
       incluirMarca?: boolean;
       incluirContacto?: boolean;
-      personajeId?: string;
+      personajeIds?: string[];
       avatarId?: string;
       posicionLogo?: PosicionLogo;
     },
-  ) => Promise<ContenidoGenerado & { personajeIdUsado: string | null }>;
+  ) => Promise<ContenidoGenerado & { personajeIdsUsados: string[] }>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
 }) {
@@ -395,37 +425,58 @@ export function CrearModos({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
-  // "Ninguno" es el destacado por defecto al cargar la pantalla — un clic
-  // en una miniatura de la tarjeta "Personajes" durante la sesión cambia
-  // esto, pero solo en memoria (se pierde al recargar, aposta). `null` =
-  // "Ninguno". No existe un campo "predeterminado" real en el modelo de
-  // Personajes — personajes[0] (el más reciente) solo se usa como fallback
-  // de orden/valor del selector cuando el usuario marca "Usar Personaje" a
-  // mano sin haber tocado el carrusel.
-  const [personajeDestacadoId, setPersonajeDestacadoId] = useState<string | null>(null);
-  const [incluirPersonaje, setIncluirPersonaje] = useState(false);
-  const [personajeId, setPersonajeId] = useState(personajes[0]?.id ?? "");
-  // El Personaje realmente usado en la última generación (el elegido a
+  // "Ninguno" es la selección por defecto al cargar la pantalla — clics en
+  // las miniaturas de la tarjeta "Personajes" (o en las casillas de Paso 5,
+  // misma fuente de verdad) durante la sesión la cambian, pero solo en
+  // memoria (se pierde al recargar, aposta). `ids: []` = "Ninguno".
+  // Selección múltiple: 2+ ids seleccionados juntos componen escenas de
+  // interacción conjunta (ver `variosPersonajes` en generarContenidoAction).
+  // `ids` e `incluir` viven en UN solo estado (no dos separados) para que
+  // las actualizaciones sean atómicas — dos toggles seguidos (ej. clic en
+  // Carolina y clic en Don José en sucesión rápida) podían pisarse entre sí
+  // si `incluir` se derivaba en un `setState` aparte con el arreglo viejo
+  // capturado por clausura.
+  const [personajeSeleccion, setPersonajeSeleccion] = useState<{ ids: string[]; incluir: boolean }>({
+    ids: [],
+    incluir: false,
+  });
+  const incluirPersonaje = personajeSeleccion.incluir;
+  function setIncluirPersonaje(v: boolean) {
+    setPersonajeSeleccion((prev) => ({ ...prev, incluir: v }));
+  }
+  // Los Personajes realmente usados en la última generación (los elegidos a
   // mano, o el que decidió el sistema en "Automático") — es lo que se
   // guarda con el bloque, no el valor crudo del selector.
-  const [personajeIdUsado, setPersonajeIdUsado] = useState<string | null>(null);
+  const [personajeIdsUsados, setPersonajeIdsUsados] = useState<string[]>([]);
 
-  // Clic en "Ninguno" desmarca "Usar Personaje" en Paso 4 automáticamente;
-  // clic en un Personaje real lo marca y lo preselecciona — sin que el
-  // usuario tenga que volver a elegirlo ahí.
-  function seleccionarDestacado(id: string | null) {
-    setPersonajeDestacadoId(id);
-    if (id === null) {
-      setIncluirPersonaje(false);
-    } else {
-      setIncluirPersonaje(true);
-      setPersonajeId(id);
-    }
+  // Única función que modifica la selección de Personajes por clic directo
+  // (carrusel o casillas de Paso 5, ambos la llaman igual) — alterna la
+  // membresía en el arreglo y sincroniza "Usar Personaje" según si queda
+  // algo seleccionado, en una sola actualización atómica. Al llegar a 0,
+  // "Ninguno" vuelve a quedar resaltado solo (deriva de `ids.length === 0`),
+  // sin lógica aparte — así el carrusel y Paso 5 SIEMPRE reflejan lo mismo.
+  function alternarPersonajeSeleccionado(id: string) {
+    setPersonajeSeleccion((prev) => {
+      const nuevo = prev.ids.includes(id) ? prev.ids.filter((x) => x !== id) : [...prev.ids, id];
+      return { ids: nuevo, incluir: nuevo.length > 0 };
+    });
   }
 
-  const personajeDestacado = personajeDestacadoId
-    ? (personajes.find((p) => p.id === personajeDestacadoId) ?? null)
-    : null;
+  // Tile "Ninguno" del carrusel: vacía la selección Y desmarca "Usar
+  // Personaje" — mutuamente excluyente con tener cualquier Personaje
+  // seleccionado, como pide la ronda de selección múltiple.
+  function seleccionarNinguno() {
+    setPersonajeSeleccion({ ids: [], incluir: false });
+  }
+
+  // "✨ Automático" de Paso 5: vacía la selección SIN desmarcar "Usar
+  // Personaje" — a diferencia de "Ninguno", sigue queriendo un Personaje,
+  // solo deja que el sistema elija uno.
+  function elegirPersonajeAutomatico() {
+    setPersonajeSeleccion((prev) => ({ ids: [], incluir: prev.incluir }));
+  }
+
+  const personajesDestacados = personajes.filter((p) => personajeSeleccion.ids.includes(p.id));
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
@@ -434,7 +485,7 @@ export function CrearModos({
 
   function empezarDeNuevo() {
     setResultado(null);
-    setPersonajeIdUsado(null);
+    setPersonajeIdsUsados([]);
     setInferencia(null);
     setIdea("");
     setConfig(CONFIG_VACIA);
@@ -503,12 +554,12 @@ export function CrearModos({
         incluirPersonaje,
         incluirMarca,
         incluirContacto,
-        personajeId: incluirPersonaje ? personajeId || undefined : undefined,
+        personajeIds: incluirPersonaje ? personajeSeleccion.ids : undefined,
         avatarId: incluirMarca ? avatarId || undefined : undefined,
         posicionLogo: incluirLogo ? posicionLogo : undefined,
       });
-      const { personajeIdUsado: idUsado, ...contenido } = resultadoGenerado;
-      setPersonajeIdUsado(idUsado);
+      const { personajeIdsUsados: idsUsados, ...contenido } = resultadoGenerado;
+      setPersonajeIdsUsados(idsUsados);
       setResultado(contenido);
     } catch (e) {
       setError(explicarError(e));
@@ -528,19 +579,22 @@ export function CrearModos({
           <SectionTitle>Personajes</SectionTitle>
           <PersonajeThumbnails
             personajes={personajes}
-            destacadoId={personajeDestacadoId}
-            onSelect={seleccionarDestacado}
+            seleccionadosIds={personajeSeleccion.ids}
+            onToggle={alternarPersonajeSeleccionado}
+            onNinguno={seleccionarNinguno}
           />
-          {personajeDestacado ? (
-            <div className="mt-2.5">
-              <p className="font-display text-[15px]">
-                {personajeDestacado.nombre || "Personaje sin nombre"}
-              </p>
-              {personajeDestacado.personalidad ? (
-                <p className="mt-0.5 text-[12.5px] text-text-muted">
-                  {extraerFragmento(personajeDestacado.personalidad, 90)}
-                </p>
-              ) : null}
+          {personajesDestacados.length > 0 ? (
+            <div className="mt-2.5 space-y-2">
+              {personajesDestacados.map((p) => (
+                <div key={p.id}>
+                  <p className="font-display text-[15px]">{p.nombre || "Personaje sin nombre"}</p>
+                  {p.personalidad ? (
+                    <p className="mt-0.5 text-[12.5px] text-text-muted">
+                      {extraerFragmento(p.personalidad, 90)}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
             </div>
           ) : (
             <p className="mt-2.5 text-[12.5px] text-text-muted">
@@ -559,7 +613,7 @@ export function CrearModos({
           activosCount={activosCount}
           tienePersonaje={personajes.length > 0}
           tieneAvatar={avatares.length > 0}
-          personaje={personajeDestacado}
+          personaje={personajesDestacados[0] ?? null}
           avatar={avatares[0] ?? null}
         />
       </Card>
@@ -596,7 +650,7 @@ export function CrearModos({
           proyectoId={proyectoId}
           resultado={resultado}
           formato={config.tipoContenido}
-          personajeId={personajeIdUsado ?? ""}
+          personajeIds={personajeIdsUsados}
           tema={config.tema}
           onGuardar={onGuardar}
           onEmpezarDeNuevo={empezarDeNuevo}
@@ -669,8 +723,9 @@ export function CrearModos({
                 setIncluirPersonaje={setIncluirPersonaje}
                 personajes={personajes}
                 personajesEstudio={personajesEstudio}
-                personajeId={personajeId}
-                setPersonajeId={setPersonajeId}
+                personajeIds={personajeSeleccion.ids}
+                onTogglePersonaje={alternarPersonajeSeleccionado}
+                onElegirAutomatico={elegirPersonajeAutomatico}
                 incluirMarca={incluirMarca}
                 setIncluirMarca={setIncluirMarca}
                 avatares={avatares}
@@ -740,8 +795,9 @@ export function CrearModos({
                 setIncluirPersonaje={setIncluirPersonaje}
                 personajes={personajes}
                 personajesEstudio={personajesEstudio}
-                personajeId={personajeId}
-                setPersonajeId={setPersonajeId}
+                personajeIds={personajeSeleccion.ids}
+                onTogglePersonaje={alternarPersonajeSeleccionado}
+                onElegirAutomatico={elegirPersonajeAutomatico}
                 incluirMarca={incluirMarca}
                 setIncluirMarca={setIncluirMarca}
                 avatares={avatares}
@@ -781,8 +837,9 @@ export function CrearModos({
               setIncluirPersonaje={setIncluirPersonaje}
               personajes={personajes}
               personajesEstudio={personajesEstudio}
-              personajeId={personajeId}
-              setPersonajeId={setPersonajeId}
+              personajeIds={personajeSeleccion.ids}
+              onTogglePersonaje={alternarPersonajeSeleccionado}
+              onElegirAutomatico={elegirPersonajeAutomatico}
               incluirMarca={incluirMarca}
               setIncluirMarca={setIncluirMarca}
               avatares={avatares}

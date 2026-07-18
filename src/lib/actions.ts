@@ -32,6 +32,7 @@ import {
   MAX_FOTOS_PERSONAJE,
   parseEscenas,
   parseFotosPersonaje,
+  parsePersonajeIds,
   parsePlanEdicion,
   TIPOS_ACTIVO,
 } from "./types";
@@ -534,10 +535,11 @@ async function elegirPersonajeAutomatico(proyectoId: string, tema: string): Prom
  * datos; el usuario revisa el resultado y confirma con "Guardar en
  * Biblioteca" (que sigue siendo `createBloque`, sin cambios).
  *
- * Devuelve, junto al contenido, `personajeIdUsado` — el Personaje realmente
- * usado en la compilación (el elegido a mano, o el que decidió el sistema
- * si el selector estaba en "Automático"). El cliente lo necesita para
- * guardar el bloque con el Personaje correcto asociado.
+ * Devuelve, junto al contenido, `personajeIdsUsados` — los Personajes
+ * realmente usados en la compilación (los elegidos a mano — uno o varios —,
+ * o el que decidió el sistema si el selector estaba en "Automático", que
+ * sigue siendo de a uno). El cliente lo necesita para guardar el bloque con
+ * el/los Personaje(s) correctos asociados.
  */
 export async function generarContenidoAction(
   proyectoId: string,
@@ -548,33 +550,44 @@ export async function generarContenidoAction(
     incluirPersonaje?: boolean;
     incluirMarca?: boolean;
     incluirContacto?: boolean;
-    /** Cuál Personaje/Avatar de la lista del proyecto usar en esta
-     * generación (selector en Crear cuando hay más de uno). Vacío con
-     * `incluirPersonaje: true` = "Automático", el sistema elige uno.
-     * Ausente con `incluirPersonaje: false` = ninguno, la sección se omite. */
-    personajeId?: string;
+    /** Cuáles Personajes de la lista del proyecto/estudio usar en esta
+     * generación (selección múltiple en Crear cuando hay más de uno
+     * disponible). Vacío/ausente con `incluirPersonaje: true` = "Automático",
+     * el sistema elige uno solo. Ausente con `incluirPersonaje: false` =
+     * ninguno, la sección se omite. */
+    personajeIds?: string[];
     avatarId?: string;
     /** Posición de logo elegida en "Incluir logo" (Paso 4 de Crear).
      * Ausente/`undefined` = sin instrucción de logo para esta pieza. */
     posicionLogo?: PosicionLogo;
   },
-): Promise<ContenidoGenerado & { personajeIdUsado: string | null }> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, personajeId, avatarId, posicionLogo, ...resto } = input;
-  const personajeAutomatico = Boolean(incluirPersonaje) && !personajeId;
-  const [identidad, personajeExplicito, avatar, personajeAuto] = await Promise.all([
+): Promise<ContenidoGenerado & { personajeIdsUsados: string[] }> {
+  const { incluirPersonaje, incluirMarca, incluirContacto, personajeIds, avatarId, posicionLogo, ...resto } = input;
+  const idsExplicitos = (personajeIds ?? []).filter((id) => id.trim().length > 0);
+  const personajeAutomatico = Boolean(incluirPersonaje) && idsExplicitos.length === 0;
+  const [identidad, personajesExplicitos, avatar, personajeAuto] = await Promise.all([
     getIdentidad(proyectoId),
-    // Sin acotar por proyecto a propósito: personajeId puede ser un
+    // Sin acotar por proyecto a propósito: cada id puede ser de un
     // Personaje del estudio, que no pertenece a este (ni a ningún) proyecto.
-    personajeId ? getPersonaje(personajeId) : Promise.resolve(null),
+    Promise.all(idsExplicitos.map((id) => getPersonaje(id))),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
     personajeAutomatico ? elegirPersonajeAutomatico(proyectoId, resto.tema) : Promise.resolve(null),
   ]);
-  const personaje = personajeExplicito ?? personajeAuto;
+  const personajes =
+    personajesExplicitos.filter((p): p is Personaje => p !== null).length > 0
+      ? personajesExplicitos.filter((p): p is Personaje => p !== null)
+      : personajeAuto
+        ? [personajeAuto]
+        : [];
   const identidadCompilada = identidad
-    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personaje, avatar, posicionLogo })
+    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personajes, avatar, posicionLogo })
     : "";
-  const contenido = await generarContenido({ ...resto, identidadCompilada });
-  return { ...contenido, personajeIdUsado: personaje?.id ?? null };
+  const contenido = await generarContenido({
+    ...resto,
+    identidadCompilada,
+    variosPersonajes: personajes.length >= 2,
+  });
+  return { ...contenido, personajeIdsUsados: personajes.map((p) => p.id) };
 }
 
 /**
@@ -594,15 +607,18 @@ export async function inferirConfiguracionAction(
     getPersonajes(proyectoId).then((lista) => lista[0] ?? null),
     getAvatares(proyectoId).then((lista) => lista[0] ?? null),
   ]);
-  const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
+  const identidadCompilada = identidad
+    ? compileIdentity(identidad, { personajes: personaje ? [personaje] : [], avatar })
+    : "";
   return inferirConfiguracion(idea, identidadCompilada);
 }
 
-/** Parsea el `escenasJson` que llega serializado como string desde un
- * FormData (siempre string, incluso para campos que representan JSON) al
- * valor que espera la columna `jsonb`. Ante JSON inválido, no revienta el
- * guardado del resto del bloque — simplemente no guarda escenas. */
-function parsearEscenasDeFormData(valor: string): unknown {
+/** Parsea un campo JSON (`escenasJson`, `personajeIds`) que llega
+ * serializado como string desde un FormData (siempre string, incluso para
+ * campos que representan JSON). Ante JSON inválido, no revienta el guardado
+ * del resto del bloque — simplemente devuelve un valor que los parsers de
+ * `types.ts` (`parseEscenas`, `parsePersonajeIds`) tratan como vacío. */
+function parsearJsonDeFormData(valor: string): unknown {
   try {
     return JSON.parse(valor);
   } catch {
@@ -615,9 +631,13 @@ function parsearEscenasDeFormData(valor: string): unknown {
  * con el texto, el bloque de identidad exacto que el Compilador produjo en
  * ese momento — evidencia de que la identidad se usó, y de qué decía.
  * `escenasJson` es opcional: solo viene poblado desde el flujo de "Crear"
- * con IA; las piezas manuales no lo usan. `personajeId` (si vino del
- * selector de Crear) queda guardado en el bloque — es lo que después usa
- * `generarImagenParaEscena` para tomar la foto de referencia correcta.
+ * con IA; las piezas manuales no lo usan. `personajeIds` (si vino del
+ * selector múltiple de Crear, como JSON de un arreglo de ids) queda
+ * guardado en el bloque — `personajeId` (singular, el primero) es lo que
+ * después usa `generarImagenParaEscena` para tomar la foto de referencia
+ * correcta; `personajeIdsJson` guarda el arreglo completo cuando hay 2+.
+ * `personajeId` (singular, sin `personajeIds`) sigue soportado tal cual
+ * para no romper otros llamadores.
  */
 export async function createBloque(proyectoId: string, formData: FormData) {
   const titulo = String(formData.get("titulo") ?? "").trim();
@@ -628,24 +648,39 @@ export async function createBloque(proyectoId: string, formData: FormData) {
   const escenasJsonRaw = formData.get("escenasJson");
   const escenasJson =
     typeof escenasJsonRaw === "string" && escenasJsonRaw.trim()
-      ? parsearEscenasDeFormData(escenasJsonRaw)
+      ? parsearJsonDeFormData(escenasJsonRaw)
       : null;
 
-  const personajeId = String(formData.get("personajeId") ?? "").trim() || null;
+  const personajeIdsRaw = formData.get("personajeIds");
+  const personajeIdsDelFormulario =
+    typeof personajeIdsRaw === "string" && personajeIdsRaw.trim()
+      ? parsePersonajeIds(parsearJsonDeFormData(personajeIdsRaw))
+      : [];
+  const personajeIdSingular = String(formData.get("personajeId") ?? "").trim() || null;
+  const idsPersonajes =
+    personajeIdsDelFormulario.length > 0
+      ? personajeIdsDelFormulario
+      : personajeIdSingular
+        ? [personajeIdSingular]
+        : [];
+  const personajeId = idsPersonajes[0] ?? null;
   const avatarId = String(formData.get("avatarId") ?? "").trim() || null;
   const tema = String(formData.get("tema") ?? "").trim();
 
-  const [identidad, personaje, avatar] = await Promise.all([
+  const [identidad, personajes, avatar] = await Promise.all([
     getIdentidad(proyectoId),
-    personajeId ? getPersonaje(personajeId) : Promise.resolve(null),
+    Promise.all(idsPersonajes.map((id) => getPersonaje(id))).then((lista) =>
+      lista.filter((p): p is Personaje => p !== null),
+    ),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
   ]);
-  const identidadCompilada = identidad ? compileIdentity(identidad, { personaje, avatar }) : "";
+  const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, avatar }) : "";
 
   const bloqueId = randomUUID();
   await db.insert(bloques).values({
     id: bloqueId,
     proyectoId,
+    personajeIdsJson: idsPersonajes.length >= 2 ? idsPersonajes : null,
     personajeId,
     titulo,
     formato,
@@ -710,7 +745,7 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
   const escenasJsonRaw = formData.get("escenasJson");
   if (escenasJsonRaw !== null) {
     const valor = String(escenasJsonRaw);
-    actualizacion.escenasJson = valor.trim() ? parsearEscenasDeFormData(valor) : null;
+    actualizacion.escenasJson = valor.trim() ? parsearJsonDeFormData(valor) : null;
   }
 
   await db

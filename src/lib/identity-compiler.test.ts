@@ -79,8 +79,8 @@ describe("compileIdentity", () => {
   it("es determinístico: la misma entrada produce siempre la misma salida", () => {
     const identidad = baseIdentidad({ voz: "Directa y cálida" });
     const personaje = basePersonaje({ fisica: "Cabello corto" });
-    const a = compileIdentity(identidad, { personaje });
-    const b = compileIdentity(identidad, { personaje });
+    const a = compileIdentity(identidad, { personajes: [personaje] });
+    const b = compileIdentity(identidad, { personajes: [personaje] });
     expect(a).toBe(b);
   });
 
@@ -96,7 +96,7 @@ describe("compileIdentity", () => {
     const descripcionExacta =
       "mujer de 32 años, cabello castaño corto con raya al medio, ojos café";
     const personaje = basePersonaje({ fisica: descripcionExacta });
-    const salida = compileIdentity(baseIdentidad(), { personaje });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
     expect(salida).toContain(descripcionExacta);
   });
 
@@ -121,7 +121,7 @@ describe("compileIdentity", () => {
       nombre: "Don José Luis",
       personalidad: "Cercano, paciente, con humor sencillo",
     });
-    const salida = compileIdentity(baseIdentidad(), { personaje });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
     expect(salida).toContain("## Personaje");
     expect(salida).toContain("Personalidad: Cercano, paciente, con humor sencillo");
   });
@@ -158,7 +158,7 @@ describe("compileIdentity", () => {
       nombre: "Don José Luis",
       fotosUrlsJson: ["https://blob/foto1.jpg", "https://blob/foto2.jpg"],
     });
-    const salida = compileIdentity(baseIdentidad(), { personaje });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
     expect(salida).toContain("Fotos de referencia:");
     expect(salida).toContain("1. https://blob/foto1.jpg");
     expect(salida).toContain("2. https://blob/foto2.jpg");
@@ -185,7 +185,7 @@ describe("compileIdentity", () => {
 
   it("opciones.incluirPersonaje = false omite toda la sección Personaje aunque haya uno seleccionado", () => {
     const personaje = basePersonaje({ nombre: "Don José Luis" });
-    const salida = compileIdentity(baseIdentidad(), { personaje, incluirPersonaje: false });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje], incluirPersonaje: false });
     expect(salida).not.toContain("## Personaje");
   });
 
@@ -195,6 +195,34 @@ describe("compileIdentity", () => {
     const salida = compileIdentity(identidad, { avatar, incluirMarca: false });
     expect(salida).not.toContain("## Marca");
     expect(salida).not.toContain("Avatar del cliente ideal");
+  });
+
+  it("con 2+ Personajes, agrupa cada uno en su propio sub-bloque bajo '## Personajes' (no '## Personaje')", () => {
+    const p1 = basePersonaje({ id: "p1", nombre: "Don José", personalidad: "Paciente y sabio" });
+    const p2 = basePersonaje({ id: "p2", nombre: "Carolina", personalidad: "Curiosa, dueña de casa" });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [p1, p2] });
+    expect(salida).toContain("## Personajes");
+    expect(salida).not.toContain("## Personaje\n");
+    expect(salida).toContain("### 1. Don José");
+    expect(salida).toContain("### 2. Carolina");
+    expect(salida).toContain("Personalidad: Paciente y sabio");
+    expect(salida).toContain("Personalidad: Curiosa, dueña de casa");
+  });
+
+  it("con 2+ Personajes, agrega una instrucción explícita de interacción/diálogo conjunto", () => {
+    const p1 = basePersonaje({ id: "p1", nombre: "Don José" });
+    const p2 = basePersonaje({ id: "p2", nombre: "Carolina" });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [p1, p2] });
+    expect(salida).toMatch(/interacción o diálogo natural/);
+    expect(salida).toMatch(/no solo la voz de un narrador único/);
+  });
+
+  it("con exactamente 1 Personaje en el array, la salida es idéntica al formato singular de siempre", () => {
+    const personaje = basePersonaje({ nombre: "Don José", personalidad: "Paciente" });
+    const salidaArray = compileIdentity(baseIdentidad(), { personajes: [personaje] });
+    expect(salidaArray).toContain("## Personaje\n");
+    expect(salidaArray).not.toContain("## Personajes");
+    expect(salidaArray).not.toContain("### 1.");
   });
 });
 

@@ -71,7 +71,7 @@ export function IdentidadChecklist({
 
       {abierto ? (
         <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-border bg-surface-2 p-3.5 font-mono text-[12.5px] text-text-muted">
-          {textoDetalle ?? compileIdentity(identidad, { personaje, avatar })}
+          {textoDetalle ?? compileIdentity(identidad, { personajes: personaje ? [personaje] : [], avatar })}
         </pre>
       ) : null}
     </div>

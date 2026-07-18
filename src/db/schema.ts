@@ -134,9 +134,17 @@ export const bloques = pgTable("bloques", {
     .references(() => proyectos.id, { onDelete: "cascade" }),
   // Qué Personaje estaba seleccionado al generar esta pieza — permite que
   // la generación de imagen (más tarde, desde Biblioteca) use la foto de
-  // referencia correcta. Null si se creó sin Personaje o antes de que
-  // existiera esta columna.
+  // referencia correcta. Con 2+ Personajes seleccionados (ver personajeIdsJson),
+  // es el PRIMERO de la lista — la referencia de imagen sigue siendo de a uno
+  // a la vez (mejora futura, no de esta ronda). Null si se creó sin Personaje
+  // o antes de que existiera esta columna.
   personajeId: text("personaje_id").references(() => personajes.id, { onDelete: "set null" }),
+  // Arreglo completo de ids de Personajes seleccionados al generar esta
+  // pieza (ver "Selección múltiple de Personajes" en Crear) — null/vacío si
+  // se creó sin Personaje, con uno solo (ver personajeId), o antes de que
+  // existiera esta columna. No tiene FK propia: son los mismos ids ya
+  // referenciados individualmente en `personajes`.
+  personajeIdsJson: jsonb("personaje_ids_json"),
   titulo: text("titulo").notNull(),
   formato: text("formato").notNull().default("manual"),
   texto: text("texto").notNull(),

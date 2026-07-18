@@ -64,6 +64,13 @@
       "when": 1784316343285,
       "tag": "0008_thin_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784337669474,
+      "tag": "0009_high_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

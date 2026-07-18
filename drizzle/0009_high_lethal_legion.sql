@@ -1,0 +1,1 @@
+ALTER TABLE "bloques" ADD COLUMN "personaje_ids_json" jsonb;

@@ -52,6 +52,58 @@ function formatearFotosPersonaje(personaje: Personaje | null | undefined): strin
   return fotos.map((url, i) => `${i + 1}. ${url}`).join("\n");
 }
 
+const CAMPOS_PERSONAJE: Array<[keyof Personaje, string]> = [
+  ["personalidad", "Personalidad"],
+  ["fisica", "Descripción física"],
+  ["vestuario", "Vestuario"],
+  ["vozDescrita", "Voz (descripción)"],
+  ["gestos", "Gestos"],
+  ["muletillas", "Muletillas"],
+];
+
+/** Un Personaje dentro de un bloque "### N. Nombre" — usado solo cuando hay
+ * 2+ Personajes juntos en la pieza (con 1 solo, se usa el formato plano de
+ * siempre, ver `formatearSeccionPersonajes`). */
+function formatearPersonajeConEncabezado(personaje: Personaje, numero: number): string {
+  const fotosFormateadas = formatearFotosPersonaje(personaje);
+  const lineas = CAMPOS_PERSONAJE.map(([campo, etiqueta]) => {
+    const valor = personaje[campo];
+    return typeof valor === "string" && valor.trim().length > 0 ? `${etiqueta}: ${valor.trim()}` : "";
+  })
+    .concat(fotosFormateadas ? [`Fotos de referencia:\n${fotosFormateadas}`] : [])
+    .filter((linea) => linea.length > 0)
+    .join("\n");
+  return `### ${numero}. ${personaje.nombre || "Personaje sin nombre"}\n${lineas}`;
+}
+
+const INSTRUCCION_PERSONAJES_CONJUNTOS =
+  "Estos Personajes aparecen juntos en esta pieza. En las escenas donde coincidan, describe " +
+  "explícitamente la apariencia física de TODOS los que participen (nunca solo sus nombres) y compón " +
+  "una interacción o diálogo natural entre ellos, coherente con los roles y personalidades descritos " +
+  "arriba (ej. uno explicándole algo al otro según su conocimiento) — nunca los coloques uno al lado " +
+  "del otro sin relación. El guion/copy de la pieza también debe reflejar ese diálogo o interacción, " +
+  "no solo la voz de un narrador único. Si la pieza tiene varias escenas, no todas necesitan incluir a " +
+  "todos los Personajes, pero evalúa la interacción conjunta como una opción real donde tenga sentido.";
+
+/** Con 1 Personaje, produce EXACTAMENTE el mismo texto de siempre (un solo
+ * "## Personaje" plano) — no cambia el comportamiento existente. Con 2+,
+ * agrupa cada uno en su propio sub-bloque "### N. Nombre" bajo un único
+ * "## Personajes" y agrega la instrucción de interacción conjunta. */
+function formatearSeccionPersonajes(personajes: Personaje[]): string {
+  if (personajes.length === 0) return "";
+  if (personajes.length === 1) {
+    const personaje = personajes[0];
+    const fotosFormateadas = formatearFotosPersonaje(personaje);
+    return seccion("Personaje", [
+      ["Nombre", personaje.nombre],
+      ...CAMPOS_PERSONAJE.map(([campo, etiqueta]) => [etiqueta, personaje[campo] as string] as [string, string]),
+      fotosFormateadas ? `Fotos de referencia:\n${fotosFormateadas}` : "",
+    ]);
+  }
+  const bloques = personajes.map((p, i) => formatearPersonajeConEncabezado(p, i + 1)).join("\n\n");
+  return `## Personajes\n${bloques}\n\n${INSTRUCCION_PERSONAJES_CONJUNTOS}`;
+}
+
 /**
  * COMPILADOR DE IDENTIDAD
  * ------------------------------------------------------------------
@@ -69,8 +121,10 @@ function formatearFotosPersonaje(personaje: Personaje | null | undefined): strin
  * (texto, imagen o video) y hacia cualquier herramienta externa.
  *
  * Un proyecto puede tener varios Personajes y varios Avatares — el
- * Compilador nunca los elige por su cuenta: siempre recibe el objeto ya
- * SELECCIONADO (por quien llama) en `opciones.personaje`/`opciones.avatar`.
+ * Compilador nunca los elige por su cuenta: siempre recibe los ya
+ * SELECCIONADOS (por quien llama) en `opciones.personajes`/`opciones.avatar`.
+ * Con 2+ Personajes seleccionados juntos, agrega una instrucción explícita
+ * de interacción/diálogo conjunto entre ellos (ver `formatearSeccionPersonajes`).
  * ------------------------------------------------------------------
  */
 
@@ -109,16 +163,19 @@ export type OpcionesCompilado = {
    * y Avatar del cliente ideal incluidos). Por defecto `true` — no cambia
    * el comportamiento de ningún llamado existente. */
   incluirMarca?: boolean;
-  /** Si es `false`, omite toda la sección "## Personaje". Por defecto `true`. */
+  /** Si es `false`, omite toda la sección "## Personaje"/"## Personajes". Por defecto `true`. */
   incluirPersonaje?: boolean;
   /** Si es `true`, agrega una sección "## Contacto" (sitio web, teléfono,
    * dirección). Por defecto `false` — el Compilador nunca envía datos de
    * contacto salvo que se pida explícitamente (ver casillas de Crear). */
   incluirContacto?: boolean;
-  /** El Personaje SELECCIONADO para esta compilación (por quien llama —
-   * el Compilador nunca elige entre varios). `null`/`undefined` = sin
-   * Personaje, la sección se omite aunque `incluirPersonaje` sea `true`. */
-  personaje?: Personaje | null;
+  /** Los Personajes SELECCIONADOS para esta compilación (por quien llama —
+   * el Compilador nunca elige entre varios). Lista vacía = sin Personaje,
+   * la sección se omite aunque `incluirPersonaje` sea `true`. Con 1 elemento,
+   * la salida es idéntica a la de una sola versión con Personaje único
+   * (mismo formato de siempre); con 2+, se agrega una instrucción explícita
+   * de interacción/diálogo conjunto entre ellos. */
+  personajes?: Personaje[];
   /** El Avatar SELECCIONADO para esta compilación. `null`/`undefined` =
    * sin Avatar, el sub-bloque se omite. */
   avatar?: Avatar | null;
@@ -146,7 +203,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
     incluirMarca = true,
     incluirPersonaje = true,
     incluirContacto = false,
-    personaje = null,
+    personajes = [],
     avatar = null,
     posicionLogo = null,
   } = opciones;
@@ -162,20 +219,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
       ])
     : "";
 
-  const fotosFormateadas = formatearFotosPersonaje(personaje);
-  const personajeSeccion =
-    incluirPersonaje && personaje
-      ? seccion("Personaje", [
-          ["Nombre", personaje.nombre],
-          ["Personalidad", personaje.personalidad],
-          ["Descripción física", personaje.fisica],
-          ["Vestuario", personaje.vestuario],
-          ["Voz (descripción)", personaje.vozDescrita],
-          ["Gestos", personaje.gestos],
-          ["Muletillas", personaje.muletillas],
-          fotosFormateadas ? `Fotos de referencia:\n${fotosFormateadas}` : "",
-        ])
-      : "";
+  const personajeSeccion = incluirPersonaje ? formatearSeccionPersonajes(personajes) : "";
 
   const estilo = seccion("Estilo", [
     ["Paleta de colores", identidad.paleta],
