@@ -151,6 +151,10 @@ export type ContenidoInput = {
   numeroEscenas?: number;
   numeroPaginas?: number;
   estiloImagen?: string;
+  /** Aspect ratio del Tipo de publicación elegido (Paso 4, ej. "9:16" para
+   * Reel/Story, "4:5" para Post/Carrusel) — ver TIPOS_PUBLICACION_POR_PLATAFORMA
+   * en types.ts. Ausente = sin formato específico, la IA decide el encuadre. */
+  aspectRatio?: string;
 };
 
 /**
@@ -179,6 +183,11 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
         : "",
     input.estiloImagen && input.estiloImagen !== "Automático"
       ? `Estilo de imagen: ${input.estiloImagen}.`
+      : "",
+    input.aspectRatio
+      ? `Formato/encuadre de esta pieza: ${input.aspectRatio}` +
+        `${input.aspectRatio === "9:16" ? " (vertical)" : input.aspectRatio === "16:9" ? " (horizontal)" : input.aspectRatio === "1:1" ? " (cuadrado)" : ""}. ` +
+        `Cada "promptVisual" debe describir explícitamente ese encuadre/orientación.`
       : "",
   ]
     .filter(Boolean)

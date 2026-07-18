@@ -11,6 +11,7 @@ import {
   PLATAFORMAS_CONTENIDO,
   TIPOS_CONTENIDO,
   TIPOS_PRODUCCION,
+  TIPOS_PUBLICACION_POR_PLATAFORMA,
   type TipoContenido,
 } from "@/lib/types";
 
@@ -19,6 +20,7 @@ export type ConfigCreacion = {
   tipoProduccion: string;
   tema: string;
   plataforma: string;
+  tipoPublicacion: string;
   duracion: string;
   numeroEscenas: string;
   numeroPaginas: string;
@@ -30,6 +32,7 @@ export const CONFIG_VACIA: ConfigCreacion = {
   tipoProduccion: "",
   tema: "",
   plataforma: "",
+  tipoPublicacion: "",
   duracion: "",
   numeroEscenas: "",
   numeroPaginas: "",
@@ -201,10 +204,21 @@ export function CamposCreacion({
                 <Label>Plataforma</Label>
                 <Select
                   value={config.plataforma}
-                  onChange={(v) => set("plataforma", v)}
+                  onChange={(v) => onChange({ ...config, plataforma: v, tipoPublicacion: "" })}
                   opciones={PLATAFORMAS_CONTENIDO}
                 />
               </div>
+            </div>
+          ) : null}
+
+          {config.tipoContenido === "Video Corto" && config.plataforma ? (
+            <div className="mt-3">
+              <Label>Tipo de publicación</Label>
+              <Select
+                value={config.tipoPublicacion}
+                onChange={(v) => set("tipoPublicacion", v)}
+                opciones={(TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma] ?? []).map((t) => t.value)}
+              />
             </div>
           ) : null}
 

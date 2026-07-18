@@ -14,7 +14,7 @@ import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { PosicionLogo } from "@/lib/identity-compiler";
-import { iconoFormato, parseFotosPersonaje } from "@/lib/types";
+import { iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
 import type { Avatar, Bloque, Identidad, Personaje } from "@/lib/types";
 
 const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
@@ -453,6 +453,7 @@ export function CrearModos({
         tipoProduccion: inferida.tipoProduccion,
         tema: idea,
         plataforma: inferida.plataforma ?? "",
+        tipoPublicacion: "",
         duracion: inferida.duracionSegundos ? `${inferida.duracionSegundos}s` : "",
         numeroEscenas: inferida.numeroEscenas ? String(inferida.numeroEscenas) : "",
         numeroPaginas: inferida.numeroPaginas ? String(inferida.numeroPaginas) : "",
@@ -475,12 +476,21 @@ export function CrearModos({
           ? `${config.tema} (duración aproximada: ${config.duracion.trim()})`
           : config.tema;
 
+      // Specs reales del Tipo de publicación elegido (Reel/Story/Post/...
+      // ver TIPOS_PUBLICACION_POR_PLATAFORMA) — el aspect ratio siempre se
+      // pasa; la duración objetivo solo cae al máximo del formato cuando
+      // el usuario no eligió una duración explícita en el selector propio.
+      const specPublicacion = TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
+        (t) => t.value === config.tipoPublicacion,
+      );
+
       const resultadoGenerado = await onGenerar({
         tipoContenido: config.tipoContenido,
         tipoProduccion: config.tipoProduccion || "IA decide automáticamente",
         tema: temaFinal,
         plataforma: config.plataforma || undefined,
-        duracionSegundos: segundosDesdeDuracion(config.duracion),
+        duracionSegundos: segundosDesdeDuracion(config.duracion) ?? specPublicacion?.duracionMaxSegundos,
+        aspectRatio: specPublicacion?.aspectRatio,
         numeroEscenas:
           config.numeroEscenas && config.numeroEscenas !== "Automático"
             ? Number(config.numeroEscenas)

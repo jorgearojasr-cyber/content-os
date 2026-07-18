@@ -412,6 +412,40 @@ export const TIPOS_CONTENIDO = [
 
 export type TipoContenido = (typeof TIPOS_CONTENIDO)[number]["value"];
 
+export type TipoPublicacion = {
+  value: string;
+  aspectRatio: string;
+  /** Duración máxima real de este formato, en segundos — solo aplica a
+   * video (Reel/Story/TikTok/Short); ausente = formato estático (Post/
+   * Carrusel), sin duración. */
+  duracionMaxSegundos?: number;
+};
+
+/** Especificaciones reales (aspect ratio, duración máxima) de cada
+ * combinación Plataforma + Tipo de publicación — no existía este catálogo
+ * en el código (solo nombres de formato sueltos, ver `FORMATOS_CONTENIDO`,
+ * sin specs asociadas), así que se define acá con los valores estándar
+ * conocidos de cada red, no combinaciones inventadas. Clave = valor de
+ * `PLATAFORMAS_CONTENIDO`. */
+export const TIPOS_PUBLICACION_POR_PLATAFORMA: Record<string, TipoPublicacion[]> = {
+  Instagram: [
+    { value: "Reel", aspectRatio: "9:16", duracionMaxSegundos: 90 },
+    { value: "Story", aspectRatio: "9:16", duracionMaxSegundos: 15 },
+    { value: "Post (feed)", aspectRatio: "4:5" },
+    { value: "Carrusel", aspectRatio: "4:5" },
+  ],
+  TikTok: [
+    { value: "Video", aspectRatio: "9:16", duracionMaxSegundos: 60 },
+    { value: "Story", aspectRatio: "9:16", duracionMaxSegundos: 15 },
+  ],
+  Facebook: [
+    { value: "Post", aspectRatio: "4:5" },
+    { value: "Story", aspectRatio: "9:16", duracionMaxSegundos: 20 },
+    { value: "Reel", aspectRatio: "9:16", duracionMaxSegundos: 90 },
+  ],
+  "YouTube Shorts": [{ value: "Short", aspectRatio: "9:16", duracionMaxSegundos: 60 }],
+};
+
 const ICONO_POR_FORMATO = new Map(TIPOS_CONTENIDO.map((t) => [t.value as string, t.icono]));
 
 /** Ícono según formato de un Bloque — piezas hechas a mano (formato
@@ -430,13 +464,10 @@ export const TIPOS_PRODUCCION = [
   { value: "IA decide automáticamente", icono: "🤖" },
 ] as const;
 
-export const PLATAFORMAS_CONTENIDO = [
-  "Instagram",
-  "TikTok",
-  "Facebook",
-  "YouTube Shorts",
-  "Automático",
-] as const;
+// "Automático" NO va en este arreglo — el `Select` compartido en
+// crear-campos.tsx ya antepone su propia opción "Automático" (value="")
+// antes de mapear estas; agregarla acá la duplicaba en el dropdown.
+export const PLATAFORMAS_CONTENIDO = ["Instagram", "TikTok", "Facebook", "YouTube Shorts"] as const;
 
 export const DURACIONES_VIDEO_CORTO = ["15s", "30s", "45s", "60s", "Automático"] as const;
 export const NUMEROS_ESCENAS = ["Automático", "3", "5", "6", "8"] as const;
