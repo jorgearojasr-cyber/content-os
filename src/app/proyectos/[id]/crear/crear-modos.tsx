@@ -61,59 +61,114 @@ function haySelectorDePersonaje(personajes: Personaje[], personajesEstudio: Pers
   return total > 1 || (total === 1 && personajes.length === 0);
 }
 
+/** Tile de una miniatura (Personaje real o "Ninguno") — mismo tamaño y
+ * forma visual para ambos, aunque el ancho se calcula distinto según en
+ * qué contenedor vive cada uno (ver `widthClass`). */
+function TilePersonaje({
+  activo,
+  onClick,
+  avatar,
+  etiqueta,
+  widthClass,
+  scrollSnap,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  avatar: React.ReactNode;
+  etiqueta: string;
+  widthClass: string;
+  /** Solo los tiles dentro del contenedor con scroll necesitan alinearse al
+   * soltar — el tile fijo "Ninguno" no scrollea, no lo necesita. */
+  scrollSnap?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={scrollSnap ? { scrollSnapAlign: "start" } : undefined}
+      className={`flex ${widthClass} shrink-0 flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-center transition-colors ${
+        activo ? "border-accent bg-accent-soft" : "border-border bg-surface-2 hover:border-accent/50"
+      }`}
+    >
+      {avatar}
+      <span className={`w-full truncate text-[12px] ${activo ? "font-semibold text-accent" : "text-text"}`}>
+        {etiqueta}
+      </span>
+    </button>
+  );
+}
+
 /** Fila de miniaturas de los Personajes DEL PROYECTO (no del estudio) en
- * "Identidad activa" — clic marca cuál queda "destacado para esta sesión".
- * Sin límite artificial: si hay más de 2, la fila hace scroll horizontal
- * con scroll-snap (2 miniaturas completas caben en el ancho normal). */
+ * la tarjeta "Personajes" — clic marca cuál queda "destacado para esta
+ * sesión". "Ninguno" es un tile fijo a la izquierda, fuera del área de
+ * scroll, separado por un divisor sutil; a la derecha, los Personajes
+ * reales hacen scroll horizontal con scroll-snap si no caben (2 caben
+ * completos junto con "Ninguno" en el ancho normal de la tarjeta — 3 en
+ * total — sin necesidad de deslizar). */
 function PersonajeThumbnails({
   personajes,
   destacadoId,
   onSelect,
 }: {
   personajes: Personaje[];
-  destacadoId: string;
-  onSelect: (id: string) => void;
+  /** `null` = "Ninguno" está destacado. */
+  destacadoId: string | null;
+  onSelect: (id: string | null) => void;
 }) {
   if (personajes.length === 0) return null;
 
   return (
-    <div
-      className="flex gap-3 overflow-x-auto pb-1"
-      style={{ scrollSnapType: "x mandatory" }}
-    >
-      {personajes.map((p) => {
-        const foto = parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null;
-        const activo = p.id === destacadoId;
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onSelect(p.id)}
-            style={{ scrollSnapAlign: "start" }}
-            className={`flex w-[calc(50%-0.375rem)] shrink-0 flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-center transition-colors ${
-              activo ? "border-accent bg-accent-soft" : "border-border bg-surface-2 hover:border-accent/50"
-            }`}
-          >
-            {foto ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={urlImagenVisible(foto)}
-                alt={p.nombre || "Personaje"}
-                className="h-12 w-12 rounded-full object-cover"
-              />
-            ) : (
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface font-display text-[16px] text-text-muted">
-                {(p.nombre || "?").trim().charAt(0).toUpperCase()}
-              </span>
-            )}
-            <span
-              className={`w-full truncate text-[12px] ${activo ? "font-semibold text-accent" : "text-text"}`}
-            >
-              {p.nombre || "Sin nombre"}
-            </span>
-          </button>
-        );
-      })}
+    <div className="flex gap-3">
+      <TilePersonaje
+        activo={destacadoId === null}
+        onClick={() => onSelect(null)}
+        etiqueta="Ninguno"
+        widthClass="w-[calc(33.333%-0.5rem)]"
+        avatar={
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-[20px]">
+            🚫
+          </span>
+        }
+      />
+
+      <div
+        aria-hidden
+        className="shrink-0 self-stretch"
+        style={{ width: "0.5px", backgroundColor: "var(--border)" }}
+      />
+
+      <div
+        className="flex min-w-0 flex-1 gap-3 overflow-x-auto pb-1"
+        style={{ scrollSnapType: "x mandatory" }}
+      >
+        {personajes.map((p) => {
+          const foto = parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null;
+          return (
+            <TilePersonaje
+              key={p.id}
+              activo={p.id === destacadoId}
+              onClick={() => onSelect(p.id)}
+              etiqueta={p.nombre || "Sin nombre"}
+              widthClass="w-[calc(50%-0.375rem)]"
+              scrollSnap
+              avatar={
+                foto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={urlImagenVisible(foto)}
+                    alt={p.nombre || "Personaje"}
+                    className="h-12 w-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface font-display text-[16px] text-text-muted">
+                    {(p.nombre || "?").trim().charAt(0).toUpperCase()}
+                  </span>
+                )
+              }
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -340,26 +395,37 @@ export function CrearModos({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
-  const [incluirPersonaje, setIncluirPersonaje] = useState(seccionesInfo.personaje);
-  // No existe un campo "predeterminado" real en el modelo de Personajes —
-  // el criterio de "predeterminado" en toda la app es el más reciente
-  // (personajes[0], ya vienen ordenados así). Arranca como el destacado de
-  // la sesión Y como el valor inicial del selector de Paso 4; un clic en
-  // una miniatura de "Identidad activa" cambia ambos, pero solo en memoria
-  // — se pierde al recargar la página, aposta.
-  const [personajeDestacadoId, setPersonajeDestacadoId] = useState(personajes[0]?.id ?? "");
+  // "Ninguno" es el destacado por defecto al cargar la pantalla — un clic
+  // en una miniatura de la tarjeta "Personajes" durante la sesión cambia
+  // esto, pero solo en memoria (se pierde al recargar, aposta). `null` =
+  // "Ninguno". No existe un campo "predeterminado" real en el modelo de
+  // Personajes — personajes[0] (el más reciente) solo se usa como fallback
+  // de orden/valor del selector cuando el usuario marca "Usar Personaje" a
+  // mano sin haber tocado el carrusel.
+  const [personajeDestacadoId, setPersonajeDestacadoId] = useState<string | null>(null);
+  const [incluirPersonaje, setIncluirPersonaje] = useState(false);
   const [personajeId, setPersonajeId] = useState(personajes[0]?.id ?? "");
   // El Personaje realmente usado en la última generación (el elegido a
   // mano, o el que decidió el sistema en "Automático") — es lo que se
   // guarda con el bloque, no el valor crudo del selector.
   const [personajeIdUsado, setPersonajeIdUsado] = useState<string | null>(null);
 
-  function seleccionarDestacado(id: string) {
+  // Clic en "Ninguno" desmarca "Usar Personaje" en Paso 4 automáticamente;
+  // clic en un Personaje real lo marca y lo preselecciona — sin que el
+  // usuario tenga que volver a elegirlo ahí.
+  function seleccionarDestacado(id: string | null) {
     setPersonajeDestacadoId(id);
-    setPersonajeId(id);
+    if (id === null) {
+      setIncluirPersonaje(false);
+    } else {
+      setIncluirPersonaje(true);
+      setPersonajeId(id);
+    }
   }
 
-  const personajeDestacado = personajes.find((p) => p.id === personajeDestacadoId) ?? personajes[0] ?? null;
+  const personajeDestacado = personajeDestacadoId
+    ? (personajes.find((p) => p.id === personajeDestacadoId) ?? null)
+    : null;
   const [incluirMarca, setIncluirMarca] = useState(seccionesInfo.marca);
   const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
   const [incluirContacto, setIncluirContacto] = useState(false);
@@ -466,7 +532,11 @@ export function CrearModos({
                 </p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <p className="mt-2.5 text-[12.5px] text-text-muted">
+              Esta pieza no usará ningún Personaje.
+            </p>
+          )}
         </Card>
       ) : null}
 
