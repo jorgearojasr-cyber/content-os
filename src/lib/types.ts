@@ -546,21 +546,20 @@ export const TIPOS_PRODUCCION = [
 // antes de mapear estas; agregarla acá la duplicaba en el dropdown.
 export const PLATAFORMAS_CONTENIDO = ["Instagram", "TikTok", "Facebook", "YouTube"] as const;
 
-export const DURACIONES_VIDEO_CORTO = ["15s", "30s", "45s", "60s", "Automático"] as const;
+export const DURACIONES_VIDEO_CORTO = ["15s", "30s", "45s", "60s"] as const;
 /** Duraciones para YouTube + "Video" (horizontal, hasta 3 min) — el rango
  * corto (`DURACIONES_VIDEO_CORTO`) no alcanza para este formato; ver
  * `esYoutubeVideo` en crear-campos.tsx para cuándo se usa esta lista en
  * vez de la corta. */
-export const DURACIONES_VIDEO_LARGO_YOUTUBE = ["60s", "90s", "120s", "180s", "Automático"] as const;
-export const NUMEROS_ESCENAS = ["Automático", "3", "5", "6", "8"] as const;
-export const NUMEROS_PAGINAS_CARRUSEL = ["5", "7", "10", "12", "Automático"] as const;
+export const DURACIONES_VIDEO_LARGO_YOUTUBE = ["60s", "90s", "120s", "180s"] as const;
+export const NUMEROS_ESCENAS = ["3", "5", "6", "8"] as const;
+export const NUMEROS_PAGINAS_CARRUSEL = ["5", "7", "10", "12"] as const;
 export const ESTILOS_IMAGEN = [
   "Fotografía realista",
   "Miniatura",
   "Infografía",
   "Comparativa",
   "Publicidad",
-  "Automático",
 ] as const;
 
 export const TIPOS_ACTIVO = [
