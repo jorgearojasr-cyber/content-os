@@ -14,11 +14,13 @@ import {
   generarPersonaje,
   generarPlanEdicion,
   inferirConfiguracion,
+  revisarEscena,
 } from "./ai";
 import type {
   ConfiguracionInferida,
   ContenidoGenerado,
   ContenidoInput,
+  EscenaRevisada,
   IdentidadCompletaSugerida,
   PersonajeSugerido,
   PlanEdicion,
@@ -42,6 +44,7 @@ import type {
   Avatar,
   AvatarInput,
   CalidadImagen,
+  Escena,
   FotoPersonaje,
   Identidad,
   IdentidadInput,
@@ -672,6 +675,61 @@ export async function generarContenidoAction(
 }
 
 /**
+ * "Revisar cambios" — cuando el usuario edita a mano Descripción o Texto
+ * en pantalla de una escena (en la revisión de Crear, todavía sin
+ * guardar, o al editar un bloque ya guardado en Biblioteca), esto vuelve
+ * a generar SOLO los prompts/referencias de esa escena (ver `revisarEscena`
+ * en ai.ts), con el resto de las escenas como contexto de coherencia — sin
+ * reiniciar toda la pieza. Recompila la identidad con los mismos
+ * Personajes/Activos que ya tenía la pieza, igual que
+ * `generarContenidoAction`, para que la revisión use las mismas
+ * instrucciones (fotos de referencia, etc.) que la generación original.
+ *
+ * `contexto` (tema/tipoContenido/tipoProduccion/personajeIds) va como
+ * parámetro SEPARADO de `input` (escena/otrasEscenas) a propósito: en la
+ * pantalla de editar un bloque ya guardado, `contexto` se conoce en el
+ * servidor y se deja pre-aplicado con `.bind()` (ver editar/page.tsx); en
+ * Crear, todavía sin guardar, `contexto` solo existe en el estado del
+ * cliente y se pasa en cada llamada (ver resultado-tabs.tsx). Nunca
+ * envuelvas esta función en un arrow function para "fusionar" contexto —
+ * eso rompe la serialización de Server Actions al pasarla a un Client
+ * Component (ver hallazgo de esta misma ronda).
+ */
+export async function revisarEscenaAction(
+  proyectoId: string,
+  contexto: {
+    tema: string;
+    tipoContenido: string;
+    tipoProduccion: string;
+    personajeIds?: string[];
+  },
+  input: {
+    escena: Pick<Escena, "numero" | "descripcion" | "textoEnPantalla">;
+    otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+  },
+): Promise<EscenaRevisada> {
+  const [identidad, personajesExplicitos, activosDelProyecto] = await Promise.all([
+    getIdentidad(proyectoId),
+    Promise.all((contexto.personajeIds ?? []).map((id) => getPersonaje(id))),
+    getActivos(proyectoId),
+  ]);
+  const personajes = personajesExplicitos.filter((p): p is Personaje => p !== null);
+  const activosVisuales = activosDelProyecto
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
+  const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, activosVisuales }) : "";
+
+  return revisarEscena({
+    identidadCompilada,
+    tema: contexto.tema,
+    tipoContenido: contexto.tipoContenido,
+    tipoProduccion: contexto.tipoProduccion,
+    escena: input.escena,
+    otrasEscenas: input.otrasEscenas,
+  });
+}
+
+/**
  * "Crear rápido": infiere la configuración de producción a partir de una
  * idea libre. El cliente siempre debe mostrar el resultado como un resumen
  * editable para confirmar antes de llamar a `generarContenidoAction` — esta
@@ -912,8 +970,8 @@ export async function generarImagenParaEscena(
   const index = escenas.findIndex((e) => e.numero === numeroEscena);
   if (index === -1) throw new Error("Esa escena ya no existe.");
 
-  const promptImagen = escenas[index].promptImagen.trim();
-  if (!promptImagen) throw new Error("Esta escena no tiene un prompt de imagen para generar.");
+  const promptVisual = (escenas[index].promptVisual ?? "").trim();
+  if (!promptVisual) throw new Error("Esta escena no tiene un prompt de imagen para generar.");
 
   // Usa la foto de tipo "rostro" del Personaje asociado al bloque como
   // referencia (o la primera disponible si por algún motivo no tiene rostro
@@ -922,7 +980,7 @@ export async function generarImagenParaEscena(
   const personaje = bloque.personajeId ? await getPersonaje(bloque.personajeId) : null;
   const fotoReferenciaUrl = fotoPrincipal(parseFotosPersonaje(personaje?.fotosUrlsJson)) ?? undefined;
 
-  const imagenGeneradaUrl = await generarImagenIA(promptImagen, fotoReferenciaUrl, calidad);
+  const imagenGeneradaUrl = await generarImagenIA(promptVisual, fotoReferenciaUrl, calidad);
 
   const nuevasEscenas = escenas.map((e, i) => (i === index ? { ...e, imagenGeneradaUrl } : e));
 

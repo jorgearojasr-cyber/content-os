@@ -6,7 +6,7 @@ import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { EscenasEditor } from "@/components/escenas-editor";
 import { explicarError } from "@/lib/errores";
 import { formatearEscenas, type Escena } from "@/lib/types";
-import type { ContenidoGenerado } from "@/lib/ai";
+import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
 
 type PestanaId =
   | "guion"
@@ -56,12 +56,12 @@ function ListaPorEscena({
   onChange,
 }: {
   escenas: Escena[];
-  campo: "guionHablado" | "promptImagen" | "promptVideo";
+  campo: "guionHablado" | "promptVisual" | "promptVideo";
   onChange: (index: number, valor: string) => void;
 }) {
   const conContenido = escenas
     .map((e, i) => ({ e, i }))
-    .filter(({ e }) => e[campo].trim().length > 0);
+    .filter(({ e }) => (e[campo] ?? "").trim().length > 0);
 
   if (conContenido.length === 0) {
     return <p className="text-[13px] text-text-muted">Sin contenido para esta pestaña.</p>;
@@ -73,10 +73,10 @@ function ListaPorEscena({
         <div key={e.numero}>
           <div className="mb-1 flex items-center justify-between">
             <Label>Escena {e.numero}</Label>
-            <BotonCopiar texto={e[campo]} />
+            <BotonCopiar texto={e[campo] ?? ""} />
           </div>
           <Textarea
-            value={e[campo]}
+            value={e[campo] ?? ""}
             onChange={(ev) => onChange(i, ev.target.value)}
             className="min-h-[70px]"
           />
@@ -90,15 +90,21 @@ export function ResultadoTabs({
   proyectoId,
   resultado,
   formato,
+  tipoProduccion,
   personajeIds,
   tema,
   resumenFormato,
   onGuardar,
   onEmpezarDeNuevo,
+  onRevisarEscena,
 }: {
   proyectoId: string;
   resultado: ContenidoGenerado;
   formato: string;
+  /** El tipo de producción elegido (Paso 2 de Crear, ej. "Solo escenas
+   * reales") — junto con `formato`, le da a "Revisar cambios" el mismo
+   * contexto que tuvo la generación original. */
+  tipoProduccion?: string;
   /** Los Personajes que estaban seleccionados al generar esta pieza (si
    * corresponde) — se guardan junto con el bloque; el primero es el que
    * usa la generación de imagen para tomar su foto de referencia. Vacío/
@@ -115,6 +121,24 @@ export function ResultadoTabs({
   resumenFormato?: string;
   onGuardar: (formData: FormData) => Promise<void>;
   onEmpezarDeNuevo: () => void;
+  /** Re-genera los prompts/referencias de una escena editada a mano — ver
+   * `revisarEscenaAction` en actions.ts. Recibe `contexto` como argumento
+   * SEPARADO (no fusionado en un solo objeto) porque esta pieza todavía no
+   * está guardada — `contexto` solo existe acá, en el estado del cliente,
+   * nunca se pre-aplica con `.bind()` como sí ocurre al editar un bloque ya
+   * guardado (ver editar/page.tsx). */
+  onRevisarEscena: (
+    contexto: {
+      tema: string;
+      tipoContenido: string;
+      tipoProduccion: string;
+      personajeIds?: string[];
+    },
+    input: {
+      escena: Pick<Escena, "numero" | "descripcion" | "textoEnPantalla">;
+      otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+    },
+  ) => Promise<EscenaRevisada>;
 }) {
   const router = useRouter();
   const [titulo, setTitulo] = useState(resultado.titulo);
@@ -131,7 +155,26 @@ export function ResultadoTabs({
     setEscenas((prev) => prev.map((e, i) => (i === index ? { ...e, [campo]: valor } : e)));
   }
 
-  const promptsImagenCount = escenas.filter((e) => e.promptImagen.trim()).length;
+  function revisarEscena(escena: Escena, otrasEscenas: Escena[]) {
+    return onRevisarEscena(
+      {
+        tema: tema ?? "",
+        tipoContenido: formato,
+        tipoProduccion: tipoProduccion ?? "",
+        personajeIds,
+      },
+      {
+        escena: { numero: escena.numero, descripcion: escena.descripcion, textoEnPantalla: escena.textoEnPantalla },
+        otrasEscenas: otrasEscenas.map((e) => ({
+          numero: e.numero,
+          descripcion: e.descripcion,
+          textoEnPantalla: e.textoEnPantalla,
+        })),
+      },
+    );
+  }
+
+  const promptsImagenCount = escenas.filter((e) => (e.promptVisual ?? "").trim()).length;
   const promptsVideoCount = escenas.filter((e) => e.promptVideo.trim()).length;
   const guionCount = escenas.filter((e) => e.guionHablado.trim()).length;
 
@@ -277,8 +320,8 @@ export function ResultadoTabs({
             {tabActiva === "promptsImagen" ? (
               <ListaPorEscena
                 escenas={escenas}
-                campo="promptImagen"
-                onChange={(i, v) => updateEscena(i, "promptImagen", v)}
+                campo="promptVisual"
+                onChange={(i, v) => updateEscena(i, "promptVisual", v)}
               />
             ) : null}
 
@@ -291,7 +334,7 @@ export function ResultadoTabs({
             ) : null}
 
             {tabActiva === "escenas" ? (
-              <EscenasEditor escenas={escenas} onChange={setEscenas} />
+              <EscenasEditor escenas={escenas} onChange={setEscenas} onRevisarEscena={revisarEscena} />
             ) : null}
 
             {tabActiva === "narracion" ? (

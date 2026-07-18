@@ -3,6 +3,7 @@ import {
   getActivos,
   getBloques,
   getBloquesArchivados,
+  getIdentidad,
   getPapelera,
   getPersonajes,
   getPersonajesDelEstudio,
@@ -47,7 +48,7 @@ export default async function BibliotecaPage({
   const vista: Vista =
     vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
 
-  const [bloques, proyectos, personajes, personajesEstudio, activosDelProyecto] = await Promise.all([
+  const [bloques, proyectos, personajes, personajesEstudio, activosDelProyecto, identidad] = await Promise.all([
     vista === "activos"
       ? getBloques(proyectoId)
       : vista === "archivados"
@@ -57,6 +58,7 @@ export default async function BibliotecaPage({
     getPersonajes(proyectoId),
     getPersonajesDelEstudio(),
     getActivos(proyectoId),
+    getIdentidad(proyectoId),
   ]);
 
   const otrosProyectos = proyectos
@@ -69,6 +71,8 @@ export default async function BibliotecaPage({
   const activoFotoPorEtiqueta = Object.fromEntries(
     activosDelProyecto.filter((a) => a.tipo === "foto").map((a) => [a.nombre, a.valor]),
   );
+  const nombreProyecto = proyectos.find((p) => p.id === proyectoId)?.nombre ?? "";
+  const logoUrl = identidad?.logoUrl.trim() ?? "";
 
   return (
     <div className="space-y-4">
@@ -107,6 +111,8 @@ export default async function BibliotecaPage({
           otrosProyectos={otrosProyectos}
           personajePorId={personajePorId}
           activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+          logoUrl={logoUrl}
+          nombreProyectoLogo={nombreProyecto}
         />
       )}
     </div>

@@ -16,7 +16,7 @@ import {
   type Escena,
   type Identidad,
 } from "@/lib/types";
-import type { PlanEdicion } from "@/lib/ai";
+import type { EscenaRevisada, PlanEdicion } from "@/lib/ai";
 
 const DURACION_CONFIRMACION_MS = 2000;
 
@@ -32,6 +32,7 @@ export function EditarBloqueConEscenas({
   onUpdate,
   onGenerarImagen,
   onGenerarPlanEdicion,
+  onRevisarEscena,
   identidad,
   activosCount,
   tienePersonaje,
@@ -42,6 +43,10 @@ export function EditarBloqueConEscenas({
   onUpdate: (formData: FormData) => Promise<void>;
   onGenerarImagen: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
   onGenerarPlanEdicion: (regenerar: boolean) => Promise<PlanEdicion>;
+  onRevisarEscena: (input: {
+    escena: { numero: number; descripcion: string; textoEnPantalla: string };
+    otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+  }) => Promise<EscenaRevisada>;
   identidad: Identidad | null;
   activosCount: number;
   tienePersonaje: boolean;
@@ -54,6 +59,17 @@ export function EditarBloqueConEscenas({
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [error, setError] = useState("");
+
+  function revisarEscena(escena: Escena, otrasEscenas: Escena[]) {
+    return onRevisarEscena({
+      escena: { numero: escena.numero, descripcion: escena.descripcion, textoEnPantalla: escena.textoEnPantalla },
+      otrasEscenas: otrasEscenas.map((e) => ({
+        numero: e.numero,
+        descripcion: e.descripcion,
+        textoEnPantalla: e.textoEnPantalla,
+      })),
+    });
+  }
 
   async function guardar() {
     if (!titulo.trim()) return;
@@ -89,7 +105,12 @@ export function EditarBloqueConEscenas({
           Edita cada escena — al guardar, el contenido de abajo se actualiza automáticamente para
           que quede sincronizado.
         </p>
-        <EscenasEditor escenas={escenas} onChange={setEscenas} onGenerarImagen={onGenerarImagen} />
+        <EscenasEditor
+          escenas={escenas}
+          onChange={setEscenas}
+          onGenerarImagen={onGenerarImagen}
+          onRevisarEscena={revisarEscena}
+        />
 
         <Label htmlFor="texto">Contenido completo</Label>
         <Textarea

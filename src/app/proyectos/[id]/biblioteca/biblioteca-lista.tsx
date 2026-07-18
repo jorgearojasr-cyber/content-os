@@ -86,19 +86,68 @@ const LINKS_HERRAMIENTAS_VIDEO_IA = [
   { nombre: "Veo", href: "https://labs.google/flow" },
 ];
 
+/** "video" = piezas con duración real (Video Corto/Largo): se ensamblan los
+ * clips de cada escena. "carrusel" = Carrusel de más de una lámina: se
+ * arma la publicación con las imágenes guardadas de cada escena, en orden.
+ * `null` = sin paso de armado — la pieza se publica directo (Imagen de una
+ * sola escena, o Historia, donde cada cuadro se publica por separado, no
+ * como un solo álbum). Cualquier formato multi-escena nuevo de una sola
+ * publicación final que se agregue más adelante debe sumarse aquí
+ * explícitamente junto a "Carrusel", no inferirse solo de `escenas.length`
+ * (Historia también puede tener 2+ escenas y NO debe entrar en este caso). */
+type TipoEnsamblaje = "video" | "carrusel" | null;
+
+function calcularTipoEnsamblaje(bloque: BloqueConDias): TipoEnsamblaje {
+  const todasLasEscenas = parseEscenas(bloque.escenasJson);
+  if (tieneEscenasDeVideo(todasLasEscenas)) return "video";
+  const conPromptVisual = todasLasEscenas.filter((e) => e.promptVisual?.trim());
+  if (bloque.formato === "Carrusel" && conPromptVisual.length > 1) return "carrusel";
+  return null;
+}
+
+/**
+ * PATRÓN GENERAL para toda entidad visual que se referencia en un prompt de
+ * imagen/video (Personaje, Activo, Logo, y cualquiera que se agregue después
+ * — ej. "Escenarios"): la IA de imagen nunca "ya sabe" cómo se ve algo, así
+ * que si una pieza usó esa entidad como referencia, su imagen/foto REAL
+ * tiene que aparecer como paso de descarga en la Guía de producción, junto
+ * a las demás (pueden coexistir varias en la misma escena — Personaje +
+ * Logo, Activo + Logo, etc., ver `GuiaEscenaImagen`/`GuiaEscenaVideo`).
+ * Nunca asumas que basta con el texto del prompt.
+ *
+ * Para el Logo específicamente: a diferencia de Personaje/Activo (que se
+ * eligen o coinciden por escena), el logo es una instrucción a nivel de
+ * PIEZA completa ("Incluir logo" en Crear) — se detecta buscando el
+ * marcador que `compileIdentity` graba en `identidadCompilada` cuando esa
+ * casilla estaba marcada al generar, sin necesitar una columna nueva.
+ */
+function calcularIncluyeLogo(bloque: BloqueConDias): boolean {
+  return bloque.identidadCompilada.includes("## Logo en esta pieza");
+}
+
 /** Guía para escenas cuya pieza es de entregable final IMAGEN (Carrusel/
- * Imagen — ver `tieneEscenasDeVideo`): genera la imagen y la publica ahí
- * mismo, sin paso de animación (no aplica). */
+ * Imagen — ver `tieneEscenasDeVideo`): genera la imagen fija de esta escena.
+ * Sin paso de animación (no aplica). El paso final cambia según
+ * `esCarruselMultiEscena`: una Imagen de una sola escena se publica ahí
+ * mismo, pero un Carrusel de varias láminas solo se publica una vez, al
+ * final (ver el paso "Arma el carrusel" en `GuiaProduccion`) — por escena
+ * solo se guarda la imagen. */
 function GuiaEscenaImagen({
   promptVisual,
   personaje,
   activoFotoUrl,
   activoEtiqueta,
+  esCarruselMultiEscena,
+  logoUrl,
+  nombreProyectoLogo,
 }: {
   promptVisual: string;
   personaje?: PersonajeResumen;
   activoFotoUrl?: string;
   activoEtiqueta?: string;
+  esCarruselMultiEscena: boolean;
+  logoUrl?: string;
+  nombreProyectoLogo?: string;
 }) {
   const pasos: Paso[] = [
     {
@@ -151,6 +200,21 @@ function GuiaEscenaImagen({
     });
   }
 
+  if (logoUrl) {
+    pasos.push({
+      titulo: `Descarga el logo de ${nombreProyectoLogo || "tu proyecto"}`,
+      contenido: (
+        <a
+          href={urlImagenVisible(logoUrl)}
+          download
+          className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+        >
+          Descargar logo
+        </a>
+      ),
+    });
+  }
+
   pasos.push({
     titulo: "Copia este prompt",
     contenido: (
@@ -171,7 +235,12 @@ function GuiaEscenaImagen({
 
   pasos.push({
     titulo: "Cuando tengas la imagen",
-    contenido: (
+    contenido: esCarruselMultiEscena ? (
+      <p className="mt-1 text-[12px] text-text-muted">
+        Guárdala (ej. en una carpeta de tu computador) — la vas a necesitar para armar el carrusel
+        completo.
+      </p>
+    ) : (
       <p className="mt-1 text-[12px] text-text-muted">
         Publícala y pega el link de Instagram en &ldquo;Evidencia de publicación&rdquo; (abajo)
         para dejarlo guardado en esta misma pieza.
@@ -202,15 +271,20 @@ function GuiaEscenaVideo({
   personaje,
   activoFotoUrl,
   activoEtiqueta,
+  logoUrl,
+  nombreProyectoLogo,
 }: {
   promptVisual: string;
   promptVideo: string;
   personaje?: PersonajeResumen;
   activoFotoUrl?: string;
   activoEtiqueta?: string;
+  logoUrl?: string;
+  nombreProyectoLogo?: string;
 }) {
   const tieneFotos = !!personaje && personaje.fotos.length > 0;
   const tieneActivo = !!activoFotoUrl;
+  const tieneLogo = !!logoUrl;
 
   const pasos: Paso[] = [
     {
@@ -266,6 +340,21 @@ function GuiaEscenaVideo({
     });
   }
 
+  if (tieneLogo) {
+    pasos.push({
+      titulo: `Descarga el logo de ${nombreProyectoLogo || "tu proyecto"}`,
+      contenido: (
+        <a
+          href={urlImagenVisible(logoUrl!)}
+          download
+          className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+        >
+          Descargar logo
+        </a>
+      ),
+    });
+  }
+
   pasos.push({
     titulo: "Copia el prompt de imagen y genera la imagen base de esta escena",
     contenido: (
@@ -313,7 +402,8 @@ function GuiaEscenaVideo({
         <p className="mt-1.5 text-[11px] text-text-muted">
           Sube la imagen que acabas de generar
           {tieneFotos ? " y las fotos de referencia del Personaje" : ""}
-          {tieneActivo ? ` y la foto de "${activoEtiqueta}"` : ""} como referencia
+          {tieneActivo ? ` y la foto de "${activoEtiqueta}"` : ""}
+          {tieneLogo ? " y el logo" : ""} como referencia
           {promptVideo ? ", y copia este prompt para animarla:" : "."}
         </p>
         {promptVideo ? (
@@ -365,12 +455,18 @@ function GuiaProduccionEscena({
   escena,
   personaje,
   esVideoFinal,
+  esCarruselMultiEscena,
   activoFotoPorEtiqueta,
+  logoUrl,
+  nombreProyectoLogo,
 }: {
   escena: Escena;
   personaje?: PersonajeResumen;
   esVideoFinal: boolean;
+  esCarruselMultiEscena: boolean;
   activoFotoPorEtiqueta: Record<string, string>;
+  logoUrl?: string;
+  nombreProyectoLogo?: string;
 }) {
   const [abierta, setAbierta] = useState(false);
   const promptVisual = escena.promptVisual?.trim();
@@ -399,6 +495,8 @@ function GuiaProduccionEscena({
               personaje={personaje}
               activoFotoUrl={activoFotoUrl}
               activoEtiqueta={activoEtiqueta}
+              logoUrl={logoUrl}
+              nombreProyectoLogo={nombreProyectoLogo}
             />
           ) : (
             <GuiaEscenaImagen
@@ -406,6 +504,9 @@ function GuiaProduccionEscena({
               personaje={personaje}
               activoFotoUrl={activoFotoUrl}
               activoEtiqueta={activoEtiqueta}
+              esCarruselMultiEscena={esCarruselMultiEscena}
+              logoUrl={logoUrl}
+              nombreProyectoLogo={nombreProyectoLogo}
             />
           )}
         </div>
@@ -415,26 +516,38 @@ function GuiaProduccionEscena({
 }
 
 /** Sección "Guía de producción": una guía por escena, solo para las que
- * tienen `promptVisual` (imagen base). Para piezas de VIDEO (ver
- * `tieneEscenasDeVideo`), agrega un paso final de Ensamblaje a nivel de
- * pieza completa, después de todas las escenas — nunca por escena, una
- * pieza solo se ensambla una vez. No aparece la sección entera si ninguna
- * escena tiene `promptVisual` (piezas de puro texto, o guardadas antes de
- * que existiera este campo). */
+ * tienen `promptVisual` (imagen base). Agrega un paso final de armado a
+ * nivel de pieza completa, después de todas las escenas — nunca por
+ * escena, una pieza solo se ensambla/arma una vez: "Ensamblaje final" para
+ * video (clips), "Arma el carrusel" para Carrusel de varias láminas
+ * (imágenes). No aparece la sección entera si ninguna escena tiene
+ * `promptVisual` (piezas de puro texto, o guardadas antes de que existiera
+ * este campo). */
 function GuiaProduccion({
   bloque,
   personaje,
   activoFotoPorEtiqueta,
+  logoUrl = "",
+  nombreProyectoLogo = "",
 }: {
   bloque: BloqueConDias;
   personaje?: PersonajeResumen;
   activoFotoPorEtiqueta: Record<string, string>;
+  logoUrl?: string;
+  nombreProyectoLogo?: string;
 }) {
   const todasLasEscenas = parseEscenas(bloque.escenasJson);
   const escenas = todasLasEscenas.filter((e) => e.promptVisual?.trim());
   if (escenas.length === 0) return null;
 
-  const esVideoFinal = tieneEscenasDeVideo(todasLasEscenas);
+  const tipoEnsamblaje = calcularTipoEnsamblaje(bloque);
+  const esVideoFinal = tipoEnsamblaje === "video";
+  const esCarruselFinal = tipoEnsamblaje === "carrusel";
+  // El logo es una instrucción a nivel de PIEZA completa ("Incluir logo" al
+  // generar, ver `calcularIncluyeLogo`), no algo que varía por escena como
+  // Personaje/Activo — por eso se resuelve una sola vez acá y se pasa igual
+  // a todas las escenas de esta pieza.
+  const logoDeLaPieza = calcularIncluyeLogo(bloque) ? logoUrl : "";
 
   return (
     <div className="mt-3 border-t border-border pt-3">
@@ -446,7 +559,10 @@ function GuiaProduccion({
             escena={e}
             personaje={personaje}
             esVideoFinal={esVideoFinal}
+            esCarruselMultiEscena={esCarruselFinal}
             activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+            logoUrl={logoDeLaPieza}
+            nombreProyectoLogo={nombreProyectoLogo}
           />
         ))}
       </div>
@@ -459,6 +575,15 @@ function GuiaProduccion({
           </p>
         </div>
       ) : null}
+      {esCarruselFinal ? (
+        <div className="mt-1.5 rounded-lg border border-border bg-surface px-3 py-2.5">
+          <p className="text-[12.5px] font-medium text-text">📚 Arma el carrusel</p>
+          <p className="mt-1 text-[12px] text-text-muted">
+            Sube las imágenes guardadas en orden (Escena 1 primero) al crear una publicación tipo
+            Carrusel/Álbum en la app de Instagram — revisa el orden antes de publicar.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -467,17 +592,18 @@ function GuiaProduccion({
  * carrusel o reel de Instagram — no Stories) y guardarlo como evidencia.
  * Si ya hay un embed cacheado lo muestra; si no, cae al link crudo con un
  * botón "Ver publicación"; si no hay nada guardado, solo el formulario.
- * Para piezas de video, este es el paso final DE LA PIEZA COMPLETA (el
- * video ya ensamblado a partir de los clips de cada escena) — nunca de una
- * escena suelta, que no se publica por separado. */
+ * Para piezas de video o Carrusel multi-escena, este es el paso final DE
+ * LA PIEZA COMPLETA (el video ya ensamblado, o el carrusel ya armado con
+ * las imágenes de cada escena) — nunca de una escena/imagen suelta, que no
+ * se publica por separado. */
 function EvidenciaPublicacion({
   proyectoId,
   bloque,
-  esVideoFinal,
+  tipoEnsamblaje,
 }: {
   proyectoId: string;
   bloque: BloqueConDias;
-  esVideoFinal: boolean;
+  tipoEnsamblaje: TipoEnsamblaje;
 }) {
   const [link, setLink] = useState(bloque.linkPublicacion ?? "");
   const [guardando, setGuardando] = useState(false);
@@ -501,9 +627,15 @@ function EvidenciaPublicacion({
   return (
     <div className="mt-3 border-t border-border pt-3">
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Evidencia de publicación</p>
-      {esVideoFinal ? (
+      {tipoEnsamblaje === "video" ? (
         <p className="mb-2 text-[11px] text-text-muted">
           Del video ya ensamblado (ver &ldquo;Ensamblaje final&rdquo; arriba) y publicado — no de una escena
+          suelta.
+        </p>
+      ) : null}
+      {tipoEnsamblaje === "carrusel" ? (
+        <p className="mb-2 text-[11px] text-text-muted">
+          Del carrusel ya armado (ver &ldquo;Arma el carrusel&rdquo; arriba) y publicado — no de una imagen
           suelta.
         </p>
       ) : null}
@@ -553,6 +685,8 @@ export function BibliotecaLista({
   otrosProyectos,
   personajePorId,
   activoFotoPorEtiqueta,
+  logoUrl,
+  nombreProyectoLogo,
 }: {
   proyectoId: string;
   vista: Vista;
@@ -564,6 +698,12 @@ export function BibliotecaLista({
   /** Etiqueta -> URL de cada foto de lugar (Activo tipo "foto") del proyecto,
    * para resolver `escena.activoReferenciado` en la Guía de producción. */
   activoFotoPorEtiqueta: Record<string, string>;
+  /** Logo actual del proyecto (Identidad) — "" si no hay. Se muestra en la
+   * Guía de producción solo si la pieza se generó con "Incluir logo"
+   * marcado, ver `calcularIncluyeLogo`. */
+  logoUrl: string;
+  /** Nombre del proyecto, para la etiqueta "Descarga el logo de [nombre]". */
+  nombreProyectoLogo: string;
 }) {
   return (
     <div className="space-y-3">
@@ -576,6 +716,8 @@ export function BibliotecaLista({
           otrosProyectos={otrosProyectos}
           personaje={bloque.personajeId ? personajePorId[bloque.personajeId] : undefined}
           activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+          logoUrl={logoUrl}
+          nombreProyectoLogo={nombreProyectoLogo}
         />
       ))}
     </div>
@@ -590,6 +732,8 @@ export function BloqueCard({
   nombreProyecto,
   personaje,
   activoFotoPorEtiqueta = {},
+  logoUrl = "",
+  nombreProyectoLogo = "",
 }: {
   proyectoId: string;
   vista: Vista;
@@ -608,6 +752,12 @@ export function BloqueCard({
    * entre proyectos) y la Guía de producción simplemente no muestra el paso
    * extra en ese caso. */
   activoFotoPorEtiqueta?: Record<string, string>;
+  /** Logo actual del proyecto — "" si no hay, o si la pantalla que llama
+   * (ej. /biblioteca global) no lo resolvió. La Guía de producción solo
+   * muestra el paso de descarga si además esta pieza específica se generó
+   * con el logo incluido, ver `calcularIncluyeLogo`. */
+  logoUrl?: string;
+  nombreProyectoLogo?: string;
 }) {
   const [confirmPapelera, setConfirmPapelera] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
@@ -698,11 +848,13 @@ export function BloqueCard({
             bloque={bloque}
             personaje={personaje}
             activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+            logoUrl={logoUrl}
+            nombreProyectoLogo={nombreProyectoLogo}
           />
           <EvidenciaPublicacion
             proyectoId={proyectoId}
             bloque={bloque}
-            esVideoFinal={tieneEscenasDeVideo(parseEscenas(bloque.escenasJson))}
+            tipoEnsamblaje={calcularTipoEnsamblaje(bloque)}
           />
         </div>
       ) : null}

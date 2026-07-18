@@ -94,7 +94,6 @@ const EscenaSchema = z.object({
   duracionSegundos: z.number(),
   descripcion: z.string(),
   guionHablado: z.string(),
-  promptImagen: z.string(),
   activoReferenciado: z.string().describe(
     "Si el concepto de esta escena coincide con la etiqueta de un Activo "
       + "visual disponible (ver sección '## Activos visuales disponibles' "
@@ -279,6 +278,71 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
   // (elementoConcreto + promptVisual) — con 8 escenas (ej. un carrusel
   // largo) el límite anterior se quedaba corto y truncaba la respuesta.
   return generarEstructurado(prompt, ContenidoGeneradoSchema, 6144);
+}
+
+// Reutiliza las mismas definiciones/instrucciones de EscenaSchema — así
+// "Revisar cambios" y la generación inicial nunca pueden desalinearse.
+const EscenaRevisadaSchema = EscenaSchema.pick({
+  activoReferenciado: true,
+  elementoConcreto: true,
+  promptVisual: true,
+  promptVideo: true,
+});
+
+export type EscenaRevisada = z.infer<typeof EscenaRevisadaSchema>;
+
+export type RevisionEscenaInput = {
+  identidadCompilada: string;
+  tema: string;
+  tipoContenido: string;
+  tipoProduccion: string;
+  /** La escena tal como quedó después de la edición manual del usuario —
+   * descripción y texto en pantalla son justo lo que el usuario quiso
+   * cambiar, así que se respetan tal cual; solo se regeneran los campos
+   * derivados (prompts y referencias). Tipado inline (no `Escena` de
+   * types.ts) para evitar un import circular — types.ts ya importa
+   * `PlanEdicion` desde este mismo archivo. */
+  escena: { numero: number; descripcion: string; textoEnPantalla: string };
+  /** El resto de las escenas de la pieza, para que la revisión sea
+   * coherente con el conjunto en vez de tratar la escena editada como
+   * aislada. */
+  otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+};
+
+/**
+ * Re-genera los prompts (imagen/video) y referencias (elementoConcreto,
+ * activoReferenciado) de UNA escena que el usuario editó a mano — la
+ * Descripción/Texto en pantalla no se tocan (son justo lo que el usuario
+ * quiso cambiar), pero los campos derivados de ellos sí deben reflejar la
+ * edición y seguir siendo coherentes con el resto de la pieza. Llamado
+ * mucho más chico que generarContenido: no reinicia la pieza completa,
+ * solo esta escena ("Revisar cambios" en la pantalla de revisión/edición).
+ */
+export async function revisarEscena(input: RevisionEscenaInput): Promise<EscenaRevisada> {
+  const contexto = input.otrasEscenas
+    .map(
+      (e) =>
+        `Escena ${e.numero}: ${e.descripcion}` +
+        (e.textoEnPantalla ? ` (texto en pantalla: "${e.textoEnPantalla}")` : ""),
+    )
+    .join("\n");
+
+  const prompt =
+    `Eres el equipo creativo de este proyecto de contenido. Esta es la identidad de marca:\n\n` +
+    `${input.identidadCompilada}\n\n` +
+    `Estás revisando una pieza de tipo "${input.tipoContenido}", producida como "${input.tipoProduccion}", ` +
+    `sobre este tema: "${input.tema}". El usuario editó a mano la Escena ${input.escena.numero} — su ` +
+    `contenido actual, que debes respetar tal cual (NO lo reescribas), es:\n` +
+    `Descripción: ${input.escena.descripcion}\n` +
+    (input.escena.textoEnPantalla ? `Texto en pantalla: ${input.escena.textoEnPantalla}\n` : "") +
+    (contexto
+      ? `\nEl resto de las escenas de esta pieza (para mantener coherencia con ellas, no las repitas):\n${contexto}\n`
+      : "") +
+    `\nRegenera SOLO los prompts y referencias de la Escena ${input.escena.numero} (promptVisual, ` +
+    `promptVideo, elementoConcreto, activoReferenciado) para que reflejen fielmente la Descripción y el ` +
+    `Texto en pantalla actuales de arriba, y sean coherentes con el resto de la pieza.`;
+
+  return generarEstructurado(prompt, EscenaRevisadaSchema);
 }
 
 const ConfiguracionInferidaSchema = z.object({

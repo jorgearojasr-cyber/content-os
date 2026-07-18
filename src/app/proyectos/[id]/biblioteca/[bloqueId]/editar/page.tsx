@@ -7,12 +7,13 @@ import {
   getBloque,
   getIdentidad,
   getPersonajes,
+  revisarEscenaAction,
   updateBloque,
 } from "@/lib/actions";
 import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
-import { FORMATOS_CONTENIDO, parseEscenas } from "@/lib/types";
+import { FORMATOS_CONTENIDO, parseEscenas, parsePersonajeIds } from "@/lib/types";
 import { EditarBloqueConEscenas } from "./editar-bloque-escenas";
 
 export default async function EditarBloquePage({
@@ -34,6 +35,21 @@ export default async function EditarBloquePage({
 
   if (bloque.escenasJson !== null) {
     const escenas = parseEscenas(bloque.escenasJson);
+    const personajeIds =
+      parsePersonajeIds(bloque.personajeIdsJson).length > 0
+        ? parsePersonajeIds(bloque.personajeIdsJson)
+        : bloque.personajeId
+          ? [bloque.personajeId]
+          : [];
+    // .bind() puro (sin arrow function envolvente) — necesario para que
+    // Next.js siga reconociendo esto como una Server Action válida al
+    // pasarla a un Client Component (ver docstring de revisarEscenaAction).
+    const boundRevisarEscena = revisarEscenaAction.bind(null, proyectoId, {
+      tema: bloque.titulo,
+      tipoContenido: bloque.formato,
+      tipoProduccion: bloque.formato,
+      personajeIds,
+    });
     return (
       <EditarBloqueConEscenas
         bloque={bloque}
@@ -41,6 +57,7 @@ export default async function EditarBloquePage({
         onUpdate={boundUpdate}
         onGenerarImagen={boundGenerarImagen}
         onGenerarPlanEdicion={boundGenerarPlanEdicion}
+        onRevisarEscena={boundRevisarEscena}
         identidad={identidad}
         activosCount={activos.filter((a) => a.tipo === "foto").length}
         tienePersonaje={personajes.length > 0}

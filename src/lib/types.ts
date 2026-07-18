@@ -316,17 +316,19 @@ export type Escena = {
   duracionSegundos: number;
   descripcion: string;
   guionHablado: string;
-  promptImagen: string;
   promptVideo: string;
   textoEnPantalla: string;
   /** Solo para contenido tipo lista de N cosas/elementos: el objeto físico
    * concreto de esta escena (ver EscenaSchema en ai.ts). "" si no aplica,
    * o si la escena se guardó antes de que existiera este campo. */
   elementoConcreto?: string;
-  /** Prompt de imagen fija para producción manual asistida (Gemini/Nano
-   * Banana) — distinto de `promptImagen`, que alimenta la generación
-   * automática vía OpenAI (`generarImagenParaEscena`). "" si no aplica, o
-   * si la escena se guardó antes de que existiera este campo. */
+  /** Prompt de imagen fija — usado tanto para producción manual asistida
+   * (Gemini/Nano Banana, el usuario lo copia) como para la generación
+   * automática vía OpenAI (`generarImagenParaEscena`). Único campo de
+   * prompt de imagen de una escena (antes existía también `promptImagen`,
+   * un campo separado sin instrucciones para el modelo que quedaba
+   * siempre vacío — se eliminó). "" si no aplica, o si la escena se
+   * guardó antes de que existiera este campo. */
   promptVisual?: string;
   /** Etiqueta EXACTA de un Activo visual (foto de lugar) que esta escena usa
    * como referencia — ver "## Activos visuales disponibles" en

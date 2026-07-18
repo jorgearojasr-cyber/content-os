@@ -11,7 +11,7 @@ import { urlImagenVisible } from "@/lib/imagen-url";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
-import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
+import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput, EscenaRevisada } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { PosicionLogo } from "@/lib/identity-compiler";
 import { fotoPrincipal, iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
@@ -385,6 +385,7 @@ export function CrearModos({
   onGenerar,
   onGuardar,
   onBuscarRelacionado,
+  onRevisarEscena,
 }: {
   proyectoId: string;
   identidad: Identidad;
@@ -406,6 +407,18 @@ export function CrearModos({
   ) => Promise<ContenidoGenerado & { personajeIdsUsados: string[] }>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
+  onRevisarEscena: (
+    contexto: {
+      tema: string;
+      tipoContenido: string;
+      tipoProduccion: string;
+      personajeIds?: string[];
+    },
+    input: {
+      escena: { numero: number; descripcion: string; textoEnPantalla: string };
+      otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+    },
+  ) => Promise<EscenaRevisada>;
 }) {
   const seccionesInfo = identidadPorSeccion(identidad, {
     tienePersonaje: personajes.length > 0,
@@ -678,11 +691,13 @@ export function CrearModos({
           proyectoId={proyectoId}
           resultado={resultado}
           formato={config.tipoContenido}
+          tipoProduccion={config.tipoProduccion}
           personajeIds={personajeIdsUsados}
           tema={config.tema}
           resumenFormato={resumenFormato}
           onGuardar={onGuardar}
           onEmpezarDeNuevo={empezarDeNuevo}
+          onRevisarEscena={onRevisarEscena}
         />
         {identidadActivaYReciente}
       </>

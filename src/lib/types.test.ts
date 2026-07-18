@@ -7,7 +7,6 @@ function escena(overrides: Partial<Escena> = {}): Escena {
     duracionSegundos: 0,
     descripcion: "",
     guionHablado: "",
-    promptImagen: "",
     promptVideo: "",
     textoEnPantalla: "",
     ...overrides,

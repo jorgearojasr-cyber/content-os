@@ -11,6 +11,7 @@ import {
   getPersonajes,
   getPersonajesDelEstudio,
   inferirConfiguracionAction,
+  revisarEscenaAction,
 } from "@/lib/actions";
 import { identityHasContent } from "@/lib/identity-compiler";
 import { CrearModos } from "./crear-modos";
@@ -32,6 +33,7 @@ export default async function CrearPage({
   const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
   const boundGenerar = generarContenidoAction.bind(null, proyectoId);
   const boundCreate = createBloque.bind(null, proyectoId);
+  const boundRevisarEscena = revisarEscenaAction.bind(null, proyectoId);
   const tieneIdentidad = identityHasContent(identidad, {
     tienePersonaje: personajes.length > 0,
     tieneAvatar: avatares.length > 0,
@@ -60,6 +62,7 @@ export default async function CrearPage({
         onGenerar={boundGenerar}
         onGuardar={boundCreate}
         onBuscarRelacionado={buscarContenidoRelacionado}
+        onRevisarEscena={boundRevisarEscena}
       />
     </div>
   );

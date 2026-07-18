@@ -44,7 +44,7 @@ function GenerarImagenControl({
   const [error, setError] = useState("");
 
   async function generar() {
-    if (!escena.promptImagen.trim()) return;
+    if (!(escena.promptVisual ?? "").trim()) return;
     setGenerando(true);
     setError("");
     try {
@@ -84,7 +84,7 @@ function GenerarImagenControl({
           type="button"
           variant="secondary"
           className="px-3 py-1.5 text-[12.5px]"
-          disabled={generando || !escena.promptImagen.trim()}
+          disabled={generando || !(escena.promptVisual ?? "").trim()}
           onClick={generar}
         >
           {generando ? "Generando…" : escena.imagenGeneradaUrl ? "🎨 Regenerar imagen" : "🎨 Generar imagen"}
@@ -92,6 +92,63 @@ function GenerarImagenControl({
         {generando ? <Cronometro /> : null}
       </div>
       {error ? <p className="mt-1.5 text-[12px] text-danger">{error}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Botón "Revisar cambios" — cuando el usuario edita a mano Descripción o
+ * Texto en pantalla, los prompts (imagen/video) y referencias que ya
+ * estaban generados pueden quedar desactualizados o incoherentes con el
+ * resto de la pieza. En vez de reiniciar toda la pieza desde cero, esto
+ * vuelve a pasar SOLO esta escena por el research agent (`revisarEscena`
+ * en ai.ts) para regenerar esos campos derivados, con el resto de las
+ * escenas como contexto de coherencia.
+ */
+function RevisarCambiosControl({
+  escena,
+  otrasEscenas,
+  onRevisar,
+  onRevisado,
+}: {
+  escena: Escena;
+  otrasEscenas: Escena[];
+  onRevisar: (
+    escena: Escena,
+    otrasEscenas: Escena[],
+  ) => Promise<{ promptVisual: string; promptVideo: string; elementoConcreto: string; activoReferenciado: string }>;
+  onRevisado: (cambios: { promptVisual: string; promptVideo: string; elementoConcreto: string; activoReferenciado: string }) => void;
+}) {
+  const [revisando, setRevisando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function revisar() {
+    setRevisando(true);
+    setError("");
+    try {
+      const cambios = await onRevisar(escena, otrasEscenas);
+      onRevisado(cambios);
+    } catch (e) {
+      setError(explicarError(e));
+    } finally {
+      setRevisando(false);
+    }
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={revisar}
+        disabled={revisando}
+        className="text-[12px] text-accent hover:underline disabled:opacity-50"
+      >
+        {revisando ? "Revisando…" : "🔄 Revisar cambios"}
+      </button>
+      <p className="mt-1 text-[11px] text-text-muted">
+        Vuelve a generar los prompts de esta escena a partir de la Descripción/Texto en pantalla actuales.
+      </p>
+      {error ? <p className="mt-1 text-[12px] text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -106,7 +163,7 @@ function construirTextoEscena(e: Escena): string {
   const partes: string[] = [];
   if (e.descripcion.trim()) partes.push(`Descripción: ${e.descripcion.trim()}`);
   if (e.textoEnPantalla.trim()) partes.push(`Texto en pantalla: ${e.textoEnPantalla.trim()}`);
-  if (e.promptImagen.trim()) partes.push(`Prompt imagen: ${e.promptImagen.trim()}`);
+  if ((e.promptVisual ?? "").trim()) partes.push(`Prompt imagen: ${(e.promptVisual ?? "").trim()}`);
   if (e.promptVideo.trim()) partes.push(`Prompt video: ${e.promptVideo.trim()}`);
   return partes.join("\n");
 }
@@ -122,6 +179,7 @@ export function EscenasEditor({
   escenas,
   onChange,
   onGenerarImagen,
+  onRevisarEscena,
 }: {
   escenas: Escena[];
   onChange: (escenas: Escena[]) => void;
@@ -131,6 +189,15 @@ export function EscenasEditor({
    * revisando algo recién generado en Crear, todavía sin guardar, no hay
    * dónde guardar la imagen, así que el botón simplemente no aparece ahí. */
   onGenerarImagen?: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
+  /** Re-genera los prompts/referencias de una escena editada a mano,
+   * verificando coherencia con el resto de la pieza — ver `revisarEscena`
+   * en ai.ts. Disponible tanto en la revisión de Crear (sin bloqueId
+   * todavía) como al editar un bloque ya guardado, a diferencia de
+   * `onGenerarImagen`. */
+  onRevisarEscena?: (
+    escena: Escena,
+    otrasEscenas: Escena[],
+  ) => Promise<{ promptVisual: string; promptVideo: string; elementoConcreto: string; activoReferenciado: string }>;
 }) {
   function updateEscena<K extends keyof Escena>(index: number, campo: K, valor: Escena[K]) {
     onChange(escenas.map((e, i) => (i === index ? { ...e, [campo]: valor } : e)));
@@ -191,10 +258,22 @@ export function EscenasEditor({
             value={e.textoEnPantalla}
             onChange={(ev) => updateEscena(i, "textoEnPantalla", ev.target.value)}
           />
+          {onRevisarEscena ? (
+            <RevisarCambiosControl
+              escena={e}
+              otrasEscenas={escenas.filter((otra) => otra.numero !== e.numero)}
+              onRevisar={onRevisarEscena}
+              onRevisado={(cambios) => {
+                onChange(
+                  escenas.map((otra, idx) => (idx === i ? { ...otra, ...cambios } : otra)),
+                );
+              }}
+            />
+          ) : null}
           <Label>Prompt imagen</Label>
           <Textarea
-            value={e.promptImagen}
-            onChange={(ev) => updateEscena(i, "promptImagen", ev.target.value)}
+            value={e.promptVisual ?? ""}
+            onChange={(ev) => updateEscena(i, "promptVisual", ev.target.value)}
             className="min-h-[60px]"
           />
           {onGenerarImagen ? (
