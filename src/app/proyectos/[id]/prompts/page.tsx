@@ -1,4 +1,11 @@
-import { createPromptGuardado, deletePromptGuardado, getPromptsDeProyecto, updatePromptGuardado } from "@/lib/actions";
+import {
+  createPromptGuardado,
+  deletePromptGuardado,
+  getPersonajes,
+  getPersonajesDelEstudio,
+  getPromptsDeProyecto,
+  updatePromptGuardado,
+} from "@/lib/actions";
 import { SectionTitle } from "@/components/ui";
 import { PromptsLista } from "@/components/prompts-lista";
 
@@ -8,7 +15,11 @@ export default async function ProyectoPromptsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: proyectoId } = await params;
-  const prompts = await getPromptsDeProyecto(proyectoId);
+  const [prompts, personajes, personajesEstudio] = await Promise.all([
+    getPromptsDeProyecto(proyectoId),
+    getPersonajes(proyectoId),
+    getPersonajesDelEstudio(),
+  ]);
   const boundCreate = createPromptGuardado.bind(null, proyectoId);
 
   return (
@@ -20,6 +31,7 @@ export default async function ProyectoPromptsPage({
       <PromptsLista
         prompts={prompts}
         mostrarChipGlobal
+        personajes={[...personajes, ...personajesEstudio].map((p) => ({ id: p.id, nombre: p.nombre }))}
         onCreate={boundCreate}
         onUpdate={updatePromptGuardado}
         onDelete={deletePromptGuardado}

@@ -534,9 +534,17 @@ export type Conocimiento = {
 };
 
 /** Categorías fijas de la Biblioteca de Prompts — sin categoría libre a
- * propósito, para que el filtro por categoría sea siempre exhaustivo. */
+ * propósito, para que el filtro por categoría sea siempre exhaustivo. La
+ * categoría ES el "tipo" del prompt (no hay un campo tipo separado). */
 export const CATEGORIAS_PROMPT = ["Logo", "Personaje", "Video", "Imagen", "Otro"] as const;
 export type CategoriaPrompt = (typeof CATEGORIAS_PROMPT)[number];
+
+/** Ciclo de vida de un prompt guardado. */
+export const ESTADOS_PROMPT = [
+  { value: "activo", label: "Activo" },
+  { value: "borrador", label: "Borrador" },
+  { value: "archivado", label: "Archivado" },
+] as const;
 
 /**
  * Un prompt de texto guardado a mano como referencia — sin relación
@@ -551,6 +559,15 @@ export type PromptGuardado = {
   titulo: string;
   texto: string;
   categoria: string;
+  /** Etiquetas libres separadas por coma ("" = sin etiquetas). */
+  etiquetas: string;
+  /** Personaje asociado — `null` = prompt general, sin Personaje. Si el
+   * Personaje se borra, el prompt queda sin asociar (no se pierde). */
+  personajeId: string | null;
+  /** Parte en 1 y sube en cada edición del texto/título. */
+  version: number;
+  /** Una de ESTADOS_PROMPT: activo | borrador | archivado. */
+  estado: string;
   createdAt: string;
 };
 

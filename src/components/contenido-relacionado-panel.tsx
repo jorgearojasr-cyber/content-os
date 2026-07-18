@@ -56,7 +56,9 @@ export function ContenidoRelacionadoPanel({
     }
   }
 
-  const total = resultado ? resultado.biblioteca.length + resultado.segundoCerebro.length : 0;
+  const total = resultado
+    ? resultado.biblioteca.length + resultado.segundoCerebro.length + resultado.prompts.length
+    : 0;
 
   return (
     <div className="mt-3">
@@ -93,6 +95,7 @@ export function ContenidoRelacionadoPanel({
             <div className="mt-3 space-y-3">
               <SeccionRelacionada titulo="En tu Biblioteca" resultados={resultado.biblioteca} />
               <SeccionSegundoCerebro proyectoId={proyectoId} notas={resultado.segundoCerebro} />
+              <SeccionPrompts proyectoId={proyectoId} resultados={resultado.prompts} />
             </div>
           ) : null}
         </div>
@@ -150,6 +153,41 @@ function SeccionSegundoCerebro({ proyectoId, notas }: { proyectoId: string; nota
             {n.fragmento && n.fragmento !== n.titulo ? (
               <span className="block text-text-muted">{n.fragmento}</span>
             ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Prompts guardados que coinciden con la idea — con link a la pestaña
+ * Prompts del proyecto para copiarlos y usarlos en la IA externa. */
+function SeccionPrompts({
+  proyectoId,
+  resultados,
+}: {
+  proyectoId: string;
+  resultados: ResultadoRelacionado[];
+}) {
+  if (resultados.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Prompts guardados que podrías reutilizar
+      </p>
+      <ul className="space-y-1.5">
+        {resultados.map((r) => (
+          <li key={r.id} className="rounded-lg bg-surface px-2.5 py-2 text-[12.5px] text-text">
+            <span className="font-medium">📝 {r.titulo}</span>
+            {r.fragmento && r.fragmento !== r.titulo ? (
+              <span className="block text-text-muted">{r.fragmento}</span>
+            ) : null}
+            <Link
+              href={`/proyectos/${proyectoId}/prompts`}
+              className="mt-1 inline-block text-[12px] font-medium text-accent underline"
+            >
+              Ver en Prompts
+            </Link>
           </li>
         ))}
       </ul>

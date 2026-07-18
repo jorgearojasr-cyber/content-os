@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activos,
@@ -1214,15 +1214,18 @@ export type NotaRelacionada = ResultadoRelacionado & {
 export type ContenidoRelacionado = {
   biblioteca: ResultadoRelacionado[];
   segundoCerebro: NotaRelacionada[];
+  /** Prompts guardados (del proyecto + globales) que coinciden con la idea
+   * por palabras clave — para reutilizarlos al generar en la IA externa. */
+  prompts: ResultadoRelacionado[];
 };
 
 /**
  * Busca coincidencias simples por palabras clave (sin embeddings, sin
- * búsqueda semántica) entre `tema` y dos fuentes de este proyecto:
- * Biblioteca (bloques activos) y las notas del Segundo Cerebro ya
- * vinculadas a este proyecto. Máximo 5 resultados por fuente; ninguno si
- * el tema no tiene palabras clave reales o no hay coincidencias
- * razonables.
+ * búsqueda semántica, sin IA) entre `tema` y tres fuentes: Biblioteca
+ * (bloques activos del proyecto), notas del Segundo Cerebro vinculadas al
+ * proyecto, y prompts guardados (del proyecto + globales — sin archivados).
+ * Máximo 5 resultados por fuente; ninguno si el tema no tiene palabras
+ * clave reales o no hay coincidencias razonables.
  */
 export async function buscarContenidoRelacionado(
   proyectoId: string,
@@ -1230,7 +1233,7 @@ export async function buscarContenidoRelacionado(
 ): Promise<ContenidoRelacionado> {
   const palabrasClave = extraerPalabrasClave(tema);
   if (palabrasClave.length === 0) {
-    return { biblioteca: [], segundoCerebro: [] };
+    return { biblioteca: [], segundoCerebro: [], prompts: [] };
   }
 
   // Antes, una sola palabra clave compartida (score >= 1) alcanzaba para
@@ -1243,9 +1246,13 @@ export async function buscarContenidoRelacionado(
   // categoría general).
   const umbralCoincidencia = Math.max(1, Math.ceil(palabrasClave.length * 0.5));
 
-  const [bloquesProyecto, notasProyecto] = await Promise.all([
+  const [bloquesProyecto, notasProyecto, promptsDisponibles] = await Promise.all([
     db.select().from(bloques).where(and(eq(bloques.proyectoId, proyectoId), eq(bloques.estado, "activo"))),
     db.select().from(notas).where(eq(notas.proyectoId, proyectoId)),
+    db
+      .select()
+      .from(promptsGuardados)
+      .where(or(eq(promptsGuardados.proyectoId, proyectoId), isNull(promptsGuardados.proyectoId))),
   ]);
 
   const biblioteca = rankearResultados(
@@ -1264,6 +1271,20 @@ export async function buscarContenidoRelacionado(
     palabrasClave,
     MAX_RESULTADOS_POR_FUENTE,
     umbralCoincidencia,
+  );
+
+  // Prompts: además del texto, matchea por título y etiquetas — es la vía
+  // principal por la que un prompt "aparece solo" al escribir una idea
+  // relacionada. Los archivados no se sugieren. Umbral 1 a propósito (más
+  // permisivo que Biblioteca): sugerir un prompt reutilizable de más no
+  // confunde ("¿ya hice esto?") como sí lo hace sugerir contenido de más.
+  const prompts = rankearResultados(
+    promptsDisponibles.filter((p) => p.estado !== "archivado"),
+    (p) => `${p.titulo} ${p.texto} ${p.etiquetas}`,
+    (p) => ({ id: p.id, titulo: p.titulo, fragmento: extraerFragmento(p.texto) }),
+    palabrasClave,
+    MAX_RESULTADOS_POR_FUENTE,
+    1,
   );
 
   // Para notas 'trabajada' hace falta el título/formato del bloque
@@ -1302,7 +1323,7 @@ export async function buscarContenidoRelacionado(
     };
   });
 
-  return { biblioteca, segundoCerebro };
+  return { biblioteca, segundoCerebro, prompts };
 }
 
 // ---------------------------------------------------------------------
@@ -1449,7 +1470,7 @@ export async function getPromptsDeProyecto(proyectoId: string): Promise<PromptGu
   return [...propios, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
-const CAMPOS_PROMPT = ["titulo", "texto", "categoria"] as const;
+const CAMPOS_PROMPT = ["titulo", "texto", "categoria", "etiquetas", "estado"] as const;
 
 function leerCamposPrompt(formData: FormData) {
   const valores = Object.fromEntries(CAMPOS_PROMPT.map((c) => [c, String(formData.get(c) ?? "").trim()])) as Record<
@@ -1458,7 +1479,9 @@ function leerCamposPrompt(formData: FormData) {
   >;
   if (!valores.titulo) throw new Error("El prompt necesita un título.");
   if (!valores.texto) throw new Error("El prompt necesita texto.");
-  return valores;
+  // Personaje asociado: "" (opción "Ninguno" del selector) -> null.
+  const personajeId = String(formData.get("personajeId") ?? "").trim() || null;
+  return { ...valores, estado: valores.estado || "activo", personajeId };
 }
 
 /** `proyectoId: null` desde /prompts (global) — desde la pestaña "Prompts"
@@ -1476,9 +1499,11 @@ export async function createPromptGuardado(proyectoId: string | null, formData: 
 export async function updatePromptGuardado(promptId: string, formData: FormData) {
   const valores = leerCamposPrompt(formData);
 
+  // La versión sube en cada edición — un contador simple de cuántas veces
+  // se ha guardado este prompt, no un historial de contenidos.
   const [actualizado] = await db
     .update(promptsGuardados)
-    .set(valores)
+    .set({ ...valores, version: sql`${promptsGuardados.version} + 1` })
     .where(eq(promptsGuardados.id, promptId))
     .returning({ proyectoId: promptsGuardados.proyectoId });
 

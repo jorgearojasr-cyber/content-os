@@ -1,11 +1,17 @@
-import { createPromptGuardado, deletePromptGuardado, getPromptsGlobales, updatePromptGuardado } from "@/lib/actions";
+import {
+  createPromptGuardado,
+  deletePromptGuardado,
+  getPromptsGlobales,
+  getTodosLosPersonajes,
+  updatePromptGuardado,
+} from "@/lib/actions";
 import { PromptsLista } from "@/components/prompts-lista";
 
 // Lee prompts reales de la base de datos en cada visita.
 export const dynamic = "force-dynamic";
 
 export default async function PromptsGlobalPage() {
-  const prompts = await getPromptsGlobales();
+  const [prompts, personajes] = await Promise.all([getPromptsGlobales(), getTodosLosPersonajes()]);
   const boundCreate = createPromptGuardado.bind(null, null);
 
   return (
@@ -23,6 +29,7 @@ export default async function PromptsGlobalPage() {
       <PromptsLista
         prompts={prompts}
         mostrarChipGlobal={false}
+        personajes={personajes.map((p) => ({ id: p.id, nombre: p.nombre }))}
         onCreate={boundCreate}
         onUpdate={updatePromptGuardado}
         onDelete={deletePromptGuardado}

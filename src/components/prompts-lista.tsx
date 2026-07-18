@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Button, Card, Empty, Input, Label, Textarea } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
-import { CATEGORIAS_PROMPT, type PromptGuardado } from "@/lib/types";
+import { CATEGORIAS_PROMPT, ESTADOS_PROMPT, type PromptGuardado } from "@/lib/types";
 
 /** Colores fijos por categoría — clases estándar de Tailwind (no hay
  * suficientes tokens semánticos propios de la app para 5 categorías
@@ -24,39 +24,93 @@ function ChipCategoria({ categoria }: { categoria: string }) {
   );
 }
 
+function etiquetaEstado(estado: string): string {
+  return ESTADOS_PROMPT.find((e) => e.value === estado)?.label ?? estado;
+}
+
+function listaEtiquetas(etiquetas: string): string[] {
+  return etiquetas
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+}
+
 const DURACION_CONFIRMACION_MS = 2000;
+
+/** Personajes disponibles para asociar (id + nombre alcanza — la ficha
+ * completa no se necesita acá). */
+export type PersonajeAsociable = { id: string; nombre: string };
 
 type Props = {
   prompts: PromptGuardado[];
   /** true solo en la pestaña "Prompts" de un proyecto — la vista global ya
    * sabe que todo lo que ve es global, no necesita el chip. */
   mostrarChipGlobal: boolean;
+  /** Para el selector "Personaje asociado (opcional)" y para mostrar el
+   * nombre del asociado en cada tarjeta. */
+  personajes: PersonajeAsociable[];
   onCreate: (formData: FormData) => Promise<{ id: string }>;
   onUpdate: (promptId: string, formData: FormData) => Promise<void>;
   onDelete: (promptId: string) => Promise<void>;
 };
 
-export function PromptsLista({ prompts, mostrarChipGlobal, onCreate, onUpdate, onDelete }: Props) {
+export function PromptsLista({
+  prompts,
+  mostrarChipGlobal,
+  personajes,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: Props) {
   const [filtro, setFiltro] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [creando, setCreando] = useState(false);
 
-  const promptsFiltrados = filtro ? prompts.filter((p) => p.categoria === filtro) : prompts;
+  const texto = busqueda.trim().toLowerCase();
+  const promptsFiltrados = prompts.filter((p) => {
+    if (filtro && p.categoria !== filtro) return false;
+    if (filtroEstado && p.estado !== filtroEstado) return false;
+    if (texto && !`${p.titulo} ${p.texto} ${p.etiquetas}`.toLowerCase().includes(texto)) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <select
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text"
-        >
-          <option value="">Todas las categorías</option>
-          {CATEGORIAS_PROMPT.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por título, texto o etiquetas"
+            className="min-w-[200px] rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text placeholder:text-text-muted/60"
+          />
+          <select
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text"
+          >
+            <option value="">Todas las categorías</option>
+            {CATEGORIAS_PROMPT.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
+            className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text"
+          >
+            <option value="">Todos los estados</option>
+            {ESTADOS_PROMPT.map((e) => (
+              <option key={e.value} value={e.value}>
+                {e.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <Button type="button" onClick={() => setCreando((v) => !v)} className="px-4 py-2.5 text-[13.5px]">
           {creando ? "Cancelar" : "+ Nuevo prompt"}
         </Button>
@@ -65,6 +119,7 @@ export function PromptsLista({ prompts, mostrarChipGlobal, onCreate, onUpdate, o
       {creando ? (
         <Card>
           <PromptForm
+            personajes={personajes}
             onSubmit={async (formData) => {
               await onCreate(formData);
               setCreando(false);
@@ -78,7 +133,7 @@ export function PromptsLista({ prompts, mostrarChipGlobal, onCreate, onUpdate, o
         <Empty title="No hay prompts para este filtro">
           {prompts.length === 0
             ? "Guarda tu primer prompt de referencia con \"+ Nuevo prompt\"."
-            : "Prueba con otra categoría."}
+            : "Prueba con otra categoría, estado o búsqueda."}
         </Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -87,6 +142,7 @@ export function PromptsLista({ prompts, mostrarChipGlobal, onCreate, onUpdate, o
               key={p.id}
               prompt={p}
               mostrarChipGlobal={mostrarChipGlobal}
+              personajes={personajes}
               onUpdate={onUpdate}
               onDelete={onDelete}
             />
@@ -100,11 +156,20 @@ export function PromptsLista({ prompts, mostrarChipGlobal, onCreate, onUpdate, o
 function PromptForm({
   onSubmit,
   submitLabel,
+  personajes,
   defaultValues,
 }: {
   onSubmit: (formData: FormData) => Promise<void>;
   submitLabel: string;
-  defaultValues?: { titulo: string; categoria: string; texto: string };
+  personajes: PersonajeAsociable[];
+  defaultValues?: {
+    titulo: string;
+    categoria: string;
+    texto: string;
+    etiquetas: string;
+    estado: string;
+    personajeId: string | null;
+  };
 }) {
   const [guardando, setGuardando] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -159,6 +224,47 @@ function PromptForm({
         className="min-h-[120px]"
       />
 
+      <Label htmlFor="etiquetas">Etiquetas (opcional, separadas por coma)</Label>
+      <Input
+        id="etiquetas"
+        name="etiquetas"
+        defaultValue={defaultValues?.etiquetas}
+        placeholder="Ej: fachada, exterior, producto"
+      />
+
+      {personajes.length > 0 ? (
+        <>
+          <Label htmlFor="personajeId">Personaje asociado (opcional)</Label>
+          <select
+            id="personajeId"
+            name="personajeId"
+            defaultValue={defaultValues?.personajeId ?? ""}
+            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[14.5px] text-text"
+          >
+            <option value="">Ninguno</option>
+            {personajes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre || "Personaje sin nombre"}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
+
+      <Label htmlFor="estado">Estado</Label>
+      <select
+        id="estado"
+        name="estado"
+        defaultValue={defaultValues?.estado ?? "activo"}
+        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[14.5px] text-text"
+      >
+        {ESTADOS_PROMPT.map((e) => (
+          <option key={e.value} value={e.value}>
+            {e.label}
+          </option>
+        ))}
+      </select>
+
       {error ? <p className="mt-1.5 text-[12px] text-danger">{error}</p> : null}
 
       <Button type="submit" disabled={guardando} className="mt-4">
@@ -171,11 +277,13 @@ function PromptForm({
 function PromptCard({
   prompt,
   mostrarChipGlobal,
+  personajes,
   onUpdate,
   onDelete,
 }: {
   prompt: PromptGuardado;
   mostrarChipGlobal: boolean;
+  personajes: PersonajeAsociable[];
   onUpdate: (promptId: string, formData: FormData) => Promise<void>;
   onDelete: (promptId: string) => Promise<void>;
 }) {
@@ -183,13 +291,25 @@ function PromptCard({
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const esGlobal = prompt.proyectoId === null;
+  const personajeAsociado = prompt.personajeId
+    ? personajes.find((p) => p.id === prompt.personajeId)
+    : null;
+  const etiquetas = listaEtiquetas(prompt.etiquetas);
 
   if (editando) {
     return (
       <Card>
         <PromptForm
           submitLabel="Guardar cambios"
-          defaultValues={{ titulo: prompt.titulo, categoria: prompt.categoria, texto: prompt.texto }}
+          personajes={personajes}
+          defaultValues={{
+            titulo: prompt.titulo,
+            categoria: prompt.categoria,
+            texto: prompt.texto,
+            etiquetas: prompt.etiquetas,
+            estado: prompt.estado,
+            personajeId: prompt.personajeId,
+          }}
           onSubmit={async (formData) => {
             await onUpdate(prompt.id, formData);
             setEditando(false);
@@ -215,9 +335,33 @@ function PromptCard({
             Global
           </span>
         ) : null}
+        {prompt.estado !== "activo" ? (
+          <span className="rounded-full border border-border bg-surface-2 px-2.5 py-1 font-mono text-[10.5px] text-text-muted">
+            {etiquetaEstado(prompt.estado)}
+          </span>
+        ) : null}
+        <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10.5px] text-text-muted">
+          v{prompt.version}
+        </span>
       </div>
       <div className="mt-1.5 font-display text-[15px]">{prompt.titulo}</div>
+      {personajeAsociado ? (
+        <p className="mt-0.5 text-[12px] text-text-muted">👤 {personajeAsociado.nombre}</p>
+      ) : null}
       <p className="mt-2 whitespace-pre-wrap text-[13.5px] text-text">{prompt.texto}</p>
+
+      {etiquetas.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {etiquetas.map((e) => (
+            <span
+              key={e}
+              className="rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
+            >
+              {e}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button

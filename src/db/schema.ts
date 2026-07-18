@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { jsonb, pgTable, text } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 
 /**
  * Un Proyecto es el contenedor superior (OBRABIEN, INJAR, futuros).
@@ -299,7 +299,18 @@ export const promptsGuardados = pgTable("prompts_guardados", {
   titulo: text("titulo").notNull(),
   texto: text("texto").notNull(),
   // Una de CATEGORIAS_PROMPT (types.ts): Logo | Personaje | Video | Imagen | Otro.
+  // NOTA: la categoría ES el "tipo" del prompt — no existe un campo "tipo"
+  // separado a propósito, serían dos nombres para la misma dimensión.
   categoria: text("categoria").notNull().default("Otro"),
+  // Expansión "Creative OS": etiquetas libres separadas por coma (mismo
+  // criterio que activos.etiquetas), Personaje asociado opcional (si el
+  // Personaje se borra, el prompt queda sin asociar, no se pierde),
+  // versión (parte en 1, sube en cada edición) y estado del ciclo de vida
+  // (una de ESTADOS_PROMPT: activo | borrador | archivado).
+  etiquetas: text("etiquetas").notNull().default(""),
+  personajeId: text("personaje_id").references(() => personajes.id, { onDelete: "set null" }),
+  version: integer("version").notNull().default(1),
+  estado: text("estado").notNull().default("activo"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),
