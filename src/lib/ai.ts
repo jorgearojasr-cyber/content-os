@@ -95,27 +95,6 @@ const EscenaSchema = z.object({
   descripcion: z.string(),
   guionHablado: z.string(),
   promptImagen: z.string(),
-  promptVideo: z.string().describe(
-    "Prompt para herramientas de video IA (Kling/Runway/Veo) — un párrafo "
-      + "en español enfocado en ACCIÓN, composición, movimiento de cámara, "
-      + "iluminación y diálogo/gestos de esta escena. REGLA CLAVE sobre "
-      + "Personajes: revisa la sección 'Personaje'/'Personajes' de la "
-      + "identidad de arriba — si el Personaje de esta escena tiene 'Fotos "
-      + "de referencia' cargadas ahí, NO redescribas su edad, rasgos "
-      + "físicos, vestimenta ni apariencia en este texto (sería redundante "
-      + "y puede contradecir la foto real); en su lugar, indica "
-      + "explícitamente que se debe usar la imagen de referencia adjunta "
-      + "para mantener su identidad (ej. 'usa la imagen de referencia del "
-      + "personaje para mantener su apariencia exacta') y dedica el resto "
-      + "del párrafo por completo a la dirección de la escena. Si el "
-      + "Personaje NO tiene fotos de referencia cargadas (o la escena no "
-      + "usa ningún Personaje), sí incluye su descripción física completa "
-      + "como referencia visual, igual que en promptVisual. Misma regla "
-      + "para lugares: si `activoReferenciado` de esta escena coincide con "
-      + "un Activo visual (ver identidad), no describas ese espacio en "
-      + "texto — indica usar esa foto real como referencia. Cadena vacía "
-      + "si esta escena no tiene componente de video.",
-  ),
   activoReferenciado: z.string().describe(
     "Si el concepto de esta escena coincide con la etiqueta de un Activo "
       + "visual disponible (ver sección '## Activos visuales disponibles' "
@@ -134,6 +113,11 @@ const EscenaSchema = z.object({
       + "visible, marca genérica, instalado en pared', no 'Tablero eléctrico "
       + "seguro'. Cadena vacía si esta pieza no es de tipo lista de elementos.",
   ),
+  // NOTA: promptVisual se genera ANTES que promptVideo a propósito (orden
+  // de campos del schema = orden de generación). Cuando promptVisual venía
+  // después, el modelo la dejaba vacía con frecuencia razonando que ya
+  // había cubierto lo visual en promptVideo — con este orden, promptVideo
+  // es el que referencia a promptVisual (ya escrito), nunca al revés.
   promptVisual: z.string().describe(
     "Prompt de imagen fija para producción manual asistida (Gemini/Nano "
       + "Banana como herramienta principal) — un solo párrafo en español, "
@@ -153,8 +137,39 @@ const EscenaSchema = z.object({
       + "lógica para lugares: si `activoReferenciado` de esta escena "
       + "coincide con un Activo visual (ver identidad), no describas ese "
       + "espacio desde cero — basta con mencionar brevemente que debe "
-      + "respetar la foto real adjunta de ese lugar. Cadena vacía si esta "
-      + "escena no tiene ningún componente visual de imagen fija.",
+      + "respetar la foto real adjunta de ese lugar. IMPORTANTE — NUNCA "
+      + "dejes este campo vacío si la escena tiene algún componente visual "
+      + "(la enorme mayoría de las escenas lo tiene): 'Personaje con fotos "
+      + "de referencia' o 'Activo con foto real' significan escribir la "
+      + "mención BREVE indicada arriba, nunca significan campo vacío — un "
+      + "párrafo corto de una oración sigue siendo válido y necesario. "
+      + "Cadena vacía ÚNICAMENTE si la escena es 100% texto sin ningún "
+      + "elemento visual (ej. una transición de solo texto en pantalla).",
+  ),
+  promptVideo: z.string().describe(
+    "Prompt para herramientas de video IA (Kling/Runway/Veo) — un párrafo "
+      + "en español enfocado en ACCIÓN, composición, movimiento de cámara, "
+      + "iluminación y diálogo/gestos de esta escena. Es un campo "
+      + "independiente y COMPLEMENTARIO a promptVisual (ya escrito arriba "
+      + "para esta misma escena) — no lo dejes vacío solo porque promptVisual "
+      + "ya describió la composición fija: promptVideo agrega específicamente "
+      + "el movimiento/acción que promptVisual no cubre. REGLA CLAVE sobre "
+      + "Personajes: revisa la sección 'Personaje'/'Personajes' de la "
+      + "identidad de arriba — si el Personaje de esta escena tiene 'Fotos "
+      + "de referencia' cargadas ahí, NO redescribas su edad, rasgos "
+      + "físicos, vestimenta ni apariencia en este texto (sería redundante "
+      + "y puede contradecir la foto real); en su lugar, indica "
+      + "explícitamente que se debe usar la imagen de referencia adjunta "
+      + "para mantener su identidad (ej. 'usa la imagen de referencia del "
+      + "personaje para mantener su apariencia exacta') y dedica el resto "
+      + "del párrafo por completo a la dirección de la escena. Si el "
+      + "Personaje NO tiene fotos de referencia cargadas (o la escena no "
+      + "usa ningún Personaje), sí incluye su descripción física completa "
+      + "como referencia visual, igual que en promptVisual. Misma regla "
+      + "para lugares: si `activoReferenciado` de esta escena coincide con "
+      + "un Activo visual (ver identidad), no describas ese espacio en "
+      + "texto — indica usar esa foto real como referencia. Cadena vacía "
+      + "si esta escena no tiene componente de video (ej. Carrusel/Imagen).",
   ),
 });
 
@@ -254,7 +269,11 @@ export async function generarContenido(input: ContenidoInput): Promise<Contenido
     `indispensables"), cada escena debe identificar en "elementoConcreto" el objeto físico exacto de ` +
     `esa escena, nunca el concepto abstracto — es lo que hace que "promptVisual" sea fotografiable de ` +
     `verdad. Completa "promptVisual" en cada escena con componente visual de imagen fija: un párrafo ` +
-    `natural en español lista para pegar en Gemini, sin parámetros técnicos de otras herramientas.`;
+    `natural en español lista para pegar en Gemini, sin parámetros técnicos de otras herramientas. ` +
+    `IMPORTANTE: "promptVisual" y "promptVideo" son dos campos independientes con propósitos ` +
+    `distintos (imagen fija para producción manual vs. animación para Kling/Runway/Veo) — completar ` +
+    `uno NUNCA es excusa para dejar el otro vacío cuando la escena tiene componente visual; ambos ` +
+    `deben tener contenido real en cada escena que lo requiera, sin excepción.`;
 
   // 6144 en vez de 4096: cada escena ahora suma dos campos más
   // (elementoConcreto + promptVisual) — con 8 escenas (ej. un carrusel
