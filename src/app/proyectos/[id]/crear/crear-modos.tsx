@@ -644,6 +644,34 @@ export function CrearModos({
   );
 
   if (resultado) {
+    // Resumen de una línea arriba de los tabs — mismos datos ya elegidos en
+    // Paso 4/5 (config + personajeIdsUsados, lo REALMENTE usado en esta
+    // generación, no el estado crudo y aún editable del carrusel), nunca
+    // vueltos a inferir. "Duración" se generaliza a "N láminas" para
+    // Carrusel, que no tiene duración pero sí un tamaño equivalente.
+    const specPublicacionUsada = TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
+      (t) => t.value === config.tipoPublicacion,
+    );
+    const nombresPersonajesUsados = personajeIdsUsados
+      .map((id) => [...personajes, ...personajesEstudio].find((p) => p.id === id)?.nombre)
+      .filter((nombre): nombre is string => !!nombre?.trim());
+
+    const resumenFormato = [
+      config.tipoContenido || null,
+      config.plataforma || null,
+      config.tipoPublicacion
+        ? specPublicacionUsada?.aspectRatio
+          ? `${config.tipoPublicacion} (${specPublicacionUsada.aspectRatio})`
+          : config.tipoPublicacion
+        : null,
+      config.tipoContenido === "Carrusel" && config.numeroPaginas && config.numeroPaginas !== "Automático"
+        ? `${config.numeroPaginas} láminas`
+        : config.duracion || null,
+      nombresPersonajesUsados.length > 0 ? nombresPersonajesUsados.join(" + ") : null,
+    ]
+      .filter((parte): parte is string => !!parte)
+      .join(" · ");
+
     return (
       <>
         <ResultadoTabs
@@ -652,6 +680,7 @@ export function CrearModos({
           formato={config.tipoContenido}
           personajeIds={personajeIdsUsados}
           tema={config.tema}
+          resumenFormato={resumenFormato}
           onGuardar={onGuardar}
           onEmpezarDeNuevo={empezarDeNuevo}
         />

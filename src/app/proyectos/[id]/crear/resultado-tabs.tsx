@@ -92,6 +92,7 @@ export function ResultadoTabs({
   formato,
   personajeIds,
   tema,
+  resumenFormato,
   onGuardar,
   onEmpezarDeNuevo,
 }: {
@@ -107,6 +108,11 @@ export function ResultadoTabs({
    * hizo match con una nota pendiente de Segundo Cerebro y marcarla como
    * trabajada al guardar. */
   tema?: string;
+  /** Línea compacta "Formato · Plataforma · Tipo de publicación · Duración ·
+   * Personaje(s)" ya armada por quien llama (`CrearModos`, a partir de la
+   * misma selección de Paso 4/5) — este componente solo la muestra, no
+   * recalcula ni infiere nada. "" si no hay nada que mostrar. */
+  resumenFormato?: string;
   onGuardar: (formData: FormData) => Promise<void>;
   onEmpezarDeNuevo: () => void;
 }) {
@@ -218,6 +224,9 @@ export function ResultadoTabs({
 
   return (
     <Card>
+      {resumenFormato ? (
+        <p className="mb-2 text-[12px] font-medium text-text-muted">{resumenFormato}</p>
+      ) : null}
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[13.5px] text-text-muted">
           Revisa y ajusta cada pestaña — nada se guarda hasta que confirmes abajo.
