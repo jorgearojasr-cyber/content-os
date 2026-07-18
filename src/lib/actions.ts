@@ -615,13 +615,14 @@ export async function generarContenidoAction(
   const { incluirPersonaje, incluirMarca, incluirContacto, personajeIds, avatarId, posicionLogo, ...resto } = input;
   const idsExplicitos = (personajeIds ?? []).filter((id) => id.trim().length > 0);
   const personajeAutomatico = Boolean(incluirPersonaje) && idsExplicitos.length === 0;
-  const [identidad, personajesExplicitos, avatar, personajeAuto] = await Promise.all([
+  const [identidad, personajesExplicitos, avatar, personajeAuto, activosDelProyecto] = await Promise.all([
     getIdentidad(proyectoId),
     // Sin acotar por proyecto a propósito: cada id puede ser de un
     // Personaje del estudio, que no pertenece a este (ni a ningún) proyecto.
     Promise.all(idsExplicitos.map((id) => getPersonaje(id))),
     avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
     personajeAutomatico ? elegirPersonajeAutomatico(proyectoId, resto.tema) : Promise.resolve(null),
+    getActivos(proyectoId),
   ]);
   const personajes =
     personajesExplicitos.filter((p): p is Personaje => p !== null).length > 0
@@ -629,8 +630,22 @@ export async function generarContenidoAction(
       : personajeAuto
         ? [personajeAuto]
         : [];
+  // Siempre incluidos si existen (a diferencia de Personaje, no hay casilla
+  // de "usar Activos" — son contexto disponible, no una elección explícita
+  // por pieza, igual que Marca/Estilo).
+  const activosVisuales = activosDelProyecto
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
   const identidadCompilada = identidad
-    ? compileIdentity(identidad, { incluirPersonaje, incluirMarca, incluirContacto, personajes, avatar, posicionLogo })
+    ? compileIdentity(identidad, {
+        incluirPersonaje,
+        incluirMarca,
+        incluirContacto,
+        personajes,
+        activosVisuales,
+        avatar,
+        posicionLogo,
+      })
     : "";
   const contenido = await generarContenido({
     ...resto,
@@ -1096,6 +1111,21 @@ export async function deleteActivo(proyectoId: string, activoId: string) {
   if (activo?.valor && esTipoArchivo) {
     await eliminarArchivoSubido(activo.valor).catch(() => {});
   }
+
+  revalidatePath(`/proyectos/${proyectoId}/activos`);
+}
+
+/** Renombra la etiqueta (`nombre`) de un Activo ya guardado — usado por la
+ * galería de "Fotos de lugares" para corregir una etiqueta sin tener que
+ * volver a subir la foto. No toca `valor`/`notas`/`tipo`. */
+export async function renombrarActivo(proyectoId: string, activoId: string, formData: FormData) {
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  if (!nombre) throw new Error("La etiqueta no puede quedar vacía.");
+
+  await db
+    .update(activos)
+    .set({ nombre })
+    .where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)));
 
   revalidatePath(`/proyectos/${proyectoId}/activos`);
 }

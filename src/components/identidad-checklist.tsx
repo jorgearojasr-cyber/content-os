@@ -20,6 +20,9 @@ export function IdentidadChecklist({
   textoDetalle,
 }: {
   identidad: Identidad;
+  /** Cuántas fotos de lugar (Activos tipo "foto") tiene el proyecto — el
+   * checklist marca ✔ con al menos 1. Otros tipos de Activo (logo, video,
+   * etc.) no cuentan para este ítem específico. */
   activosCount: number;
   /** ¿Existe al menos un Personaje/Avatar en el proyecto? — para el ✔/✗. */
   tienePersonaje: boolean;

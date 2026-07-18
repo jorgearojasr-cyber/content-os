@@ -248,7 +248,7 @@ export default async function IdentidadPage({
         </SectionTitle>
         <IdentidadChecklist
           identidad={identidad}
-          activosCount={activos.length}
+          activosCount={activos.filter((a) => a.tipo === "foto").length}
           tienePersonaje={tienePersonaje}
           tieneAvatar={tieneAvatar}
           personaje={personajes[0] ?? null}

@@ -42,7 +42,7 @@ export default async function EditarBloquePage({
         onGenerarImagen={boundGenerarImagen}
         onGenerarPlanEdicion={boundGenerarPlanEdicion}
         identidad={identidad}
-        activosCount={activos.length}
+        activosCount={activos.filter((a) => a.tipo === "foto").length}
         tienePersonaje={personajes.length > 0}
         tieneAvatar={avatares.length > 0}
       />
@@ -92,7 +92,7 @@ export default async function EditarBloquePage({
           </SectionTitle>
           <IdentidadChecklist
             identidad={identidad}
-            activosCount={activos.length}
+            activosCount={activos.filter((a) => a.tipo === "foto").length}
             tienePersonaje={personajes.length > 0}
             tieneAvatar={avatares.length > 0}
             textoDetalle={bloque.identidadCompilada}

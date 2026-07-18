@@ -110,8 +110,19 @@ const EscenaSchema = z.object({
       + "del párrafo por completo a la dirección de la escena. Si el "
       + "Personaje NO tiene fotos de referencia cargadas (o la escena no "
       + "usa ningún Personaje), sí incluye su descripción física completa "
-      + "como referencia visual, igual que en promptVisual. Cadena vacía "
+      + "como referencia visual, igual que en promptVisual. Misma regla "
+      + "para lugares: si `activoReferenciado` de esta escena coincide con "
+      + "un Activo visual (ver identidad), no describas ese espacio en "
+      + "texto — indica usar esa foto real como referencia. Cadena vacía "
       + "si esta escena no tiene componente de video.",
+  ),
+  activoReferenciado: z.string().describe(
+    "Si el concepto de esta escena coincide con la etiqueta de un Activo "
+      + "visual disponible (ver sección '## Activos visuales disponibles' "
+      + "de la identidad), pon aquí EXACTAMENTE esa etiqueta tal como "
+      + "aparece ahí — así el sistema puede vincular la foto real. Cadena "
+      + "vacía si ninguna etiqueta coincide con esta escena, o si esa "
+      + "sección no existe en la identidad.",
   ),
   textoEnPantalla: z.string(),
   elementoConcreto: z.string().describe(
@@ -138,8 +149,12 @@ const EscenaSchema = z.object({
       + "Gemini, así que basta con mencionar brevemente que debe respetar la "
       + "identidad visual del Personaje de la foto adjunta. Sin fotos "
       + "cargadas, sí incluye la descripción física exacta de cada Personaje "
-      + "que participe en esta escena (todos, si hay más de uno). Cadena "
-      + "vacía si esta escena no tiene ningún componente visual de imagen fija.",
+      + "que participe en esta escena (todos, si hay más de uno). Misma "
+      + "lógica para lugares: si `activoReferenciado` de esta escena "
+      + "coincide con un Activo visual (ver identidad), no describas ese "
+      + "espacio desde cero — basta con mencionar brevemente que debe "
+      + "respetar la foto real adjunta de ese lugar. Cadena vacía si esta "
+      + "escena no tiene ningún componente visual de imagen fija.",
   ),
 });
 

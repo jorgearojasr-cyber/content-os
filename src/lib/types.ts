@@ -328,6 +328,13 @@ export type Escena = {
    * automática vía OpenAI (`generarImagenParaEscena`). "" si no aplica, o
    * si la escena se guardó antes de que existiera este campo. */
   promptVisual?: string;
+  /** Etiqueta EXACTA de un Activo visual (foto de lugar) que esta escena usa
+   * como referencia — ver "## Activos visuales disponibles" en
+   * identity-compiler.ts. "" si ninguno coincidió con esta escena, o si se
+   * guardó antes de que existiera este campo. Se resuelve contra el
+   * proyecto (por nombre de Activo) para mostrar la foto real en la guía de
+   * producción, ver `biblioteca-lista.tsx`. */
+  activoReferenciado?: string;
   /**
    * URL local (/uploads/xxx.png) de la imagen generada con IA para esta
    * escena. Opcional a propósito: no es parte de lo que la IA de texto

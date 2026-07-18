@@ -54,7 +54,7 @@ export default async function CrearPage({
         personajes={personajes}
         personajesEstudio={personajesEstudio}
         avatares={avatares}
-        activosCount={activos.length}
+        activosCount={activos.filter((a) => a.tipo === "foto").length}
         bloquesRecientes={bloquesRecientes}
         onInferir={boundInferir}
         onGenerar={boundGenerar}

@@ -89,7 +89,17 @@ const LINKS_HERRAMIENTAS_VIDEO_IA = [
 /** Guía para escenas cuya pieza es de entregable final IMAGEN (Carrusel/
  * Imagen — ver `tieneEscenasDeVideo`): genera la imagen y la publica ahí
  * mismo, sin paso de animación (no aplica). */
-function GuiaEscenaImagen({ promptVisual, personaje }: { promptVisual: string; personaje?: PersonajeResumen }) {
+function GuiaEscenaImagen({
+  promptVisual,
+  personaje,
+  activoFotoUrl,
+  activoEtiqueta,
+}: {
+  promptVisual: string;
+  personaje?: PersonajeResumen;
+  activoFotoUrl?: string;
+  activoEtiqueta?: string;
+}) {
   const pasos: Paso[] = [
     {
       titulo: "Abre Gemini",
@@ -117,6 +127,21 @@ function GuiaEscenaImagen({ promptVisual, personaje }: { promptVisual: string; p
       contenido: (
         <a
           href={urlImagenVisible(personaje.fotoUrl)}
+          download
+          className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+        >
+          Descargar foto
+        </a>
+      ),
+    });
+  }
+
+  if (activoFotoUrl) {
+    pasos.push({
+      titulo: `Descarga la foto de referencia de "${activoEtiqueta}"`,
+      contenido: (
+        <a
+          href={urlImagenVisible(activoFotoUrl)}
           download
           className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
         >
@@ -175,12 +200,17 @@ function GuiaEscenaVideo({
   promptVisual,
   promptVideo,
   personaje,
+  activoFotoUrl,
+  activoEtiqueta,
 }: {
   promptVisual: string;
   promptVideo: string;
   personaje?: PersonajeResumen;
+  activoFotoUrl?: string;
+  activoEtiqueta?: string;
 }) {
   const tieneFotos = !!personaje && personaje.fotos.length > 0;
+  const tieneActivo = !!activoFotoUrl;
 
   const pasos: Paso[] = [
     {
@@ -217,6 +247,21 @@ function GuiaEscenaVideo({
             </a>
           ))}
         </div>
+      ),
+    });
+  }
+
+  if (tieneActivo) {
+    pasos.push({
+      titulo: `Descarga la foto de referencia de "${activoEtiqueta}"`,
+      contenido: (
+        <a
+          href={urlImagenVisible(activoFotoUrl!)}
+          download
+          className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+        >
+          Descargar foto
+        </a>
       ),
     });
   }
@@ -266,8 +311,10 @@ function GuiaEscenaVideo({
           ))}
         </div>
         <p className="mt-1.5 text-[11px] text-text-muted">
-          Sube la imagen que acabas de generar{tieneFotos ? " y las fotos de referencia del Personaje" : ""} como
-          referencia{promptVideo ? ", y copia este prompt para animarla:" : "."}
+          Sube la imagen que acabas de generar
+          {tieneFotos ? " y las fotos de referencia del Personaje" : ""}
+          {tieneActivo ? ` y la foto de "${activoEtiqueta}"` : ""} como referencia
+          {promptVideo ? ", y copia este prompt para animarla:" : "."}
         </p>
         {promptVideo ? (
           <>
@@ -318,14 +365,19 @@ function GuiaProduccionEscena({
   escena,
   personaje,
   esVideoFinal,
+  activoFotoPorEtiqueta,
 }: {
   escena: Escena;
   personaje?: PersonajeResumen;
   esVideoFinal: boolean;
+  activoFotoPorEtiqueta: Record<string, string>;
 }) {
   const [abierta, setAbierta] = useState(false);
   const promptVisual = escena.promptVisual?.trim();
   if (!promptVisual) return null;
+
+  const activoEtiqueta = escena.activoReferenciado?.trim();
+  const activoFotoUrl = activoEtiqueta ? activoFotoPorEtiqueta[activoEtiqueta] : undefined;
 
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2">
@@ -345,9 +397,16 @@ function GuiaProduccionEscena({
               promptVisual={promptVisual}
               promptVideo={escena.promptVideo?.trim() ?? ""}
               personaje={personaje}
+              activoFotoUrl={activoFotoUrl}
+              activoEtiqueta={activoEtiqueta}
             />
           ) : (
-            <GuiaEscenaImagen promptVisual={promptVisual} personaje={personaje} />
+            <GuiaEscenaImagen
+              promptVisual={promptVisual}
+              personaje={personaje}
+              activoFotoUrl={activoFotoUrl}
+              activoEtiqueta={activoEtiqueta}
+            />
           )}
         </div>
       ) : null}
@@ -362,7 +421,15 @@ function GuiaProduccionEscena({
  * pieza solo se ensambla una vez. No aparece la sección entera si ninguna
  * escena tiene `promptVisual` (piezas de puro texto, o guardadas antes de
  * que existiera este campo). */
-function GuiaProduccion({ bloque, personaje }: { bloque: BloqueConDias; personaje?: PersonajeResumen }) {
+function GuiaProduccion({
+  bloque,
+  personaje,
+  activoFotoPorEtiqueta,
+}: {
+  bloque: BloqueConDias;
+  personaje?: PersonajeResumen;
+  activoFotoPorEtiqueta: Record<string, string>;
+}) {
   const todasLasEscenas = parseEscenas(bloque.escenasJson);
   const escenas = todasLasEscenas.filter((e) => e.promptVisual?.trim());
   if (escenas.length === 0) return null;
@@ -374,7 +441,13 @@ function GuiaProduccion({ bloque, personaje }: { bloque: BloqueConDias; personaj
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Guía de producción</p>
       <div className="space-y-1.5">
         {escenas.map((e) => (
-          <GuiaProduccionEscena key={e.numero} escena={e} personaje={personaje} esVideoFinal={esVideoFinal} />
+          <GuiaProduccionEscena
+            key={e.numero}
+            escena={e}
+            personaje={personaje}
+            esVideoFinal={esVideoFinal}
+            activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+          />
         ))}
       </div>
       {esVideoFinal ? (
@@ -479,6 +552,7 @@ export function BibliotecaLista({
   bloques,
   otrosProyectos,
   personajePorId,
+  activoFotoPorEtiqueta,
 }: {
   proyectoId: string;
   vista: Vista;
@@ -487,6 +561,9 @@ export function BibliotecaLista({
   /** Para resolver, por `bloque.personajeId`, el nombre y la foto a usar en
    * la Guía de producción de cada escena. */
   personajePorId: Record<string, PersonajeResumen>;
+  /** Etiqueta -> URL de cada foto de lugar (Activo tipo "foto") del proyecto,
+   * para resolver `escena.activoReferenciado` en la Guía de producción. */
+  activoFotoPorEtiqueta: Record<string, string>;
 }) {
   return (
     <div className="space-y-3">
@@ -498,6 +575,7 @@ export function BibliotecaLista({
           bloque={bloque}
           otrosProyectos={otrosProyectos}
           personaje={bloque.personajeId ? personajePorId[bloque.personajeId] : undefined}
+          activoFotoPorEtiqueta={activoFotoPorEtiqueta}
         />
       ))}
     </div>
@@ -511,6 +589,7 @@ export function BloqueCard({
   otrosProyectos,
   nombreProyecto,
   personaje,
+  activoFotoPorEtiqueta = {},
 }: {
   proyectoId: string;
   vista: Vista;
@@ -524,6 +603,11 @@ export function BloqueCard({
   /** El Personaje que se usó para generar esta pieza (resuelto desde
    * `bloque.personajeId`) — para el paso 2 de la Guía de producción. */
   personaje?: PersonajeResumen;
+  /** Etiqueta -> URL de cada foto de lugar (Activo tipo "foto") del proyecto.
+   * La pantalla global /biblioteca no lo pasa (Activos no es reutilizable
+   * entre proyectos) y la Guía de producción simplemente no muestra el paso
+   * extra en ese caso. */
+  activoFotoPorEtiqueta?: Record<string, string>;
 }) {
   const [confirmPapelera, setConfirmPapelera] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
@@ -610,7 +694,11 @@ export function BloqueCard({
             {nombreProyecto ? <Chip>{nombreProyecto}</Chip> : null}
           </div>
           <p className="whitespace-pre-wrap text-[14px] text-text">{bloque.texto}</p>
-          <GuiaProduccion bloque={bloque} personaje={personaje} />
+          <GuiaProduccion
+            bloque={bloque}
+            personaje={personaje}
+            activoFotoPorEtiqueta={activoFotoPorEtiqueta}
+          />
           <EvidenciaPublicacion
             proyectoId={proyectoId}
             bloque={bloque}

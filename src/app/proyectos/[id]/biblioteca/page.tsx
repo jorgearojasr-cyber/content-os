@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  getActivos,
   getBloques,
   getBloquesArchivados,
   getPapelera,
@@ -46,7 +47,7 @@ export default async function BibliotecaPage({
   const vista: Vista =
     vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
 
-  const [bloques, proyectos, personajes, personajesEstudio] = await Promise.all([
+  const [bloques, proyectos, personajes, personajesEstudio, activosDelProyecto] = await Promise.all([
     vista === "activos"
       ? getBloques(proyectoId)
       : vista === "archivados"
@@ -55,12 +56,19 @@ export default async function BibliotecaPage({
     getProyectos(),
     getPersonajes(proyectoId),
     getPersonajesDelEstudio(),
+    getActivos(proyectoId),
   ]);
 
   const otrosProyectos = proyectos
     .filter((p) => p.id !== proyectoId)
     .map((p) => ({ id: p.id, nombre: p.nombre }));
   const personajePorId = personajesPorId([...personajes, ...personajesEstudio]);
+  // Etiqueta -> URL de cada foto de lugar (Activo tipo "foto") — para que la
+  // guía de producción pueda mostrar la foto real cuando una escena la usó
+  // como referencia (`escena.activoReferenciado`).
+  const activoFotoPorEtiqueta = Object.fromEntries(
+    activosDelProyecto.filter((a) => a.tipo === "foto").map((a) => [a.nombre, a.valor]),
+  );
 
   return (
     <div className="space-y-4">
@@ -98,6 +106,7 @@ export default async function BibliotecaPage({
           bloques={bloques}
           otrosProyectos={otrosProyectos}
           personajePorId={personajePorId}
+          activoFotoPorEtiqueta={activoFotoPorEtiqueta}
         />
       )}
     </div>

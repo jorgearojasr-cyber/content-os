@@ -161,6 +161,27 @@ const ETIQUETAS_POSICION_LOGO: Record<PosicionLogo, string> = {
   "inferior-derecha": "esquina inferior derecha",
 };
 
+export type ActivoVisual = { etiqueta: string; url: string };
+
+const INSTRUCCION_ACTIVOS_VISUALES =
+  "Cuando el concepto de una escena coincida semánticamente con alguna de estas etiquetas (ej. una " +
+  "escena sobre 'la piscina' y existe la etiqueta 'Piscina'), NO describas ese lugar/espacio desde " +
+  "cero en el prompt — indica explícitamente usar esa foto real como referencia (mismo principio que " +
+  "las fotos de Personaje) y dedica el resto del texto a composición, acción e iluminación. En el " +
+  "campo `activoReferenciado` de esa escena, pon EXACTAMENTE la etiqueta tal como aparece abajo, para " +
+  "que el sistema pueda vincular la foto real; cadena vacía si ninguna etiqueta coincide con esa " +
+  "escena. Sin coincidencia clara, describe el lugar en texto como siempre.";
+
+/** Renderiza las fotos de lugar disponibles (Activos tipo "foto" del
+ * proyecto), cada una con su etiqueta libre — mismo principio que las fotos
+ * de Personaje (ver `formatearFotosPersonaje`), aplicado a espacios físicos
+ * en vez de personas. */
+function formatearActivosVisuales(activosVisuales: ActivoVisual[]): string {
+  if (activosVisuales.length === 0) return "";
+  const lista = activosVisuales.map((a, i) => `${i + 1}. ${a.etiqueta}: ${a.url}`).join("\n");
+  return `## Activos visuales disponibles\n${lista}\n\n${INSTRUCCION_ACTIVOS_VISUALES}`;
+}
+
 export type OpcionesCompilado = {
   /** Si es `false`, omite toda la sección "## Marca" (voz, reglas, objetivo
    * y Avatar del cliente ideal incluidos). Por defecto `true` — no cambia
@@ -179,6 +200,12 @@ export type OpcionesCompilado = {
    * (mismo formato de siempre); con 2+, se agrega una instrucción explícita
    * de interacción/diálogo conjunto entre ellos. */
   personajes?: Personaje[];
+  /** Fotos reales de lugares/espacios del proyecto (Activos tipo "foto"),
+   * cada una con su etiqueta libre — igual principio que las fotos de
+   * Personaje: si una escena coincide con una etiqueta, se referencia esa
+   * foto real en vez de describir el espacio desde cero. Lista vacía = sin
+   * Activos visuales, la sección se omite. */
+  activosVisuales?: ActivoVisual[];
   /** El Avatar SELECCIONADO para esta compilación. `null`/`undefined` =
    * sin Avatar, el sub-bloque se omite. */
   avatar?: Avatar | null;
@@ -207,6 +234,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
     incluirPersonaje = true,
     incluirContacto = false,
     personajes = [],
+    activosVisuales = [],
     avatar = null,
     posicionLogo = null,
   } = opciones;
@@ -223,6 +251,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
     : "";
 
   const personajeSeccion = incluirPersonaje ? formatearSeccionPersonajes(personajes) : "";
+  const activosVisualesSeccion = formatearActivosVisuales(activosVisuales);
 
   const estilo = seccion("Estilo", [
     ["Paleta de colores", identidad.paleta],
@@ -250,7 +279,9 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
         ])
       : "";
 
-  const secciones = [marca, personajeSeccion, estilo, contacto, logoConPosicion].filter(Boolean);
+  const secciones = [marca, personajeSeccion, activosVisualesSeccion, estilo, contacto, logoConPosicion].filter(
+    Boolean,
+  );
 
   if (secciones.length === 0) {
     return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
