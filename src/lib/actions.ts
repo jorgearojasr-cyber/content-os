@@ -1335,6 +1335,141 @@ export async function buscarContenidoRelacionado(
 }
 
 // ---------------------------------------------------------------------
+// Relaciones inteligentes (grafo de conocimiento, sin IA)
+// ---------------------------------------------------------------------
+//
+// AUTO-VINCULACIÓN: cada pieza guardada YA registra automáticamente su
+// proyecto (proyectoId), los Personajes usados (personajeId +
+// personajeIdsJson), los Activos usados (activoReferenciado dentro de
+// cada escena de escenasJson), la idea de origen (notas.bloqueId, que se
+// setea solo al guardar una pieza que coincide con una nota pendiente),
+// la fecha (createdAt) y el formato — sin depender del usuario. Los
+// prompts/documentos "usados" no tienen registro directo (el usuario los
+// copia a mano fuera de la app, no hay forma de saberlo) — se relacionan
+// por texto, igual que el resto de las conexiones no-FK de esta capa.
+
+export type RelacionItem = { id: string; titulo: string; proyectoId: string | null };
+
+export type RelacionesEntidad = {
+  bloques: RelacionItem[];
+  prompts: RelacionItem[];
+  documentos: RelacionItem[];
+  ideas: RelacionItem[];
+  activos: RelacionItem[];
+};
+
+/** True si `texto` contiene el nombre completo (sin distinguir mayúsculas)
+ * — para entidades con nombre propio, contener el nombre es una señal más
+ * precisa que compartir palabras clave sueltas. */
+function contieneNombre(texto: string, nombre: string): boolean {
+  const n = nombre.trim().toLowerCase();
+  if (n.length < 3) return false;
+  return texto.toLowerCase().includes(n);
+}
+
+/**
+ * Todo lo relacionado con UN Personaje, entre todas las tablas: contenido
+ * (FK directa: personajeId / personajeIdsJson), prompts y documentos
+ * (FK directa `personajeId`, o su nombre mencionado en el texto), ideas y
+ * Activos (nombre mencionado). 100% consultas + comparación de texto —
+ * sin IA. La pantalla decide cómo mostrarlo (ver RelacionadoPanel).
+ */
+export async function getRelacionesPersonaje(personajeId: string): Promise<RelacionesEntidad> {
+  const personaje = await getPersonaje(personajeId);
+  if (!personaje) return { bloques: [], prompts: [], documentos: [], ideas: [], activos: [] };
+  const nombre = personaje.nombre;
+
+  const [todosBloques, todosPrompts, todosDocumentos, todasNotas, todosActivos] = await Promise.all([
+    db.select().from(bloques).where(eq(bloques.estado, "activo")),
+    db.select().from(promptsGuardados),
+    db.select().from(documentos),
+    db.select().from(notas),
+    db.select().from(activos),
+  ]);
+
+  return {
+    bloques: todosBloques
+      .filter((b) => b.personajeId === personajeId || parsePersonajeIds(b.personajeIdsJson).includes(personajeId))
+      .map((b) => ({ id: b.id, titulo: b.titulo, proyectoId: b.proyectoId })),
+    prompts: todosPrompts
+      .filter(
+        (p) => p.personajeId === personajeId || contieneNombre(`${p.titulo} ${p.texto} ${p.etiquetas}`, nombre),
+      )
+      .map((p) => ({ id: p.id, titulo: p.titulo, proyectoId: p.proyectoId })),
+    documentos: todosDocumentos
+      .filter(
+        (d) =>
+          d.personajeId === personajeId || contieneNombre(`${d.titulo} ${d.contenido} ${d.etiquetas}`, nombre),
+      )
+      .map((d) => ({ id: d.id, titulo: d.titulo, proyectoId: d.proyectoId })),
+    ideas: todasNotas
+      .filter((n) => contieneNombre(n.texto, nombre))
+      .map((n) => ({ id: n.id, titulo: extraerFragmento(n.texto, 60), proyectoId: n.proyectoId })),
+    activos: todosActivos
+      .filter((a) => contieneNombre(`${a.nombre} ${a.notas} ${a.etiquetas}`, nombre))
+      .map((a) => ({ id: a.id, titulo: a.nombre, proyectoId: a.proyectoId })),
+  };
+}
+
+/**
+ * Todo lo relacionado con UN Activo: contenido cuyas escenas lo referencian
+ * (`activoReferenciado` — el registro automático que la generación ya deja
+ * por escena) o lo mencionan por nombre, más prompts/documentos/ideas que
+ * mencionan su nombre o comparten etiquetas.
+ */
+export async function getRelacionesActivo(proyectoId: string, activoId: string): Promise<RelacionesEntidad> {
+  const rows = await db
+    .select()
+    .from(activos)
+    .where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)));
+  const activo = rows[0];
+  if (!activo) return { bloques: [], prompts: [], documentos: [], ideas: [], activos: [] };
+  const nombre = activo.nombre;
+  const etiquetasActivo = activo.etiquetas
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length >= 3);
+
+  const comparteEtiqueta = (texto: string) => {
+    const t = texto.toLowerCase();
+    return etiquetasActivo.some((e) => t.includes(e));
+  };
+
+  const [todosBloques, todosPrompts, todosDocumentos, todasNotas] = await Promise.all([
+    db.select().from(bloques).where(and(eq(bloques.proyectoId, proyectoId), eq(bloques.estado, "activo"))),
+    db.select().from(promptsGuardados),
+    db.select().from(documentos),
+    db.select().from(notas),
+  ]);
+
+  return {
+    bloques: todosBloques
+      .filter(
+        (b) =>
+          parseEscenas(b.escenasJson).some((e) => e.activoReferenciado?.trim() === nombre) ||
+          contieneNombre(`${b.titulo} ${b.texto}`, nombre),
+      )
+      .map((b) => ({ id: b.id, titulo: b.titulo, proyectoId: b.proyectoId })),
+    prompts: todosPrompts
+      .filter((p) => {
+        const texto = `${p.titulo} ${p.texto} ${p.etiquetas}`;
+        return contieneNombre(texto, nombre) || comparteEtiqueta(texto);
+      })
+      .map((p) => ({ id: p.id, titulo: p.titulo, proyectoId: p.proyectoId })),
+    documentos: todosDocumentos
+      .filter((d) => {
+        const texto = `${d.titulo} ${d.contenido} ${d.etiquetas}`;
+        return contieneNombre(texto, nombre) || comparteEtiqueta(texto);
+      })
+      .map((d) => ({ id: d.id, titulo: d.titulo, proyectoId: d.proyectoId })),
+    ideas: todasNotas
+      .filter((n) => contieneNombre(n.texto, nombre) || comparteEtiqueta(n.texto))
+      .map((n) => ({ id: n.id, titulo: extraerFragmento(n.texto, 60), proyectoId: n.proyectoId })),
+    activos: [],
+  };
+}
+
+// ---------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------
 

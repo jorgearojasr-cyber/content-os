@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { getRelacionesPersonaje } from "@/lib/actions";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { RelacionadoPanel } from "@/components/relacionado-panel";
 import { PersonajeForm } from "@/app/proyectos/[id]/identidad/personajes-lista";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { urlImagenVisible } from "@/lib/imagen-url";
@@ -180,6 +182,7 @@ export function PersonajesGlobalLista({
                   />
                 ) : null}
                 {resumen ? <p className="mt-2 text-[13px] text-text-muted">{resumen}</p> : null}
+                <RelacionadoPanel onCargar={() => getRelacionesPersonaje(p.id)} />
               </Card>
             );
           })}

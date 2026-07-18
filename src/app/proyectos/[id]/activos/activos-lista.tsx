@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { getRelacionesActivo } from "@/lib/actions";
 import { Button, Card, Chip } from "@/components/ui";
 import { ConfirmDialog, PromptDialog } from "@/components/confirm-dialog";
+import { RelacionadoPanel } from "@/components/relacionado-panel";
 import { urlImagenVisible } from "@/lib/imagen-url";
 import { TIPOS_ACTIVO } from "@/lib/types";
 import type { Activo } from "@/lib/types";
@@ -171,6 +173,8 @@ function ActivoCard({
           ))}
         </div>
       ) : null}
+
+      <RelacionadoPanel onCargar={() => getRelacionesActivo(activo.proyectoId, activo.id)} />
 
       <ConfirmDialog
         open={confirmOpen}
