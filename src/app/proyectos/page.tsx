@@ -1,13 +1,17 @@
-import { createProyecto, deleteProyecto, getProyectos } from "@/lib/actions";
+import { createProyecto, deleteProyecto, getConteoContenidoPorProyecto, getProyectos } from "@/lib/actions";
 
 // Esta pantalla lee proyectos reales de la base de datos en cada visita.
 // Nunca debe quedar congelada como HTML estático del momento del build.
 export const dynamic = "force-dynamic";
-import { Button, Card, Empty, Input, Label, SectionTitle, Textarea } from "@/components/ui";
+import { Card, Empty, SectionTitle } from "@/components/ui";
+import { NuevoProyectoForm } from "./nuevo-proyecto-form";
 import { ProyectosLista } from "./proyectos-lista";
 
 export default async function ProyectosPage() {
-  const proyectos = await getProyectos();
+  const [proyectos, conteoContenido] = await Promise.all([
+    getProyectos(),
+    getConteoContenidoPorProyecto(),
+  ]);
 
   return (
     <main className="mx-auto max-w-[760px] px-4 py-6 sm:py-8">
@@ -25,19 +29,10 @@ export default async function ProyectosPage() {
 
       <Card className="mb-5">
         <SectionTitle>Nuevo proyecto</SectionTitle>
-        <form action={createProyecto}>
-          <Label htmlFor="nombre">Nombre</Label>
-          <Input id="nombre" name="nombre" placeholder="Ej: OBRABIEN" required />
-          <Label htmlFor="descripcion">Descripción (opcional)</Label>
-          <Textarea
-            id="descripcion"
-            name="descripcion"
-            placeholder="De qué trata este proyecto"
-          />
-          <Button type="submit" className="mt-4">
-            Crear proyecto
-          </Button>
-        </form>
+        <NuevoProyectoForm
+          nombresExistentes={proyectos.map((p) => p.nombre)}
+          onCreate={createProyecto}
+        />
       </Card>
 
       {proyectos.length === 0 ? (
@@ -46,7 +41,7 @@ export default async function ProyectosPage() {
           dentro de él.
         </Empty>
       ) : (
-        <ProyectosLista proyectos={proyectos} onDelete={deleteProyecto} />
+        <ProyectosLista proyectos={proyectos} onDelete={deleteProyecto} conteoContenido={conteoContenido} />
       )}
     </main>
   );

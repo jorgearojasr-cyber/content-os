@@ -2,16 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui";
+import { Card, Chip } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Proyecto } from "@/lib/types";
 
 export function ProyectosLista({
   proyectos,
   onDelete,
+  conteoContenido,
 }: {
   proyectos: Proyecto[];
   onDelete: (id: string) => Promise<void>;
+  /** Piezas activas guardadas en la Biblioteca de cada proyecto — un
+   * proyecto en 0 muestra el badge "Sin contenido aún" en su tarjeta. */
+  conteoContenido: Record<string, number>;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const termino = busqueda.trim();
@@ -37,7 +41,12 @@ export function ProyectosLista({
       ) : (
         <div className="space-y-3">
           {filtrados.map((p) => (
-            <ProyectoCard key={p.id} proyecto={p} onDelete={onDelete} />
+            <ProyectoCard
+              key={p.id}
+              proyecto={p}
+              onDelete={onDelete}
+              sinContenido={(conteoContenido[p.id] ?? 0) === 0}
+            />
           ))}
         </div>
       )}
@@ -48,16 +57,21 @@ export function ProyectosLista({
 function ProyectoCard({
   proyecto,
   onDelete,
+  sinContenido,
 }: {
   proyecto: Proyecto;
   onDelete: (id: string) => Promise<void>;
+  sinContenido: boolean;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <Card className="flex items-start justify-between gap-3 transition-colors hover:border-accent/50">
       <Link href={`/proyectos/${proyecto.id}/crear`} className="min-w-0 flex-1">
-        <div className="font-display text-[17px]">{proyecto.nombre}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="font-display text-[17px]">{proyecto.nombre}</div>
+          {sinContenido ? <Chip>Sin contenido aún</Chip> : null}
+        </div>
         {proyecto.descripcion ? (
           <p className="mt-1 text-[13px] text-text-muted">{proyecto.descripcion}</p>
         ) : null}

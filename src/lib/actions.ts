@@ -60,6 +60,22 @@ export async function getProyectos() {
   return db.select().from(proyectos).orderBy(proyectos.createdAt);
 }
 
+/** Cuántas piezas activas (no archivadas ni en papelera) tiene guardadas
+ * cada proyecto en su Biblioteca — mismo criterio que `totalContenidos`
+ * del dashboard. Se usa para marcar los proyectos sin contenido en el
+ * listado de /proyectos. */
+export async function getConteoContenidoPorProyecto(): Promise<Record<string, number>> {
+  const bloquesActivos = await db
+    .select({ proyectoId: bloques.proyectoId })
+    .from(bloques)
+    .where(eq(bloques.estado, "activo"));
+  const conteo: Record<string, number> = {};
+  for (const b of bloquesActivos) {
+    conteo[b.proyectoId] = (conteo[b.proyectoId] ?? 0) + 1;
+  }
+  return conteo;
+}
+
 export async function getProyecto(id: string) {
   const rows = await db.select().from(proyectos).where(eq(proyectos.id, id));
   return rows[0] ?? null;
