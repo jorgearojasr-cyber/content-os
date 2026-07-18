@@ -48,3 +48,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# respaldos de la base de datos de produccion - no se versionan (datos reales)
+/backups/

@@ -114,6 +114,62 @@ export default async function IdentidadPage({
             ejemplos={OBJETIVOS_SUGERIDOS}
             multiline={false}
           />
+          <FieldWithHelp
+            label="Historia de la marca"
+            name="historia"
+            defaultValue={identidad.historia}
+            {...EJEMPLOS_IDENTIDAD.historia}
+          />
+          <FieldWithHelp
+            label="Valores"
+            name="valores"
+            defaultValue={identidad.valores}
+            {...EJEMPLOS_IDENTIDAD.valores}
+          />
+          <FieldWithHelp
+            label="Audiencia (resumen general)"
+            name="audiencia"
+            defaultValue={identidad.audiencia}
+            {...EJEMPLOS_IDENTIDAD.audiencia}
+          />
+          <FieldWithHelp
+            label="Competidores"
+            name="competidores"
+            defaultValue={identidad.competidores}
+            {...EJEMPLOS_IDENTIDAD.competidores}
+          />
+          <FieldWithHelp
+            label="Manual de marca"
+            name="manualMarca"
+            defaultValue={identidad.manualMarca}
+            {...EJEMPLOS_IDENTIDAD.manualMarca}
+          />
+        </SeccionColapsable>
+
+        <SeccionColapsable
+          titulo="Lineamientos de contenido"
+          subtitulo="Qué decir siempre y qué evitar siempre — CTA, hashtags y restricciones."
+          tieneContenido={porSeccion.lineamientos}
+          resumen={extraerFragmento(resumen.lineamientos, LARGO_RESUMEN)}
+        >
+          <FieldWithHelp
+            label="CTA habituales"
+            name="ctaHabituales"
+            defaultValue={identidad.ctaHabituales}
+            {...EJEMPLOS_IDENTIDAD.ctaHabituales}
+          />
+          <FieldWithHelp
+            label="Hashtags frecuentes"
+            name="hashtagsFrecuentes"
+            defaultValue={identidad.hashtagsFrecuentes}
+            {...EJEMPLOS_IDENTIDAD.hashtagsFrecuentes}
+          />
+          <FieldWithHelp
+            label="Restricciones (qué evitar siempre)"
+            name="restricciones"
+            defaultValue={identidad.restricciones}
+            {...EJEMPLOS_IDENTIDAD.restricciones}
+          />
         </SeccionColapsable>
 
         <SeccionColapsable

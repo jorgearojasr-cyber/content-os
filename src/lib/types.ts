@@ -62,10 +62,25 @@ export type Identidad = {
   id: string;
   proyectoId: string;
 
-  // Capa Marca — la voz, las reglas y el objetivo del proyecto
+  // Capa Marca — la voz, las reglas y el objetivo del proyecto.
+  // Mapeo Creative OS (no duplicar campos): "personalidad"/"tono" viven en
+  // `voz`; "objetivos" en `objetivo`; la audiencia estructurada vive en la
+  // tabla `avatares` — `audiencia` acá es el resumen libre general.
   voz: string;
   reglas: string;
   objetivo: string;
+  historia: string;
+  valores: string;
+  audiencia: string;
+  competidores: string;
+  /** Texto con los lineamientos oficiales, o un link al documento externo. */
+  manualMarca: string;
+
+  // Lineamientos de contenido — qué CTA/hashtags usar y qué evitar.
+  ctaHabituales: string;
+  hashtagsFrecuentes: string;
+  restricciones: string;
+
   /** Columna `jsonb` — ya es un objeto (o `{}`), no un string. Usar `parseAvatar()`. */
   avatarJson: unknown;
 

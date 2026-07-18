@@ -246,7 +246,22 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
         ["Voz y personalidad", identidad.voz],
         ["Reglas de escritura", identidad.reglas],
         ["Objetivo del proyecto", identidad.objetivo],
+        ["Historia de la marca", identidad.historia],
+        ["Valores", identidad.valores],
+        ["Audiencia", identidad.audiencia],
+        ["Competidores", identidad.competidores],
+        ["Manual de marca", identidad.manualMarca],
         avatarFormateado ? `Avatar del cliente ideal:\n${avatarFormateado}` : "",
+      ])
+    : "";
+
+  // Va junto a Marca (misma casilla "usar voz y tono de la marca" en Crear):
+  // son lineamientos de QUÉ decir y qué evitar, no de cómo se ve la pieza.
+  const lineamientos = incluirMarca
+    ? seccion("Lineamientos de contenido", [
+        ["CTA habituales", identidad.ctaHabituales],
+        ["Hashtags frecuentes", identidad.hashtagsFrecuentes],
+        ["Restricciones (qué evitar siempre)", identidad.restricciones],
       ])
     : "";
 
@@ -279,9 +294,15 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
         ])
       : "";
 
-  const secciones = [marca, personajeSeccion, activosVisualesSeccion, estilo, contacto, logoConPosicion].filter(
-    Boolean,
-  );
+  const secciones = [
+    marca,
+    lineamientos,
+    personajeSeccion,
+    activosVisualesSeccion,
+    estilo,
+    contacto,
+    logoConPosicion,
+  ].filter(Boolean);
 
   if (secciones.length === 0) {
     return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
@@ -294,6 +315,14 @@ const CAMPOS_DE_CONTENIDO = [
   "voz",
   "reglas",
   "objetivo",
+  "historia",
+  "valores",
+  "audiencia",
+  "competidores",
+  "manualMarca",
+  "ctaHabituales",
+  "hashtagsFrecuentes",
+  "restricciones",
   "paleta",
   "tipografia",
   "look",
@@ -315,7 +344,22 @@ export function identityHasContent(
   return CAMPOS_DE_CONTENIDO.some((campo) => identidad[campo]?.trim().length > 0);
 }
 
-const CAMPOS_MARCA = ["voz", "reglas", "objetivo"] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
+const CAMPOS_MARCA = [
+  "voz",
+  "reglas",
+  "objetivo",
+  "historia",
+  "valores",
+  "audiencia",
+  "competidores",
+  "manualMarca",
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
+
+const CAMPOS_LINEAMIENTOS = [
+  "ctaHabituales",
+  "hashtagsFrecuentes",
+  "restricciones",
+] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 const CAMPOS_ESTILO = [
   "paleta",
@@ -348,6 +392,9 @@ export type IdentidadPorSeccion = {
   avatar: boolean;
   personaje: boolean;
   estilo: boolean;
+  /** CTA habituales / hashtags frecuentes / restricciones — misma capa de
+   * lectura para la sección plegable "Lineamientos de contenido". */
+  lineamientos: boolean;
   /** No forma parte del checklist de "entrenamiento" (Contacto es opcional
    * y no afecta qué tan genérico sale el contenido) — se agrega aquí solo
    * porque otras pantallas (ej. las secciones plegables de Identidad)
@@ -372,6 +419,7 @@ export function identidadPorSeccion(
     avatar: contexto.tieneAvatar,
     personaje: contexto.tienePersonaje,
     estilo: algunCampoConContenido(identidad, CAMPOS_ESTILO),
+    lineamientos: algunCampoConContenido(identidad, CAMPOS_LINEAMIENTOS),
     contacto: algunCampoConContenido(identidad, CAMPOS_CONTACTO),
   };
 }
@@ -387,6 +435,7 @@ function primerValorConContenido(identidad: Identidad, campos: ReadonlyArray<Cam
 export type ResumenPorSeccion = {
   marca: string;
   estilo: string;
+  lineamientos: string;
   contacto: string;
 };
 
@@ -400,6 +449,7 @@ export function resumenPorSeccion(identidad: Identidad): ResumenPorSeccion {
   return {
     marca: primerValorConContenido(identidad, CAMPOS_MARCA),
     estilo: primerValorConContenido(identidad, CAMPOS_ESTILO),
+    lineamientos: primerValorConContenido(identidad, CAMPOS_LINEAMIENTOS),
     contacto: primerValorConContenido(identidad, CAMPOS_CONTACTO),
   };
 }

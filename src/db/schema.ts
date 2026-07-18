@@ -29,6 +29,23 @@ export const identidades = pgTable("identidades", {
   voz: text("voz").notNull().default(""),
   reglas: text("reglas").notNull().default(""),
   objetivo: text("objetivo").notNull().default(""),
+  // Expansión "Creative OS": la marca como entidad completa. Todos con
+  // default "" — las identidades existentes siguen funcionando sin tocar.
+  // NOTA de mapeo (no duplicar campos): "personalidad"/"tono" viven en
+  // `voz` ("Voz y personalidad"); "objetivos" en `objetivo`; la audiencia
+  // ESTRUCTURADA vive en la tabla `avatares` — `audiencia` acá es el
+  // resumen libre de a quién le habla la marca en general.
+  historia: text("historia").notNull().default(""),
+  valores: text("valores").notNull().default(""),
+  audiencia: text("audiencia").notNull().default(""),
+  competidores: text("competidores").notNull().default(""),
+  // Manual de marca: texto con los lineamientos oficiales, o un link al
+  // documento (Drive/PDF/Notion) si vive fuera de la app.
+  manualMarca: text("manual_marca").notNull().default(""),
+  // Lineamientos de contenido — se compilan en su propia sección.
+  ctaHabituales: text("cta_habituales").notNull().default(""),
+  hashtagsFrecuentes: text("hashtags_frecuentes").notNull().default(""),
+  restricciones: text("restricciones").notNull().default(""),
   // Avatar del cliente ideal (ver AvatarCliente en types.ts)
   avatarJson: jsonb("avatar_json").notNull().default({}),
 

@@ -15,6 +15,14 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     voz: "",
     reglas: "",
     objetivo: "",
+    historia: "",
+    valores: "",
+    audiencia: "",
+    competidores: "",
+    manualMarca: "",
+    ctaHabituales: "",
+    hashtagsFrecuentes: "",
+    restricciones: "",
     avatarJson: {},
     personajeNombre: "",
     personajePersonalidad: "",
@@ -109,6 +117,43 @@ describe("compileIdentity", () => {
     const identidad = baseIdentidad({ objetivo: "Educar" });
     const salida = compileIdentity(identidad);
     expect(salida).toContain("Objetivo del proyecto: Educar");
+  });
+
+  it("incluye los campos expandidos de Marca (historia/valores/audiencia/competidores/manual) cuando están definidos", () => {
+    const identidad = baseIdentidad({
+      historia: "Nació tras 15 años en obras",
+      valores: "Honestidad técnica",
+      audiencia: "Dueños de casa sin conocimiento técnico",
+      competidores: "Canales de maestros en YouTube",
+      manualMarca: "https://drive.google.com/manual",
+    });
+    const salida = compileIdentity(identidad);
+    expect(salida).toContain("Historia de la marca: Nació tras 15 años en obras");
+    expect(salida).toContain("Valores: Honestidad técnica");
+    expect(salida).toContain("Audiencia: Dueños de casa sin conocimiento técnico");
+    expect(salida).toContain("Competidores: Canales de maestros en YouTube");
+    expect(salida).toContain("Manual de marca: https://drive.google.com/manual");
+  });
+
+  it("compila los Lineamientos de contenido en su propia sección, ligada a incluirMarca", () => {
+    const identidad = baseIdentidad({
+      ctaHabituales: "Escríbenos por WhatsApp",
+      hashtagsFrecuentes: "#construccion #obrabien",
+      restricciones: "Nunca prometer plazos exactos",
+    });
+    const salida = compileIdentity(identidad);
+    expect(salida).toContain("## Lineamientos de contenido");
+    expect(salida).toContain("CTA habituales: Escríbenos por WhatsApp");
+    expect(salida).toContain("Hashtags frecuentes: #construccion #obrabien");
+    expect(salida).toContain("Restricciones (qué evitar siempre): Nunca prometer plazos exactos");
+    // Misma casilla que Marca en Crear — sin marca, sin lineamientos.
+    expect(compileIdentity(identidad, { incluirMarca: false })).not.toContain("## Lineamientos");
+  });
+
+  it("con los campos nuevos vacíos, la salida es idéntica a la de antes de la expansión", () => {
+    const identidad = baseIdentidad({ voz: "Directa", reglas: "Sin tecnicismos" });
+    const salida = compileIdentity(identidad);
+    expect(salida).toBe("## Marca\nVoz y personalidad: Directa\nReglas de escritura: Sin tecnicismos");
   });
 
   it("sin personaje seleccionado, la sección Personaje no aparece aunque incluirPersonaje sea true", () => {
@@ -269,13 +314,14 @@ describe("identidadTieneContacto", () => {
 });
 
 describe("identidadPorSeccion", () => {
-  it("las 5 secciones son falsas para una identidad totalmente vacía sin personaje ni avatar", () => {
+  it("todas las secciones son falsas para una identidad totalmente vacía sin personaje ni avatar", () => {
     const estado = identidadPorSeccion(baseIdentidad(), { tienePersonaje: false, tieneAvatar: false });
     expect(estado).toEqual({
       marca: false,
       avatar: false,
       personaje: false,
       estilo: false,
+      lineamientos: false,
       contacto: false,
     });
   });
@@ -324,6 +370,7 @@ describe("identidadPorSeccion", () => {
       avatar: true,
       personaje: true,
       estilo: true,
+      lineamientos: false,
       contacto: false,
     });
   });
@@ -351,6 +398,6 @@ describe("resumenPorSeccion", () => {
 
   it("devuelve cadenas vacías para las secciones sin contenido", () => {
     const resumen = resumenPorSeccion(baseIdentidad());
-    expect(resumen).toEqual({ marca: "", estilo: "", contacto: "" });
+    expect(resumen).toEqual({ marca: "", estilo: "", lineamientos: "", contacto: "" });
   });
 });

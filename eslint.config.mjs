@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Scripts operativos de Node puro (ej. respaldo de la base de datos) —
+    // corren con `node`, fuera del bundle de la app, y usan require().
+    "scripts/**",
   ]),
 ]);
 

@@ -101,6 +101,49 @@ export const EJEMPLOS_IDENTIDAD: Record<string, CampoEjemplo> = {
     placeholder: "Ej: directo, con oferta explícita",
     ejemplos: ["Directo, con oferta explícita", "Suave, invitando a comentar"],
   },
+  historia: {
+    tip: "De dónde viene la marca y por qué existe — el contexto que hace creíble todo lo demás.",
+    placeholder: "Ej: nació en 2020 tras 15 años trabajando en obras...",
+    ejemplos: [
+      "Nació después de 15 años trabajando en obras y ver los mismos errores repetirse",
+      "Empezó como un hobby familiar y hoy es el negocio principal",
+    ],
+  },
+  valores: {
+    tip: "Los principios que la marca defiende — guían qué se dice y qué no.",
+    placeholder: "Ej: honestidad técnica, trabajo bien hecho, cercanía",
+    ejemplos: ["Honestidad técnica, trabajo bien hecho, cercanía", "Transparencia, calidad sobre rapidez"],
+  },
+  audiencia: {
+    tip: "A quién le habla la marca en general — el resumen libre; los Avatares de abajo son los perfiles detallados.",
+    placeholder: "Ej: dueños de casa que quieren construir o remodelar sin ser expertos",
+    ejemplos: ["Dueños de casa que quieren construir o remodelar sin ser expertos"],
+  },
+  competidores: {
+    tip: "Quiénes más hablan de lo mismo — para diferenciarse, no para copiarlos.",
+    placeholder: "Ej: canales de maestros en YouTube, cuentas de arquitectos en Instagram",
+    ejemplos: ["Canales de maestros en YouTube, cuentas de arquitectos en Instagram"],
+  },
+  manualMarca: {
+    tip: "Los lineamientos oficiales si existen — pega el texto, o un link al documento (Drive, PDF, Notion).",
+    placeholder: "Ej: https://drive.google.com/... o el texto de los lineamientos",
+    ejemplos: [],
+  },
+  ctaHabituales: {
+    tip: "Los llamados a la acción que la marca usa una y otra vez — listos para reutilizar en cualquier pieza.",
+    placeholder: "Ej: 'Escríbenos por WhatsApp', 'Agenda tu visita gratis'",
+    ejemplos: ["'Escríbenos por WhatsApp para cotizar', 'Sígueme para más consejos de obra'"],
+  },
+  hashtagsFrecuentes: {
+    tip: "Los hashtags de siempre — se incluyen en el contexto para que cada pieza los considere.",
+    placeholder: "Ej: #construccion #remodelacion #obrabien",
+    ejemplos: ["#construccion #remodelacion #casapropia"],
+  },
+  restricciones: {
+    tip: "Lo que NUNCA debe aparecer en el contenido — temas, palabras, promesas o comparaciones prohibidas.",
+    placeholder: "Ej: nunca criticar a otros maestros, no prometer plazos exactos",
+    ejemplos: ["Nunca criticar a otros maestros por nombre", "No prometer plazos ni precios exactos"],
+  },
 };
 
 export const OBJETIVO_TIP =
