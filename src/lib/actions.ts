@@ -1190,6 +1190,12 @@ export async function vincularNota(notaId: string, proyectoId: string | null) {
   revalidatePath("/");
 }
 
+/** Cambia la prioridad manual de una idea (alta | media | baja). */
+export async function cambiarPrioridadNota(notaId: string, prioridad: string) {
+  await db.update(notas).set({ prioridad }).where(eq(notas.id, notaId));
+  revalidatePath("/segundo-cerebro");
+}
+
 /** Borrado directo, sin papelera — son apuntes rápidos de bajo riesgo. */
 export async function deleteNota(notaId: string) {
   await db.delete(notas).where(eq(notas.id, notaId));

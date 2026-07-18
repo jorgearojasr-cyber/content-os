@@ -422,11 +422,15 @@ export function CrearModos({
   activosCount,
   activosVisuales,
   bloquesRecientes,
+  temaInicial = "",
   onGuardar,
   onBuscarRelacionado,
   onRevisarEscena,
 }: {
   proyectoId: string;
+  /** Idea pre-escrita en el Paso 3 (llega desde "Convertir en contenido"
+   * del Banco de Ideas, vía query param) — "" = flujo normal en blanco. */
+  temaInicial?: string;
   identidad: Identidad;
   personajes: Personaje[];
   personajesEstudio: Personaje[];
@@ -465,7 +469,7 @@ export function CrearModos({
   const hayPersonajeDisponible = personajes.length > 0 || personajesEstudio.length > 0;
 
   const [modo, setModo] = useState<Modo>("rapido");
-  const [config, setConfig] = useState<ConfigCreacion>(CONFIG_VACIA);
+  const [config, setConfig] = useState<ConfigCreacion>({ ...CONFIG_VACIA, tema: temaInicial });
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
   const [respuestaPegada, setRespuestaPegada] = useState("");
   const [avisoParseo, setAvisoParseo] = useState("");

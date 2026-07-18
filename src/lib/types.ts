@@ -516,11 +516,20 @@ export type Activo = {
   createdAt: string;
 };
 
+/** Prioridades del Banco de Ideas — organización manual, nada automático. */
+export const PRIORIDADES_NOTA = [
+  { value: "alta", label: "Alta", icono: "🔴" },
+  { value: "media", label: "Media", icono: "🟡" },
+  { value: "baja", label: "Baja", icono: "🟢" },
+] as const;
+
 export type Nota = {
   id: string;
   texto: string;
   proyectoId: string | null;
   estado: string;
+  /** Una de PRIORIDADES_NOTA: alta | media | baja. */
+  prioridad: string;
   bloqueId: string | null;
   createdAt: string;
 };

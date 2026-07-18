@@ -259,6 +259,9 @@ export const notas = pgTable("notas", {
   // el usuario genera y guarda una pieza que hizo match con esta nota (ver
   // createBloque en actions.ts). Nunca se marca a mano.
   estado: text("estado").notNull().default("pendiente"),
+  // Banco de Ideas (Creative OS): 'alta' | 'media' | 'baja' — priorización
+  // manual, para decidir qué idea trabajar primero. Solo organización.
+  prioridad: text("prioridad").notNull().default("media"),
   // Qué bloque de Biblioteca se creó a partir de esta nota — null hasta
   // que estado pasa a 'trabajada'. Si el bloque se borra, la nota no
   // desaparece, solo pierde el enlace (onDelete: "set null").

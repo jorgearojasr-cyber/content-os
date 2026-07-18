@@ -16,10 +16,16 @@ import { CrearModos } from "./crear-modos";
 
 export default async function CrearPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ idea?: string }>;
 }) {
   const { id: proyectoId } = await params;
+  // "Convertir en contenido" desde el Banco de Ideas: la idea llega como
+  // query param y queda pre-escrita en el Paso 3 — el resto del flujo es
+  // el de siempre.
+  const { idea: ideaInicial } = await searchParams;
   const identidad = await getIdentidad(proyectoId);
   if (!identidad) notFound();
 
@@ -49,6 +55,8 @@ export default async function CrearPage({
       ) : null}
 
       <CrearModos
+        key={ideaInicial ?? "sin-idea"}
+        temaInicial={ideaInicial ?? ""}
         proyectoId={proyectoId}
         identidad={identidad}
         personajes={personajes}
