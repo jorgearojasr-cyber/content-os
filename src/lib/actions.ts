@@ -9,6 +9,7 @@ import {
   activos,
   avatares,
   bloques,
+  documentos,
   identidades,
   notas,
   personajes,
@@ -39,6 +40,7 @@ import type {
   Avatar,
   AvatarInput,
   CalidadImagen,
+  Documento,
   Escena,
   FotoPersonaje,
   Identidad,
@@ -1517,4 +1519,101 @@ export async function deletePromptGuardado(promptId: string) {
     .returning({ proyectoId: promptsGuardados.proyectoId });
 
   revalidarRutasPrompt(eliminado?.proyectoId ?? null);
+}
+
+// ---------------------------------------------------------------------
+// Biblioteca de Conocimiento (documentos)
+// ---------------------------------------------------------------------
+
+function revalidarRutasDocumento(proyectoId: string | null) {
+  revalidatePath("/conocimiento");
+  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/conocimiento`);
+}
+
+/** Documentos GLOBALES (`proyectoId` null) — visibles en /conocimiento y,
+ * con el chip "Global", dentro de cualquier proyecto. */
+export async function getDocumentosGlobales(): Promise<Documento[]> {
+  return db.select().from(documentos).where(isNull(documentos.proyectoId)).orderBy(desc(documentos.createdAt));
+}
+
+/** Documentos de UN proyecto (los suyos + los globales combinados) —
+ * mismo patrón que getPromptsDeProyecto. */
+export async function getDocumentosDeProyecto(proyectoId: string): Promise<Documento[]> {
+  const [propios, globales] = await Promise.all([
+    db.select().from(documentos).where(eq(documentos.proyectoId, proyectoId)),
+    getDocumentosGlobales(),
+  ]);
+  return [...propios, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+function leerCamposDocumento(formData: FormData) {
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  const tipo = String(formData.get("tipo") ?? "texto").trim();
+  const contenido = String(formData.get("contenido") ?? "").trim();
+  const etiquetas = String(formData.get("etiquetas") ?? "").trim();
+  const personajeId = String(formData.get("personajeId") ?? "").trim() || null;
+  if (!titulo) throw new Error("El documento necesita un título.");
+  return { titulo, tipo, contenido, etiquetas, personajeId };
+}
+
+/** Crea un documento. Para tipo "archivo" lee el `<input name="archivo">`
+ * y lo sube a Blob; para "link" lee el campo de texto `link`; para
+ * "texto" solo usa `contenido`. `proyectoId: null` desde /conocimiento
+ * (global), pre-aplicado con `.bind()` desde la pestaña del proyecto. */
+export async function createDocumento(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+  const campos = leerCamposDocumento(formData);
+
+  let valor = "";
+  if (campos.tipo === "archivo") {
+    const archivo = formData.get("archivo");
+    if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
+    valor = await guardarArchivoSubido(archivo);
+  } else if (campos.tipo === "link") {
+    valor = String(formData.get("link") ?? "").trim();
+    if (!valor) throw new Error("El documento tipo link necesita la URL.");
+  } else if (!campos.contenido) {
+    throw new Error("El documento tipo texto necesita contenido.");
+  }
+
+  const id = randomUUID();
+  await db.insert(documentos).values({ id, proyectoId, valor, ...campos });
+
+  revalidarRutasDocumento(proyectoId);
+  return { id };
+}
+
+/** Edita los metadatos de un documento (título/contenido/etiquetas/
+ * personaje) — el archivo o link (`valor`) no cambia; para reemplazarlo se
+ * crea un documento nuevo y se borra el viejo. */
+export async function updateDocumento(documentoId: string, formData: FormData) {
+  const campos = leerCamposDocumento(formData);
+  const link = String(formData.get("link") ?? "").trim();
+
+  const [actualizado] = await db
+    .update(documentos)
+    .set({
+      titulo: campos.titulo,
+      contenido: campos.contenido,
+      etiquetas: campos.etiquetas,
+      personajeId: campos.personajeId,
+      // Solo el link es editable en sitio (es solo texto) — el archivo no.
+      ...(link ? { valor: link } : {}),
+    })
+    .where(eq(documentos.id, documentoId))
+    .returning({ proyectoId: documentos.proyectoId });
+
+  revalidarRutasDocumento(actualizado?.proyectoId ?? null);
+}
+
+export async function deleteDocumento(documentoId: string) {
+  const [eliminado] = await db
+    .delete(documentos)
+    .where(eq(documentos.id, documentoId))
+    .returning({ proyectoId: documentos.proyectoId, tipo: documentos.tipo, valor: documentos.valor });
+
+  if (eliminado?.tipo === "archivo" && eliminado.valor) {
+    await eliminarArchivoSubido(eliminado.valor).catch(() => {});
+  }
+
+  revalidarRutasDocumento(eliminado?.proyectoId ?? null);
 }

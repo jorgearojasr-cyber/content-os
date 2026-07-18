@@ -286,6 +286,38 @@ export const conocimiento = pgTable("conocimiento", {
 });
 
 /**
+ * Biblioteca de Conocimiento: documentos de referencia de la marca —
+ * archivos (PDF, Word, Markdown, TXT — cualquier archivo va a Blob),
+ * links externos (normativas, investigaciones, documentacion) o texto
+ * plano (resumenes, notas largas). Distinta de las notas del Segundo
+ * Cerebro (apuntes rapidos de ideas) y de la tabla `conocimiento` vieja
+ * (deprecada, migrada a notas en una ronda anterior — se deja intacta).
+ * `proyectoId` nullable: null = documento GLOBAL del estudio, mismo
+ * patron que personajes/prompts. `personajeId` opcional para vincular un
+ * documento a un Personaje (ej. su biografia extendida). El resto de las
+ * relaciones (activos/ideas/contenido) se resuelven por palabras clave
+ * en la capa de Relaciones Inteligentes, no con FKs por cada par.
+ */
+export const documentos = pgTable("documentos", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
+  personajeId: text("personaje_id").references(() => personajes.id, { onDelete: "set null" }),
+  titulo: text("titulo").notNull(),
+  // Una de TIPOS_DOCUMENTO (types.ts): archivo | link | texto.
+  tipo: text("tipo").notNull().default("texto"),
+  // URL del archivo subido (Blob) o del link externo; "" para tipo texto.
+  valor: text("valor").notNull().default(""),
+  // Texto plano buscable: el contenido pegado (tipo texto), o un resumen/
+  // descripcion de que contiene el archivo o link.
+  contenido: text("contenido").notNull().default(""),
+  // Etiquetas libres separadas por coma — mismo criterio que activos.
+  etiquetas: text("etiquetas").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
  * Biblioteca de Prompts: texto de referencia guardado a mano (no una pieza
  * de Biblioteca) que el usuario copia y pega manualmente en el flujo de
  * "Exportar contexto" — sin ninguna relación automática con una pieza o

@@ -13,6 +13,7 @@ const ITEMS = [
   { href: "/segundo-cerebro", label: "Segundo Cerebro", icono: "🧠" },
   { href: "/calendario", label: "Calendario", icono: "📅" },
   { href: "/prompts", label: "Prompts", icono: "📝" },
+  { href: "/conocimiento", label: "Conocimiento", icono: "📚" },
   { href: "/personajes", label: "Personajes", icono: "👤" },
   { href: "/biblioteca", label: "Biblioteca", icono: "📖" },
 ] as const;

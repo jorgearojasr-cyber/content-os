@@ -533,6 +533,35 @@ export type Conocimiento = {
   createdAt: string;
 };
 
+/** Tipos de documento de la Biblioteca de Conocimiento. */
+export const TIPOS_DOCUMENTO = [
+  { value: "archivo", label: "Archivo (PDF, Word, MD, TXT…)" },
+  { value: "link", label: "Link externo" },
+  { value: "texto", label: "Texto / resumen" },
+] as const;
+
+/**
+ * Un documento de la Biblioteca de Conocimiento — material de referencia
+ * de la marca (normativas, investigaciones, documentación, resúmenes).
+ * `proyectoId` nullable: `null` = global (chip "Global" en proyectos).
+ * `personajeId` opcional vincula el documento a un Personaje.
+ */
+export type Documento = {
+  id: string;
+  proyectoId: string | null;
+  personajeId: string | null;
+  titulo: string;
+  /** Una de TIPOS_DOCUMENTO: archivo | link | texto. */
+  tipo: string;
+  /** URL (Blob o link externo); "" para tipo texto. */
+  valor: string;
+  /** Contenido pegado o resumen buscable del archivo/link. */
+  contenido: string;
+  /** Etiquetas libres separadas por coma ("" = sin etiquetas). */
+  etiquetas: string;
+  createdAt: string;
+};
+
 /** Categorías fijas de la Biblioteca de Prompts — sin categoría libre a
  * propósito, para que el filtro por categoría sea siempre exhaustivo. La
  * categoría ES el "tipo" del prompt (no hay un campo tipo separado). */
