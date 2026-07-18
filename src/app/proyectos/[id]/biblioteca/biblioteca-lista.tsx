@@ -22,6 +22,7 @@ import {
   ETIQUETA_TIPO_FOTO_PERSONAJE,
   iconoFormato,
   parseEscenas,
+  tieneEscenasDeVideo,
   type Bloque,
   type Escena,
   type PersonajeResumen,
@@ -58,19 +59,42 @@ function InstagramEmbed({ html }: { html: string }) {
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-/** Guía para el prompt de imagen fija (Gemini/Nano Banana) — una sola foto
- * de referencia (la de tipo "rostro"), igual que siempre: ese flujo es de
- * pegar una foto y un prompt juntos en el chat, no de subir referencias
- * múltiples a una herramienta. */
-function GuiaImagenFija({ promptVisual, personaje }: { promptVisual: string; personaje?: PersonajeResumen }) {
+/** Un paso numerado de una guía — el número se calcula por posición en el
+ * arreglo (ver `ListaPasos`), nunca hardcodeado en el texto, así que la
+ * numeración queda siempre secuencial sin saltos aunque algunos pasos sean
+ * condicionales (ej. "descarga fotos de referencia" solo si hay Personaje). */
+type Paso = { titulo: string; contenido: React.ReactNode };
+
+function ListaPasos({ pasos }: { pasos: Paso[] }) {
   return (
-    <div>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-        Imagen fija (Gemini)
-      </p>
-      <ol className="space-y-3 text-[12.5px] text-text">
-        <li>
-          <p className="font-medium">1. Abre Gemini</p>
+    <ol className="space-y-3 text-[12.5px] text-text">
+      {pasos.map((p, i) => (
+        <li key={i}>
+          <p className="font-medium">
+            {i + 1}. {p.titulo}
+          </p>
+          {p.contenido}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const LINKS_HERRAMIENTAS_VIDEO_IA = [
+  { nombre: "Kling", href: "https://klingai.com" },
+  { nombre: "Runway", href: "https://runwayml.com" },
+  { nombre: "Veo", href: "https://labs.google/flow" },
+];
+
+/** Guía para escenas cuya pieza es de entregable final IMAGEN (Carrusel/
+ * Imagen — ver `tieneEscenasDeVideo`): genera la imagen y la publica ahí
+ * mismo, sin paso de animación (no aplica). */
+function GuiaEscenaImagen({ promptVisual, personaje }: { promptVisual: string; personaje?: PersonajeResumen }) {
+  const pasos: Paso[] = [
+    {
+      titulo: "Abre Gemini",
+      contenido: (
+        <>
           <a
             href="https://gemini.google.com"
             target="_blank"
@@ -82,92 +106,171 @@ function GuiaImagenFija({ promptVisual, personaje }: { promptVisual: string; per
           <p className="mt-1 text-[11px] text-text-muted">
             Si el texto en pantalla no sale legible, prueba con ChatGPT/GPT Image en su lugar.
           </p>
-        </li>
+        </>
+      ),
+    },
+  ];
 
-        {personaje?.fotoUrl ? (
-          <li>
-            <p className="font-medium">
-              2. Descarga la foto de referencia de {personaje.nombre || "tu Personaje"}
-            </p>
-            <a
-              href={urlImagenVisible(personaje.fotoUrl)}
-              download
-              className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
-            >
-              Descargar foto
-            </a>
-          </li>
-        ) : null}
+  if (personaje?.fotoUrl) {
+    pasos.push({
+      titulo: `Descarga la foto de referencia de ${personaje.nombre || "tu Personaje"}`,
+      contenido: (
+        <a
+          href={urlImagenVisible(personaje.fotoUrl)}
+          download
+          className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+        >
+          Descargar foto
+        </a>
+      ),
+    });
+  }
 
-        <li>
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-medium">3. Copia este prompt</p>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(promptVisual)}
-              className="text-[12px] text-accent hover:underline"
-            >
-              Copiar
-            </button>
-          </div>
-          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
-            {promptVisual}
-          </p>
-        </li>
+  pasos.push({
+    titulo: "Copia este prompt",
+    contenido: (
+      <>
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(promptVisual)}
+          className="text-[12px] text-accent hover:underline"
+        >
+          Copiar
+        </button>
+        <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
+          {promptVisual}
+        </p>
+      </>
+    ),
+  });
 
-        <li>
-          <p className="font-medium">4. Cuando tengas la imagen</p>
-          <p className="mt-1 text-[12px] text-text-muted">
-            Publícala y pega el link de Instagram en &ldquo;Evidencia de publicación&rdquo; (abajo)
-            para dejarlo guardado en esta misma pieza.
-          </p>
-        </li>
-      </ol>
+  pasos.push({
+    titulo: "Cuando tengas la imagen",
+    contenido: (
+      <p className="mt-1 text-[12px] text-text-muted">
+        Publícala y pega el link de Instagram en &ldquo;Evidencia de publicación&rdquo; (abajo)
+        para dejarlo guardado en esta misma pieza.
+      </p>
+    ),
+  });
+
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Imagen fija (Gemini)
+      </p>
+      <ListaPasos pasos={pasos} />
     </div>
   );
 }
 
-/** Guía para el prompt de video IA (Kling/Runway/Veo) — a diferencia de
- * Gemini, estas herramientas aceptan varias fotos de referencia a la vez
- * (Elements en Kling, References en Runway), así que ofrece las hasta 4
- * fotos disponibles del Personaje, cada una con su etiqueta, en vez de una
- * sola. */
-function GuiaVideoIA({ promptVideo, personaje }: { promptVideo: string; personaje?: PersonajeResumen }) {
-  return (
-    <div>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-        Video IA (Kling / Runway / Veo)
-      </p>
-      <ol className="space-y-3 text-[12.5px] text-text">
-        {personaje && personaje.fotos.length > 0 ? (
-          <li>
-            <p className="font-medium">
-              1. Descarga las fotos de referencia de {personaje.nombre || "tu Personaje"}
-            </p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {personaje.fotos.map((f) => (
-                <a
-                  key={f.url}
-                  href={urlImagenVisible(f.url)}
-                  download
-                  className="inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
-                >
-                  {ETIQUETA_TIPO_FOTO_PERSONAJE[f.tipo]}
-                </a>
-              ))}
-            </div>
-            <p className="mt-1.5 text-[11px] text-text-muted">
-              Sube estas fotos como referencia de personaje en Kling (Elements) o Runway
-              (References) antes de generar.
-            </p>
-          </li>
-        ) : null}
+/** Guía para escenas cuya pieza es de entregable final VIDEO (ver
+ * `tieneEscenasDeVideo`) — cada escena genera su imagen base Y la anima con
+ * Kling/Runway/Veo; nunca publica nada a nivel de escena (eso pasa una sola
+ * vez, al final, con el video ya ensamblado — ver el paso "Ensamblaje final"
+ * en `GuiaProduccion` y `EvidenciaPublicacion`). Se muestra siempre que la
+ * pieza sea de video, tenga o no la escena un `promptVideo` específico
+ * generado (si no lo tiene, cae a animar según la Descripción/Guion). */
+function GuiaEscenaVideo({
+  promptVisual,
+  promptVideo,
+  personaje,
+}: {
+  promptVisual: string;
+  promptVideo: string;
+  personaje?: PersonajeResumen;
+}) {
+  const tieneFotos = !!personaje && personaje.fotos.length > 0;
 
-        <li>
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-medium">
-              {personaje && personaje.fotos.length > 0 ? "2." : "1."} Copia este prompt
-            </p>
+  const pasos: Paso[] = [
+    {
+      titulo: "Abre Gemini (o GPT Image)",
+      contenido: (
+        <>
+          <a
+            href="https://gemini.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-block text-accent underline"
+          >
+            gemini.google.com ↗
+          </a>
+          <p className="mt-1 text-[11px] text-text-muted">Vas a generar la imagen base de esta escena.</p>
+        </>
+      ),
+    },
+  ];
+
+  if (tieneFotos) {
+    pasos.push({
+      titulo: `Descarga las fotos de referencia de ${personaje!.nombre || "tu Personaje"}`,
+      contenido: (
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {personaje!.fotos.map((f) => (
+            <a
+              key={f.url}
+              href={urlImagenVisible(f.url)}
+              download
+              className="inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+            >
+              {ETIQUETA_TIPO_FOTO_PERSONAJE[f.tipo]}
+            </a>
+          ))}
+        </div>
+      ),
+    });
+  }
+
+  pasos.push({
+    titulo: "Copia el prompt de imagen y genera la imagen base de esta escena",
+    contenido: (
+      <>
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(promptVisual)}
+          className="text-[12px] text-accent hover:underline"
+        >
+          Copiar
+        </button>
+        <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
+          {promptVisual}
+        </p>
+      </>
+    ),
+  });
+
+  pasos.push({
+    titulo: "Guarda esa imagen",
+    contenido: (
+      <p className="mt-1 text-[12px] text-text-muted">
+        La vas a necesitar en el siguiente paso — todavía no la publiques.
+      </p>
+    ),
+  });
+
+  pasos.push({
+    titulo: "Abre Kling / Runway / Veo y anímala",
+    contenido: (
+      <>
+        <div className="mt-1 flex flex-wrap gap-3">
+          {LINKS_HERRAMIENTAS_VIDEO_IA.map((h) => (
+            <a
+              key={h.nombre}
+              href={h.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent underline"
+            >
+              {h.nombre} ↗
+            </a>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          Sube la imagen que acabas de generar{tieneFotos ? " y las fotos de referencia del Personaje" : ""} como
+          referencia{promptVideo ? ", y copia este prompt para animarla:" : "."}
+        </p>
+        {promptVideo ? (
+          <>
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(promptVideo)}
@@ -175,25 +278,54 @@ function GuiaVideoIA({ promptVideo, personaje }: { promptVideo: string; personaj
             >
               Copiar
             </button>
-          </div>
-          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
-            {promptVideo}
+            <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
+              {promptVideo}
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-[12px] text-text-muted">
+            Esta escena no tiene un prompt de video específico — anímala con el movimiento y la acción descritos
+            en la Descripción/Guion de esta escena (pestaña &ldquo;Escenas&rdquo; arriba).
           </p>
-        </li>
-      </ol>
+        )}
+      </>
+    ),
+  });
+
+  pasos.push({
+    titulo: "Guarda el clip de video resultante de esta escena",
+    contenido: null,
+  });
+
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Imagen + Video IA
+      </p>
+      <ListaPasos pasos={pasos} />
     </div>
   );
 }
 
 /** Guía de producción de una escena — solo existe si la escena tiene
- * `promptVisual` (imagen fija) y/o `promptVideo` (video IA); cada uno
- * muestra su propia sub-guía, independiente, cuando aplica. Se expande
- * individualmente, sin afectar a las demás escenas de la misma pieza. */
-function GuiaProduccionEscena({ escena, personaje }: { escena: Escena; personaje?: PersonajeResumen }) {
+ * `promptVisual` (la imagen base siempre pasa por ahí, sea el entregable
+ * final imagen o video). `esVideoFinal` decide cuál de las dos guías
+ * mostrar — depende de la PIEZA completa (`tieneEscenasDeVideo`), nunca de
+ * si esta escena en particular tiene o no un `promptVideo` propio. Se
+ * expande individualmente, sin afectar a las demás escenas de la misma
+ * pieza. */
+function GuiaProduccionEscena({
+  escena,
+  personaje,
+  esVideoFinal,
+}: {
+  escena: Escena;
+  personaje?: PersonajeResumen;
+  esVideoFinal: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
   const promptVisual = escena.promptVisual?.trim();
-  const promptVideo = escena.promptVideo?.trim();
-  if (!promptVisual && !promptVideo) return null;
+  if (!promptVisual) return null;
 
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2">
@@ -207,9 +339,16 @@ function GuiaProduccionEscena({ escena, personaje }: { escena: Escena; personaje
       </button>
 
       {abierta ? (
-        <div className="mt-2.5 space-y-4">
-          {promptVisual ? <GuiaImagenFija promptVisual={promptVisual} personaje={personaje} /> : null}
-          {promptVideo ? <GuiaVideoIA promptVideo={promptVideo} personaje={personaje} /> : null}
+        <div className="mt-2.5">
+          {esVideoFinal ? (
+            <GuiaEscenaVideo
+              promptVisual={promptVisual}
+              promptVideo={escena.promptVideo?.trim() ?? ""}
+              personaje={personaje}
+            />
+          ) : (
+            <GuiaEscenaImagen promptVisual={promptVisual} personaje={personaje} />
+          )}
         </div>
       ) : null}
     </div>
@@ -217,23 +356,36 @@ function GuiaProduccionEscena({ escena, personaje }: { escena: Escena; personaje
 }
 
 /** Sección "Guía de producción": una guía por escena, solo para las que
- * tienen componente de imagen fija (`promptVisual`) y/o video IA
- * (`promptVideo`). No aparece si ninguna escena tiene ninguno de los dos
- * (piezas de puro texto, o guardadas antes de estos campos). */
+ * tienen `promptVisual` (imagen base). Para piezas de VIDEO (ver
+ * `tieneEscenasDeVideo`), agrega un paso final de Ensamblaje a nivel de
+ * pieza completa, después de todas las escenas — nunca por escena, una
+ * pieza solo se ensambla una vez. No aparece la sección entera si ninguna
+ * escena tiene `promptVisual` (piezas de puro texto, o guardadas antes de
+ * que existiera este campo). */
 function GuiaProduccion({ bloque, personaje }: { bloque: BloqueConDias; personaje?: PersonajeResumen }) {
-  const escenas = parseEscenas(bloque.escenasJson).filter(
-    (e) => e.promptVisual?.trim() || e.promptVideo?.trim(),
-  );
+  const todasLasEscenas = parseEscenas(bloque.escenasJson);
+  const escenas = todasLasEscenas.filter((e) => e.promptVisual?.trim());
   if (escenas.length === 0) return null;
+
+  const esVideoFinal = tieneEscenasDeVideo(todasLasEscenas);
 
   return (
     <div className="mt-3 border-t border-border pt-3">
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Guía de producción</p>
       <div className="space-y-1.5">
         {escenas.map((e) => (
-          <GuiaProduccionEscena key={e.numero} escena={e} personaje={personaje} />
+          <GuiaProduccionEscena key={e.numero} escena={e} personaje={personaje} esVideoFinal={esVideoFinal} />
         ))}
       </div>
+      {esVideoFinal ? (
+        <div className="mt-1.5 rounded-lg border border-border bg-surface px-3 py-2.5">
+          <p className="text-[12.5px] font-medium text-text">🎬 Ensamblaje final</p>
+          <p className="mt-1 text-[12px] text-text-muted">
+            Une los clips de cada escena en tu editor (CapCut u otro) en el orden del guión, respetando la
+            duración indicada en cada una.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -241,8 +393,19 @@ function GuiaProduccion({ bloque, personaje }: { bloque: BloqueConDias; personaj
 /** Formulario simple para pegar el link de una publicación real (post,
  * carrusel o reel de Instagram — no Stories) y guardarlo como evidencia.
  * Si ya hay un embed cacheado lo muestra; si no, cae al link crudo con un
- * botón "Ver publicación"; si no hay nada guardado, solo el formulario. */
-function EvidenciaPublicacion({ proyectoId, bloque }: { proyectoId: string; bloque: BloqueConDias }) {
+ * botón "Ver publicación"; si no hay nada guardado, solo el formulario.
+ * Para piezas de video, este es el paso final DE LA PIEZA COMPLETA (el
+ * video ya ensamblado a partir de los clips de cada escena) — nunca de una
+ * escena suelta, que no se publica por separado. */
+function EvidenciaPublicacion({
+  proyectoId,
+  bloque,
+  esVideoFinal,
+}: {
+  proyectoId: string;
+  bloque: BloqueConDias;
+  esVideoFinal: boolean;
+}) {
   const [link, setLink] = useState(bloque.linkPublicacion ?? "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -265,6 +428,12 @@ function EvidenciaPublicacion({ proyectoId, bloque }: { proyectoId: string; bloq
   return (
     <div className="mt-3 border-t border-border pt-3">
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Evidencia de publicación</p>
+      {esVideoFinal ? (
+        <p className="mb-2 text-[11px] text-text-muted">
+          Del video ya ensamblado (ver &ldquo;Ensamblaje final&rdquo; arriba) y publicado — no de una escena
+          suelta.
+        </p>
+      ) : null}
 
       {bloque.instagramEmbedHtml ? (
         <InstagramEmbed html={bloque.instagramEmbedHtml} />
@@ -442,7 +611,11 @@ export function BloqueCard({
           </div>
           <p className="whitespace-pre-wrap text-[14px] text-text">{bloque.texto}</p>
           <GuiaProduccion bloque={bloque} personaje={personaje} />
-          <EvidenciaPublicacion proyectoId={proyectoId} bloque={bloque} />
+          <EvidenciaPublicacion
+            proyectoId={proyectoId}
+            bloque={bloque}
+            esVideoFinal={tieneEscenasDeVideo(parseEscenas(bloque.escenasJson))}
+          />
         </div>
       ) : null}
 
