@@ -90,6 +90,9 @@ export function NuevoActivoForm({
       <Label htmlFor="notas">Notas (opcional)</Label>
       <Textarea id="notas" name="notas" placeholder="Contexto para cuándo usarlo" />
 
+      <Label htmlFor="etiquetas">Etiquetas (opcional, separadas por coma)</Label>
+      <Input id="etiquetas" name="etiquetas" placeholder="Ej: exterior, piscina, día" />
+
       <Button type="submit" disabled={guardando} className="mt-4">
         {guardando ? "Guardando…" : guardado ? "Guardado ✓" : "Guardar activo"}
       </Button>

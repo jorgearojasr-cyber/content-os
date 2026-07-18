@@ -2,6 +2,7 @@ import {
   createActivoArchivo,
   createActivoTexto,
   deleteActivo,
+  editarEtiquetasActivo,
   getActivos,
   renombrarActivo,
 } from "@/lib/actions";
@@ -24,6 +25,7 @@ export default async function ActivosPage({
   const boundCreateTexto = createActivoTexto.bind(null, proyectoId);
   const boundDelete = deleteActivo.bind(null, proyectoId);
   const boundRenombrar = renombrarActivo.bind(null, proyectoId);
+  const boundEditarEtiquetas = editarEtiquetasActivo.bind(null, proyectoId);
 
   return (
     <div className="space-y-5">
@@ -51,7 +53,11 @@ export default async function ActivosPage({
           Los recursos que agregues aquí quedarán disponibles para reutilizar en este proyecto.
         </Empty>
       ) : (
-        <ActivosLista activos={otrosActivos} onDelete={boundDelete} />
+        <ActivosLista
+          activos={otrosActivos}
+          onDelete={boundDelete}
+          onEditarEtiquetas={boundEditarEtiquetas}
+        />
       )}
     </div>
   );

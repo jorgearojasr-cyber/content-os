@@ -511,6 +511,8 @@ export type Activo = {
   nombre: string;
   valor: string;
   notas: string;
+  /** Etiquetas libres separadas por coma ("" = sin etiquetas). */
+  etiquetas: string;
   createdAt: string;
 };
 
@@ -665,7 +667,10 @@ export const ESTILOS_IMAGEN = [
 export const TIPOS_ACTIVO = [
   { value: "foto", label: "Fotografía", archivo: true },
   { value: "video", label: "Video", archivo: true },
+  { value: "audio", label: "Audio", archivo: true },
   { value: "musica", label: "Música", archivo: true },
+  { value: "animacion", label: "Animación", archivo: true },
+  { value: "logo", label: "Logo", archivo: true },
   { value: "icono", label: "Ícono", archivo: true },
   { value: "prompt", label: "Prompt", archivo: false },
   { value: "voz", label: "Voz", archivo: false },

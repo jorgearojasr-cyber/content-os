@@ -234,6 +234,10 @@ export const activos = pgTable("activos", {
   nombre: text("nombre").notNull(),
   valor: text("valor").notNull().default(""),
   notas: text("notas").notNull().default(""),
+  // Etiquetas libres separadas por coma (ej. "exterior, piscina, dia") —
+  // para busqueda y filtros. Texto plano a proposito: se busca con
+  // includes(), no necesita estructura. "" = sin etiquetas.
+  etiquetas: text("etiquetas").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

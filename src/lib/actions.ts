@@ -1090,9 +1090,10 @@ export async function createActivoTexto(proyectoId: string, formData: FormData) 
   const nombre = String(formData.get("nombre") ?? "").trim();
   const valor = String(formData.get("valor") ?? "").trim();
   const notas = String(formData.get("notas") ?? "").trim();
+  const etiquetas = String(formData.get("etiquetas") ?? "").trim();
   if (!tipo || !nombre) throw new Error("El activo necesita tipo y nombre.");
 
-  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas });
+  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas, etiquetas });
   revalidatePath(`/proyectos/${proyectoId}/activos`);
 }
 
@@ -1100,13 +1101,28 @@ export async function createActivoArchivo(proyectoId: string, formData: FormData
   const tipo = String(formData.get("tipo") ?? "").trim();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const notas = String(formData.get("notas") ?? "").trim();
+  const etiquetas = String(formData.get("etiquetas") ?? "").trim();
   const archivo = formData.get("archivo");
   if (!tipo || !nombre) throw new Error("El activo necesita tipo y nombre.");
   if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
 
   const valor = await guardarArchivoSubido(archivo);
 
-  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas });
+  await db.insert(activos).values({ id: randomUUID(), proyectoId, tipo, nombre, valor, notas, etiquetas });
+  revalidatePath(`/proyectos/${proyectoId}/activos`);
+}
+
+/** Edita solo las etiquetas de un activo ya guardado — mismo patrón que
+ * `renombrarActivo`, para no exigir re-subir el archivo por un cambio de
+ * etiquetas. Etiquetas vacías son válidas (quitar todas). */
+export async function editarEtiquetasActivo(proyectoId: string, activoId: string, formData: FormData) {
+  const etiquetas = String(formData.get("etiquetas") ?? "").trim();
+
+  await db
+    .update(activos)
+    .set({ etiquetas })
+    .where(and(eq(activos.id, activoId), eq(activos.proyectoId, proyectoId)));
+
   revalidatePath(`/proyectos/${proyectoId}/activos`);
 }
 
