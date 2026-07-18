@@ -4,13 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/** Exactamente 5 ítems — no hay Recursos, Campañas ni Configuración en
- * esta app, así que no se agregan aquí tampoco. Íconos igual que el
- * rediseño de Claude Design (Dashboard.dc.html). */
+/** No hay Recursos, Campañas ni Configuración en esta app, así que no se
+ * agregan aquí tampoco. Íconos igual que el rediseño de Claude Design
+ * (Dashboard.dc.html). */
 const ITEMS = [
   { href: "/", label: "Inicio", icono: "🏠" },
   { href: "/proyectos", label: "Proyectos", icono: "📁" },
   { href: "/segundo-cerebro", label: "Segundo Cerebro", icono: "🧠" },
+  { href: "/calendario", label: "Calendario", icono: "📅" },
+  { href: "/prompts", label: "Prompts", icono: "📝" },
   { href: "/personajes", label: "Personajes", icono: "👤" },
   { href: "/biblioteca", label: "Biblioteca", icono: "📖" },
 ] as const;

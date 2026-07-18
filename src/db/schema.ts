@@ -170,6 +170,12 @@ export const bloques = pgTable("bloques", {
   // falló la llamada, no hay credenciales configuradas, o el link no es
   // válido — ahí la UI cae al botón "Ver publicación" con el link crudo.
   instagramEmbedHtml: text("instagram_embed_html"),
+  // Fecha de publicación PLANEADA (no la fecha real de publicación, que es
+  // `linkPublicacion`/evidencia) — "YYYY-MM-DD", elegida a mano por el
+  // usuario desde el Calendario o esta misma pieza. Null = sin asignar,
+  // no aparece en el Calendario, solo vive en Biblioteca. No dispara nada
+  // automático (sin recordatorios/notificaciones), es solo organización.
+  fechaPlanificada: text("fecha_planificada"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),
@@ -232,6 +238,26 @@ export const conocimiento = pgTable("conocimiento", {
     .references(() => proyectos.id, { onDelete: "cascade" }),
   titulo: text("titulo").notNull(),
   contenido: text("contenido").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
+ * Biblioteca de Prompts: texto de referencia guardado a mano (no una pieza
+ * de Biblioteca) que el usuario copia y pega manualmente en el flujo de
+ * "Exportar contexto" — sin ninguna relación automática con una pieza o
+ * escena específica. `proyectoId` nullable a propósito, mismo patrón que
+ * `personajes`: null = prompt GLOBAL, reutilizable en cualquier proyecto;
+ * con un proyecto asignado, es exclusivo de ese proyecto.
+ */
+export const promptsGuardados = pgTable("prompts_guardados", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  texto: text("texto").notNull(),
+  // Una de CATEGORIAS_PROMPT (types.ts): Logo | Personaje | Video | Imagen | Otro.
+  categoria: text("categoria").notNull().default("Otro"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

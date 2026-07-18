@@ -3,9 +3,18 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { activos, avatares, bloques, identidades, notas, personajes, proyectos } from "@/db/schema";
+import {
+  activos,
+  avatares,
+  bloques,
+  identidades,
+  notas,
+  personajes,
+  promptsGuardados,
+  proyectos,
+} from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
 import { completarProyecto, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
 import type { EscenaRevisada, IdentidadCompletaSugerida, PersonajeSugerido, PlanEdicion } from "./ai";
@@ -34,6 +43,7 @@ import type {
   IdentidadInput,
   Personaje,
   PersonajeInput,
+  PromptGuardado,
   TipoFotoPersonaje,
 } from "./types";
 
@@ -1291,4 +1301,122 @@ export async function getDashboardData() {
     bloquesRecientes,
     notasSinVincular,
   };
+}
+
+// ---------------------------------------------------------------------
+// Calendario de contenido
+// ---------------------------------------------------------------------
+
+/** Todas las piezas activas (de cualquier proyecto) que tienen una fecha de
+ * publicación planeada asignada — las sin fecha no aparecen acá, siguen
+ * viviendo solo en Biblioteca. `proyectoNombre` ya resuelto, mismo criterio
+ * que `getTodosLosBloquesActivos`. */
+export async function getBloquesParaCalendario(): Promise<
+  { id: string; proyectoId: string; proyectoNombre: string; titulo: string; formato: string; fechaPlanificada: string }[]
+> {
+  const [todosBloques, todosProyectos] = await Promise.all([
+    db
+      .select({
+        id: bloques.id,
+        proyectoId: bloques.proyectoId,
+        titulo: bloques.titulo,
+        formato: bloques.formato,
+        fechaPlanificada: bloques.fechaPlanificada,
+      })
+      .from(bloques)
+      .where(eq(bloques.estado, "activo")),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosBloques
+    .filter((b): b is typeof b & { fechaPlanificada: string } => !!b.fechaPlanificada)
+    .map((b) => ({ ...b, proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "" }));
+}
+
+/** Asigna, reasigna o quita (`fecha` vacío) la fecha de publicación planeada
+ * de una pieza — pura organización manual, no dispara nada automático. */
+export async function asignarFechaPlanificada(proyectoId: string, bloqueId: string, formData: FormData) {
+  const fecha = String(formData.get("fecha") ?? "").trim();
+
+  await db
+    .update(bloques)
+    .set({ fechaPlanificada: fecha || null })
+    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
+
+  revalidatePath("/calendario");
+  revalidatePath("/biblioteca");
+  revalidatePath(`/proyectos/${proyectoId}/biblioteca`);
+}
+
+// ---------------------------------------------------------------------
+// Biblioteca de Prompts
+// ---------------------------------------------------------------------
+
+function revalidarRutasPrompt(proyectoId: string | null) {
+  revalidatePath("/prompts");
+  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/prompts`);
+}
+
+/** Prompts GLOBALES (`proyectoId` null) — visibles en /prompts y, con el
+ * chip "Global", dentro de cualquier proyecto. Más reciente primero, mismo
+ * criterio de orden que el resto de listas de esta app. */
+export async function getPromptsGlobales(): Promise<PromptGuardado[]> {
+  return db.select().from(promptsGuardados).where(isNull(promptsGuardados.proyectoId)).orderBy(desc(promptsGuardados.createdAt));
+}
+
+/** Prompts de UN proyecto (los suyos + los globales combinados) — usado por
+ * la pestaña "Prompts" del proyecto. La pantalla distingue los globales
+ * mirando `proyectoId === null` (mismo patrón que Personajes del estudio)
+ * para mostrar el chip "Global". */
+export async function getPromptsDeProyecto(proyectoId: string): Promise<PromptGuardado[]> {
+  const [propios, globales] = await Promise.all([
+    db.select().from(promptsGuardados).where(eq(promptsGuardados.proyectoId, proyectoId)),
+    getPromptsGlobales(),
+  ]);
+  return [...propios, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+const CAMPOS_PROMPT = ["titulo", "texto", "categoria"] as const;
+
+function leerCamposPrompt(formData: FormData) {
+  const valores = Object.fromEntries(CAMPOS_PROMPT.map((c) => [c, String(formData.get(c) ?? "").trim()])) as Record<
+    (typeof CAMPOS_PROMPT)[number],
+    string
+  >;
+  if (!valores.titulo) throw new Error("El prompt necesita un título.");
+  if (!valores.texto) throw new Error("El prompt necesita texto.");
+  return valores;
+}
+
+/** `proyectoId: null` desde /prompts (global) — desde la pestaña "Prompts"
+ * de un proyecto viene pre-aplicado con `.bind()`, igual que `createPersonaje`. */
+export async function createPromptGuardado(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+  const valores = leerCamposPrompt(formData);
+  const id = randomUUID();
+
+  await db.insert(promptsGuardados).values({ id, proyectoId, ...valores });
+
+  revalidarRutasPrompt(proyectoId);
+  return { id };
+}
+
+export async function updatePromptGuardado(promptId: string, formData: FormData) {
+  const valores = leerCamposPrompt(formData);
+
+  const [actualizado] = await db
+    .update(promptsGuardados)
+    .set(valores)
+    .where(eq(promptsGuardados.id, promptId))
+    .returning({ proyectoId: promptsGuardados.proyectoId });
+
+  revalidarRutasPrompt(actualizado?.proyectoId ?? null);
+}
+
+export async function deletePromptGuardado(promptId: string) {
+  const [eliminado] = await db
+    .delete(promptsGuardados)
+    .where(eq(promptsGuardados.id, promptId))
+    .returning({ proyectoId: promptsGuardados.proyectoId });
+
+  revalidarRutasPrompt(eliminado?.proyectoId ?? null);
 }

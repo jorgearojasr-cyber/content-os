@@ -219,6 +219,9 @@ export type Bloque = {
   /** HTML del embed de Instagram oEmbed, cacheado — `null` si todavía no se
    * pidió, si la llamada falló, o si no hay credenciales configuradas. */
   instagramEmbedHtml: string | null;
+  /** Fecha de publicación PLANEADA, "YYYY-MM-DD" — `null` = sin asignar, no
+   * aparece en el Calendario. Ver columna `fechaPlanificada` en schema.ts. */
+  fechaPlanificada: string | null;
   createdAt: string;
 };
 
@@ -451,6 +454,27 @@ export type Conocimiento = {
   proyectoId: string;
   titulo: string;
   contenido: string;
+  createdAt: string;
+};
+
+/** Categorías fijas de la Biblioteca de Prompts — sin categoría libre a
+ * propósito, para que el filtro por categoría sea siempre exhaustivo. */
+export const CATEGORIAS_PROMPT = ["Logo", "Personaje", "Video", "Imagen", "Otro"] as const;
+export type CategoriaPrompt = (typeof CATEGORIAS_PROMPT)[number];
+
+/**
+ * Un prompt de texto guardado a mano como referencia — sin relación
+ * automática con ninguna pieza/escena, el usuario lo copia y pega
+ * manualmente en el flujo de "Exportar contexto". `proyectoId` nullable:
+ * `null` = global (visible en todos los proyectos, con chip "Global");
+ * con un proyecto asignado, exclusivo de ese proyecto.
+ */
+export type PromptGuardado = {
+  id: string;
+  proyectoId: string | null;
+  titulo: string;
+  texto: string;
+  categoria: string;
   createdAt: string;
 };
 

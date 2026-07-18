@@ -72,6 +72,9 @@ export function PromptDialog(props: {
   title: string;
   defaultValue?: string;
   placeholder?: string;
+  /** "date" para elegir una fecha (ej. Calendario) en vez de texto libre —
+   * el resto del componente (validación, botones) queda igual. */
+  type?: "text" | "date";
   onSubmit: (value: string) => void;
 }) {
   // Se monta desde cero cada vez que se abre, para que el valor inicial
@@ -85,12 +88,14 @@ function PromptDialogContent({
   title,
   defaultValue = "",
   placeholder,
+  type = "text",
   onSubmit,
 }: {
   onOpenChange: (open: boolean) => void;
   title: string;
   defaultValue?: string;
   placeholder?: string;
+  type?: "text" | "date";
   onSubmit: (value: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue);
@@ -100,6 +105,7 @@ function PromptDialogContent({
       <p className="font-display text-[16px]">{title}</p>
       <input
         autoFocus
+        type={type}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}

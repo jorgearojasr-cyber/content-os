@@ -8,6 +8,7 @@ const TABS = [
   { slug: "identidad", label: "Identidad" },
   { slug: "biblioteca", label: "Biblioteca" },
   { slug: "activos", label: "Activos" },
+  { slug: "prompts", label: "Prompts" },
 ] as const;
 
 export function ProjectNav({ proyectoId }: { proyectoId: string }) {

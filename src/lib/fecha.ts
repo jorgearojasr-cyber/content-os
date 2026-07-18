@@ -53,3 +53,34 @@ export function saludoChile(): string {
   if (hora < 19) return "Buenas tardes";
   return "Buenas noches";
 }
+
+const MESES_CORTOS = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+/**
+ * Formatea una fecha PLANA "YYYY-MM-DD" (sin hora, sin zona horaria — ej.
+ * `bloque.fechaPlanificada`) como "18 jul 2026". A diferencia de
+ * `formatearFechaChile`, nunca construye un `Date` (que interpretaría
+ * "YYYY-MM-DD" como medianoche UTC y podría mostrar el día anterior según
+ * la zona horaria del navegador) — el string ya es el día exacto elegido,
+ * se parsea con split, no con el constructor de Date.
+ */
+export function formatearFechaPlanificada(fecha: string): string {
+  const m = fecha.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const [, anio, mes, dia] = m;
+  const mesTexto = MESES_CORTOS[Number(mes) - 1] ?? "";
+  return `${Number(dia)} ${mesTexto} ${anio}`;
+}

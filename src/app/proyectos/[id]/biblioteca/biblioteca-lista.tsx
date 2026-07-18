@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   archivarBloque,
+  asignarFechaPlanificada,
   desarchivarBloque,
   duplicarBloque,
   eliminarBloquePermanente,
@@ -16,7 +17,7 @@ import { Button, Card, Chip } from "@/components/ui";
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
 import { ConfirmDialog, PromptDialog, SelectDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
-import { formatearFechaChile } from "@/lib/fecha";
+import { formatearFechaChile, formatearFechaPlanificada } from "@/lib/fecha";
 import { urlImagenVisible } from "@/lib/imagen-url";
 import {
   ETIQUETA_TIPO_FOTO_PERSONAJE,
@@ -763,6 +764,7 @@ export function BloqueCard({
   const [confirmEliminar, setConfirmEliminar] = useState(false);
   const [renombrando, setRenombrando] = useState(false);
   const [moviendo, setMoviendo] = useState(false);
+  const [asignandoFecha, setAsignandoFecha] = useState(false);
   const [expandido, setExpandido] = useState(false);
 
   return (
@@ -784,6 +786,11 @@ export function BloqueCard({
                   · se elimina en {bloque.diasRestantes} día{bloque.diasRestantes === 1 ? "" : "s"}
                 </span>
               ) : null}
+              {bloque.fechaPlanificada ? (
+                <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10.5px] text-accent">
+                  📅 {formatearFechaPlanificada(bloque.fechaPlanificada)}
+                </span>
+              ) : null}
             </div>
           </div>
         </button>
@@ -801,6 +808,16 @@ export function BloqueCard({
               {otrosProyectos.length > 0 ? (
                 <ActionMenuItem onSelect={() => setMoviendo(true)}>
                   Mover a otro proyecto
+                </ActionMenuItem>
+              ) : null}
+              <ActionMenuItem onSelect={() => setAsignandoFecha(true)}>
+                {bloque.fechaPlanificada ? "Cambiar fecha planificada" : "Asignar fecha planificada"}
+              </ActionMenuItem>
+              {bloque.fechaPlanificada ? (
+                <ActionMenuItem
+                  onSelect={() => asignarFechaPlanificada(proyectoId, bloque.id, new FormData())}
+                >
+                  Quitar fecha planificada
                 </ActionMenuItem>
               ) : null}
               <ActionMenuItem onSelect={() => archivarBloque(proyectoId, bloque.id)}>
@@ -884,6 +901,18 @@ export function BloqueCard({
           const fd = new FormData();
           fd.set("titulo", titulo);
           renombrarBloque(proyectoId, bloque.id, fd);
+        }}
+      />
+      <PromptDialog
+        open={asignandoFecha}
+        onOpenChange={setAsignandoFecha}
+        type="date"
+        title="Fecha de publicación planificada"
+        defaultValue={bloque.fechaPlanificada ?? ""}
+        onSubmit={(fecha) => {
+          const fd = new FormData();
+          fd.set("fecha", fecha);
+          asignarFechaPlanificada(proyectoId, bloque.id, fd);
         }}
       />
       <SelectDialog
