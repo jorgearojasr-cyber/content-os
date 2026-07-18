@@ -102,6 +102,27 @@ export const personajes = pgTable("personajes", {
   vozDescrita: text("voz_descrita").notNull().default(""),
   gestos: text("gestos").notNull().default(""),
   muletillas: text("muletillas").notNull().default(""),
+  // Expansión "Creative OS": el Personaje como entidad completa. Todos con
+  // default "" — los Personajes existentes (y sus fotos) siguen intactos.
+  // NOTA de mapeo: "forma de hablar" ya vive en vozDescrita/gestos/
+  // muletillas — no se duplica.
+  historia: text("historia").notNull().default(""),
+  edad: text("edad").notNull().default(""),
+  profesion: text("profesion").notNull().default(""),
+  // En qué situación/entorno aparece típicamente (ej. "siempre en obra").
+  contexto: text("contexto").notNull().default(""),
+  // Prompts maestros: texto listo para pegar en cualquier IA externa que
+  // deba representar a este Personaje — por medio (general/imagen/video/voz).
+  promptMaestro: text("prompt_maestro").notNull().default(""),
+  promptImagen: text("prompt_imagen").notNull().default(""),
+  promptVideo: text("prompt_video").notNull().default(""),
+  promptVoz: text("prompt_voz").notNull().default(""),
+  // Notas internas de trabajo — NUNCA se compilan en el contexto exportado.
+  notas: text("notas").notNull().default(""),
+  // Versiones guardadas del Personaje: arreglo de snapshots {fecha, nombre,
+  // campos} de los campos de texto (las fotos no se versionan — viven en
+  // Blob y siguen siendo las actuales). Ver VersionPersonaje en types.ts.
+  versionesJson: jsonb("versiones_json").notNull().default([]),
   // Arreglo de hasta 4 URLs de Blob — mismo formato que la antigua columna
   // `identidades.fotos_urls_json`, ahora colgando del Personaje dueño.
   fotosUrlsJson: jsonb("fotos_urls_json").notNull().default([]),

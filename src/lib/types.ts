@@ -259,27 +259,86 @@ export type Personaje = {
   vozDescrita: string;
   gestos: string;
   muletillas: string;
+  // Ficha completa (Creative OS) — "forma de hablar" ya vive en
+  // vozDescrita/gestos/muletillas, no se duplica.
+  historia: string;
+  edad: string;
+  profesion: string;
+  contexto: string;
+  /** Prompts maestros por medio — texto listo para pegar en la IA externa. */
+  promptMaestro: string;
+  promptImagen: string;
+  promptVideo: string;
+  promptVoz: string;
+  /** Notas internas de trabajo — nunca se compilan en el contexto. */
+  notas: string;
+  /** Columna `jsonb` — arreglo de `VersionPersonaje` (o `[]`). Usar
+   * `parseVersionesPersonaje()`. Se administra con sus propias acciones
+   * (guardar/restaurar versión), no desde el formulario de edición. */
+  versionesJson: unknown;
   /** Columna `jsonb` — arreglo de hasta `MAX_FOTOS_PERSONAJE` fotos tipadas
    * `{url, tipo}` (o `[]`). Usar `parseFotosPersonaje()`. */
   fotosUrlsJson: unknown;
   createdAt: string;
 };
 
-export type PersonajeInput = Omit<Personaje, "id" | "proyectoId" | "createdAt" | "fotosUrlsJson">;
+export type PersonajeInput = Omit<
+  Personaje,
+  "id" | "proyectoId" | "createdAt" | "fotosUrlsJson" | "versionesJson"
+>;
+
+/** Los campos de texto de un Personaje que un snapshot de versión captura —
+ * las fotos no se versionan (viven en Blob, siguen siendo las actuales). */
+export const CAMPOS_VERSION_PERSONAJE = [
+  "nombre",
+  "personalidad",
+  "fisica",
+  "vestuario",
+  "vozDescrita",
+  "gestos",
+  "muletillas",
+  "historia",
+  "edad",
+  "profesion",
+  "contexto",
+  "promptMaestro",
+  "promptImagen",
+  "promptVideo",
+  "promptVoz",
+  "notas",
+] as const satisfies ReadonlyArray<keyof PersonajeInput>;
+
+/** Un snapshot completo de la ficha de texto de un Personaje en un momento
+ * dado — guardado a mano con "Guardar versión", restaurable después. */
+export type VersionPersonaje = {
+  /** ISO string del momento en que se guardó. */
+  fecha: string;
+  /** Nombre libre que el usuario le dio a la versión ("" = sin nombre). */
+  nombre: string;
+  campos: Record<(typeof CAMPOS_VERSION_PERSONAJE)[number], string>;
+};
+
+/** Adapta `versionesJson` (columna `jsonb`) a un arreglo de versiones; ante
+ * un valor ausente o con forma inesperada, devuelve un arreglo vacío. */
+export function parseVersionesPersonaje(json: unknown): VersionPersonaje[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter(
+    (v): v is VersionPersonaje =>
+      typeof v === "object" &&
+      v !== null &&
+      typeof (v as { fecha?: unknown }).fecha === "string" &&
+      typeof (v as { campos?: unknown }).campos === "object" &&
+      (v as { campos?: unknown }).campos !== null,
+  );
+}
 
 /** True si el personaje tiene al menos un campo de texto con contenido
- * (fotos no cuentan — mismo criterio que antes en Identidad). */
+ * (fotos sí cuentan; notas internas no definen "contenido" por sí solas
+ * pero se incluyen igual — cualquier dato guardado hace real al Personaje). */
 export function personajeTieneContenido(personaje: Personaje): boolean {
   return (
-    [
-      personaje.nombre,
-      personaje.personalidad,
-      personaje.fisica,
-      personaje.vestuario,
-      personaje.vozDescrita,
-      personaje.gestos,
-      personaje.muletillas,
-    ].some((v) => v.trim().length > 0) || parseFotosPersonaje(personaje.fotosUrlsJson).length > 0
+    CAMPOS_VERSION_PERSONAJE.some((campo) => personaje[campo].trim().length > 0) ||
+    parseFotosPersonaje(personaje.fotosUrlsJson).length > 0
   );
 }
 

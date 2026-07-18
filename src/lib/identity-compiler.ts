@@ -55,6 +55,10 @@ function formatearFotosPersonaje(personaje: Personaje | null | undefined): strin
   return fotos.map((f, i) => `${i + 1}. ${ETIQUETA_TIPO_FOTO_PERSONAJE[f.tipo]}: ${f.url}`).join("\n");
 }
 
+// Los campos nuevos de la ficha completa van AL FINAL a propósito: con
+// ellos vacíos, la salida compilada de un Personaje existente queda
+// byte-idéntica a la de antes de la expansión. `notas` NO se compila —
+// son notas internas de trabajo, nunca parte del contexto exportado.
 const CAMPOS_PERSONAJE: Array<[keyof Personaje, string]> = [
   ["personalidad", "Personalidad"],
   ["fisica", "Descripción física"],
@@ -62,6 +66,14 @@ const CAMPOS_PERSONAJE: Array<[keyof Personaje, string]> = [
   ["vozDescrita", "Voz (descripción)"],
   ["gestos", "Gestos"],
   ["muletillas", "Muletillas"],
+  ["edad", "Edad"],
+  ["profesion", "Profesión"],
+  ["historia", "Historia"],
+  ["contexto", "Contexto habitual"],
+  ["promptMaestro", "Prompt maestro"],
+  ["promptImagen", "Prompt para imagen"],
+  ["promptVideo", "Prompt para video"],
+  ["promptVoz", "Prompt para voz"],
 ];
 
 /** Un Personaje dentro de un bloque "### N. Nombre" — usado solo cuando hay

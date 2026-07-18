@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import {
+  eliminarVersionPersonaje,
+  guardarVersionPersonaje,
+  restaurarVersionPersonaje,
+} from "@/lib/actions";
 import { Button, Card, Textarea } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
-import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ConfirmDialog, PromptDialog } from "@/components/confirm-dialog";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FotosPersonaje } from "@/components/fotos-personaje";
 import { explicarError } from "@/lib/errores";
+import { formatearFechaChile } from "@/lib/fecha";
 import { extraerFragmento } from "@/lib/reutilizacion";
-import { parseFotosPersonaje } from "@/lib/types";
+import { parseFotosPersonaje, parseVersionesPersonaje } from "@/lib/types";
 import type { FotoPersonaje, Personaje, TipoFotoPersonaje } from "@/lib/types";
 import type { PersonajeSugerido } from "@/lib/ai";
 
@@ -280,6 +286,78 @@ export function PersonajeForm({
           defaultValue={personaje?.muletillas}
           multiline={false}
         />
+
+        <p className="mt-5 border-t border-border pt-4 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+          Ficha completa
+        </p>
+        <FieldWithHelp
+          label="Edad"
+          name="edad"
+          defaultValue={personaje?.edad}
+          placeholder="Ej: 58 años"
+          multiline={false}
+        />
+        <FieldWithHelp
+          label="Profesión"
+          name="profesion"
+          defaultValue={personaje?.profesion}
+          placeholder="Ej: maestro de construcción con 30 años de experiencia"
+          multiline={false}
+        />
+        <FieldWithHelp
+          label="Historia"
+          name="historia"
+          defaultValue={personaje?.historia}
+          tip="De dónde viene y por qué sabe lo que sabe — el trasfondo que lo hace creíble."
+          placeholder="Ej: partió como ayudante a los 15 años en obras del sur..."
+        />
+        <FieldWithHelp
+          label="Contexto habitual"
+          name="contexto"
+          defaultValue={personaje?.contexto}
+          tip="Dónde y en qué situación aparece típicamente."
+          placeholder="Ej: siempre en obra, rodeado de materiales"
+          multiline={false}
+        />
+
+        <p className="mt-5 border-t border-border pt-4 text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+          Prompts maestros (para IA externa)
+        </p>
+        <FieldWithHelp
+          label="Prompt maestro"
+          name="promptMaestro"
+          defaultValue={personaje?.promptMaestro}
+          tip="La descripción canónica del personaje, lista para pegar en cualquier IA — se incluye en el contexto exportado."
+          placeholder="Ej: Eres Don José, maestro chileno de 58 años que explica construcción con ejemplos simples..."
+        />
+        <FieldWithHelp
+          label="Prompt para imagen"
+          name="promptImagen"
+          defaultValue={personaje?.promptImagen}
+          tip="Instrucciones fijas al generar imágenes de este personaje (además de las fotos de referencia)."
+          placeholder="Ej: usa las fotos de referencia; luz natural, encuadre a la altura de los ojos"
+        />
+        <FieldWithHelp
+          label="Prompt para video"
+          name="promptVideo"
+          defaultValue={personaje?.promptVideo}
+          tip="Instrucciones fijas al animar/generar video de este personaje."
+          placeholder="Ej: movimientos calmados, gesticula con las manos al explicar"
+        />
+        <FieldWithHelp
+          label="Prompt para voz"
+          name="promptVoz"
+          defaultValue={personaje?.promptVoz}
+          tip="Instrucciones fijas para clonar o generar su voz (ElevenLabs u otra)."
+          placeholder="Ej: voz grave, pausada, acento chileno marcado"
+        />
+        <FieldWithHelp
+          label="Notas internas"
+          name="notas"
+          defaultValue={personaje?.notas}
+          tip="Apuntes de trabajo — nunca se incluyen en el contexto exportado."
+        />
+
         <div className="mt-3.5">
           <label className="mb-1 block text-[12.5px] text-text-muted">Fotos de referencia</label>
           <FotosPersonaje fotosIniciales={fotosIniciales} onSubir={onSubirFoto} onEliminar={onEliminarFoto} />
@@ -291,6 +369,114 @@ export function PersonajeForm({
           </Button>
         </div>
       </form>
+
+      {personaje ? <VersionesPersonaje personaje={personaje} /> : null}
     </Card>
+  );
+}
+
+/** Versiones guardadas de la ficha (solo para Personajes ya guardados) —
+ * snapshots manuales de los campos de texto, restaurables. Vive FUERA del
+ * <form> de edición: guardar/restaurar/eliminar versiones son acciones
+ * inmediatas contra el servidor, no parte del submit del formulario. */
+function VersionesPersonaje({ personaje }: { personaje: Personaje }) {
+  const versiones = parseVersionesPersonaje(personaje.versionesJson);
+  const [guardandoVersion, setGuardandoVersion] = useState(false);
+  const [restaurar, setRestaurar] = useState<number | null>(null);
+  const [eliminar, setEliminar] = useState<number | null>(null);
+  const [error, setError] = useState("");
+
+  async function correr(accion: () => Promise<void>) {
+    setError("");
+    try {
+      await accion();
+    } catch (e) {
+      setError(explicarError(e));
+    }
+  }
+
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-text-muted">
+          Versiones guardadas
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          className="px-2.5 py-1 text-[12.5px]"
+          onClick={() => setGuardandoVersion(true)}
+        >
+          Guardar versión actual
+        </Button>
+      </div>
+      <p className="mt-1 text-[11.5px] text-text-muted">
+        Un snapshot de la ficha de texto tal como está guardada ahora (las fotos no se versionan).
+        Guarda una versión antes de un cambio grande para poder volver atrás.
+      </p>
+
+      {versiones.length > 0 ? (
+        <ul className="mt-2.5 space-y-1.5">
+          {versiones.map((v, i) => (
+            <li
+              key={`${v.fecha}-${i}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2"
+            >
+              <span className="text-[12.5px] text-text">
+                {v.nombre || `Versión ${i + 1}`}
+                <span className="ml-1.5 text-[11.5px] text-text-muted">
+                  {formatearFechaChile(v.fecha)}
+                </span>
+              </span>
+              <span className="flex gap-1.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="px-2.5 py-1 text-[12px]"
+                  onClick={() => setRestaurar(i)}
+                >
+                  Restaurar
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="px-2.5 py-1 text-[12px]"
+                  onClick={() => setEliminar(i)}
+                >
+                  Eliminar
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
+
+      <PromptDialog
+        open={guardandoVersion}
+        onOpenChange={setGuardandoVersion}
+        title="Nombre de esta versión"
+        placeholder="Ej: antes del cambio de vestuario"
+        onSubmit={(nombre) => correr(() => guardarVersionPersonaje(personaje.id, nombre))}
+      />
+      <ConfirmDialog
+        open={restaurar !== null}
+        onOpenChange={(open) => !open && setRestaurar(null)}
+        title="¿Restaurar esta versión?"
+        description="La ficha de texto vuelve a ese snapshot (las fotos no cambian). La ficha actual se pierde salvo que ya la hayas guardado como versión."
+        confirmLabel="Restaurar"
+        variant="primary"
+        onConfirm={() => restaurar !== null && correr(() => restaurarVersionPersonaje(personaje.id, restaurar))}
+      />
+      <ConfirmDialog
+        open={eliminar !== null}
+        onOpenChange={(open) => !open && setEliminar(null)}
+        title="¿Eliminar esta versión?"
+        description="Solo se borra el snapshot — la ficha actual no cambia."
+        confirmLabel="Eliminar"
+        onConfirm={() => eliminar !== null && correr(() => eliminarVersionPersonaje(personaje.id, eliminar))}
+      />
+    </div>
   );
 }

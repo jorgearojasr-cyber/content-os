@@ -23,6 +23,7 @@ import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
+  CAMPOS_VERSION_PERSONAJE,
   esConversionAVideo,
   fotoPrincipal,
   MAX_FOTOS_PERSONAJE,
@@ -30,6 +31,7 @@ import {
   parseFotosPersonaje,
   parsePersonajeIds,
   parsePlanEdicion,
+  parseVersionesPersonaje,
   TIPOS_ACTIVO,
   TIPOS_FOTO_PERSONAJE,
 } from "./types";
@@ -273,15 +275,9 @@ function revalidarRutasPersonaje(proyectoId: string | null) {
   }
 }
 
-const PERSONAJE_CAMPOS = [
-  "nombre",
-  "personalidad",
-  "fisica",
-  "vestuario",
-  "vozDescrita",
-  "gestos",
-  "muletillas",
-] as const satisfies ReadonlyArray<keyof PersonajeInput>;
+// Mismos campos que captura un snapshot de versión — una sola lista de
+// verdad para el formulario, el guardado y el versionado.
+const PERSONAJE_CAMPOS = CAMPOS_VERSION_PERSONAJE;
 
 function leerCamposPersonaje(formData: FormData) {
   return Object.fromEntries(
@@ -368,6 +364,59 @@ export async function deletePersonaje(personajeId: string) {
   }
 
   revalidarRutasPersonaje(existente?.proyectoId ?? null);
+}
+
+/** Guarda un snapshot de la ficha de texto ACTUAL del Personaje (las fotos
+ * no se versionan — siguen siendo las actuales) al final de su lista de
+ * versiones, con un nombre libre opcional. Nunca modifica la ficha. */
+export async function guardarVersionPersonaje(personajeId: string, nombreVersion: string) {
+  const personaje = await getPersonaje(personajeId);
+  if (!personaje) throw new Error("El personaje ya no existe.");
+
+  const campos = Object.fromEntries(
+    CAMPOS_VERSION_PERSONAJE.map((campo) => [campo, personaje[campo]]),
+  ) as Record<(typeof CAMPOS_VERSION_PERSONAJE)[number], string>;
+
+  const versiones = [
+    ...parseVersionesPersonaje(personaje.versionesJson),
+    { fecha: new Date().toISOString(), nombre: nombreVersion.trim(), campos },
+  ];
+
+  await db.update(personajes).set({ versionesJson: versiones }).where(eq(personajes.id, personajeId));
+
+  revalidarRutasPersonaje(personaje.proyectoId);
+}
+
+/** Restaura la ficha de texto del Personaje a la versión `indice` de su
+ * lista. Las fotos y la lista de versiones quedan intactas — restaurar no
+ * borra historia, así que siempre se puede volver a la ficha previa si
+ * antes se guardó como versión. */
+export async function restaurarVersionPersonaje(personajeId: string, indice: number) {
+  const personaje = await getPersonaje(personajeId);
+  if (!personaje) throw new Error("El personaje ya no existe.");
+
+  const version = parseVersionesPersonaje(personaje.versionesJson)[indice];
+  if (!version) throw new Error("Esa versión ya no existe.");
+
+  const valores = Object.fromEntries(
+    CAMPOS_VERSION_PERSONAJE.map((campo) => [campo, version.campos[campo] ?? ""]),
+  );
+
+  await db.update(personajes).set(valores).where(eq(personajes.id, personajeId));
+
+  revalidarRutasPersonaje(personaje.proyectoId);
+}
+
+/** Elimina la versión `indice` de la lista — la ficha actual no cambia. */
+export async function eliminarVersionPersonaje(personajeId: string, indice: number) {
+  const personaje = await getPersonaje(personajeId);
+  if (!personaje) throw new Error("El personaje ya no existe.");
+
+  const versiones = parseVersionesPersonaje(personaje.versionesJson).filter((_, i) => i !== indice);
+
+  await db.update(personajes).set({ versionesJson: versiones }).where(eq(personajes.id, personajeId));
+
+  revalidarRutasPersonaje(personaje.proyectoId);
 }
 
 /** Sube una foto de referencia de un `tipo` específico (rostro/perfil/

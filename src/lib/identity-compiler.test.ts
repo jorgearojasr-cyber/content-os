@@ -58,6 +58,16 @@ function basePersonaje(overrides: Partial<Personaje> = {}): Personaje {
     vozDescrita: "",
     gestos: "",
     muletillas: "",
+    historia: "",
+    edad: "",
+    profesion: "",
+    contexto: "",
+    promptMaestro: "",
+    promptImagen: "",
+    promptVideo: "",
+    promptVoz: "",
+    notas: "",
+    versionesJson: [],
     fotosUrlsJson: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -169,6 +179,33 @@ describe("compileIdentity", () => {
     const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
     expect(salida).toContain("## Personaje");
     expect(salida).toContain("Personalidad: Cercano, paciente, con humor sencillo");
+  });
+
+  it("incluye la ficha completa y los prompts maestros del Personaje, pero NUNCA sus notas internas", () => {
+    const personaje = basePersonaje({
+      nombre: "Don José",
+      edad: "58 años",
+      profesion: "Maestro de construcción",
+      historia: "Partió como ayudante a los 15",
+      contexto: "Siempre en obra",
+      promptMaestro: "Eres Don José, maestro chileno...",
+      promptVoz: "Voz grave y pausada",
+      notas: "SECRETO-INTERNO no debe salir",
+    });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
+    expect(salida).toContain("Edad: 58 años");
+    expect(salida).toContain("Profesión: Maestro de construcción");
+    expect(salida).toContain("Historia: Partió como ayudante a los 15");
+    expect(salida).toContain("Contexto habitual: Siempre en obra");
+    expect(salida).toContain("Prompt maestro: Eres Don José, maestro chileno...");
+    expect(salida).toContain("Prompt para voz: Voz grave y pausada");
+    expect(salida).not.toContain("SECRETO-INTERNO");
+  });
+
+  it("con la ficha completa vacía, la salida del Personaje es idéntica a la de antes de la expansión", () => {
+    const personaje = basePersonaje({ nombre: "Don José", personalidad: "Cercano" });
+    const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
+    expect(salida).toBe("## Personaje\nNombre: Don José\nPersonalidad: Cercano");
   });
 
   it("renderiza el avatar SELECCIONADO campo por campo, sin resumir", () => {
