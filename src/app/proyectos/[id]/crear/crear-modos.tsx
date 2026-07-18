@@ -14,7 +14,7 @@ import { ResultadoTabs } from "./resultado-tabs";
 import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { PosicionLogo } from "@/lib/identity-compiler";
-import { iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
+import { fotoPrincipal, iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
 import type { Avatar, Bloque, Identidad, Personaje } from "@/lib/types";
 
 const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
@@ -146,7 +146,7 @@ function PersonajeThumbnails({
         style={{ scrollSnapType: "x mandatory" }}
       >
         {personajes.map((p) => {
-          const foto = parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null;
+          const foto = fotoPrincipal(parseFotosPersonaje(p.fotosUrlsJson));
           return (
             <TilePersonaje
               key={p.id}

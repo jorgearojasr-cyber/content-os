@@ -7,8 +7,8 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PersonajeForm } from "@/app/proyectos/[id]/identidad/personajes-lista";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { urlImagenVisible } from "@/lib/imagen-url";
-import { parseFotosPersonaje } from "@/lib/types";
-import type { Personaje, Proyecto } from "@/lib/types";
+import { fotoPrincipal, parseFotosPersonaje } from "@/lib/types";
+import type { FotoPersonaje, Personaje, Proyecto, TipoFotoPersonaje } from "@/lib/types";
 
 const LARGO_RESUMEN = 90;
 
@@ -42,8 +42,8 @@ export function PersonajesGlobalLista({
   onCreate: (proyectoId: string | null, formData: FormData) => Promise<{ id: string }>;
   onUpdate: (personajeId: string, formData: FormData) => Promise<void>;
   onDelete: (personajeId: string) => Promise<void>;
-  onSubirFoto: (personajeId: string, formData: FormData) => Promise<string[]>;
-  onEliminarFoto: (personajeId: string, url: string) => Promise<string[]>;
+  onSubirFoto: (personajeId: string, tipo: TipoFotoPersonaje, formData: FormData) => Promise<FotoPersonaje[]>;
+  onEliminarFoto: (personajeId: string, url: string) => Promise<FotoPersonaje[]>;
   onSubirTemporal: (formData: FormData) => Promise<string>;
   onEliminarTemporal: (url: string) => Promise<void>;
 }) {
@@ -91,8 +91,8 @@ export function PersonajesGlobalLista({
               setAbierto(null);
             }}
             onCancelar={() => setAbierto(null)}
-            onSubirFoto={onSubirTemporal}
-            onEliminarFoto={onEliminarTemporal}
+            onSubirFoto={(_tipo, fd) => onSubirTemporal(fd)}
+            onEliminarFoto={(_tipo, url) => onEliminarTemporal(url)}
           />
         </div>
       ) : null}
@@ -117,11 +117,11 @@ export function PersonajesGlobalLista({
                       setAbierto(null);
                     }}
                     onCancelar={() => setAbierto(null)}
-                    onSubirFoto={async (fd) => {
-                      const nuevas = await onSubirFoto(p.id, fd);
-                      return nuevas.at(-1) ?? "";
+                    onSubirFoto={async (tipo, fd) => {
+                      const nuevas = await onSubirFoto(p.id, tipo, fd);
+                      return nuevas.find((f) => f.tipo === tipo)?.url ?? "";
                     }}
-                    onEliminarFoto={async (url) => {
+                    onEliminarFoto={async (_tipo, url) => {
                       await onEliminarFoto(p.id, url);
                     }}
                   />
@@ -129,7 +129,7 @@ export function PersonajesGlobalLista({
               );
             }
 
-            const foto = parseFotosPersonaje(p.fotosUrlsJson).at(0);
+            const foto = fotoPrincipal(parseFotosPersonaje(p.fotosUrlsJson));
             const resumen = resumenPersonaje(p);
 
             return (

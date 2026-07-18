@@ -129,16 +129,70 @@ export function ResultadoTabs({
   const promptsVideoCount = escenas.filter((e) => e.promptVideo.trim()).length;
   const guionCount = escenas.filter((e) => e.guionHablado.trim()).length;
 
-  const pestañas: { id: PestanaId; icono: string; etiqueta: string; visible: boolean }[] = [
-    { id: "guion", icono: "📜", etiqueta: "Guión", visible: guionCount > 0 },
-    { id: "escenas", icono: "🎬", etiqueta: "Escenas", visible: escenas.length > 0 },
-    { id: "promptsImagen", icono: "🖼", etiqueta: "Prompts de imágenes", visible: promptsImagenCount > 0 },
-    { id: "promptsVideo", icono: "🎥", etiqueta: "Prompts para video IA", visible: promptsVideoCount > 0 },
-    { id: "narracion", icono: "🎙", etiqueta: "Narración", visible: narracion.trim().length > 0 },
-    { id: "copy", icono: "✍", etiqueta: "Copy", visible: copy.trim().length > 0 },
-    { id: "hashtags", icono: "🏷", etiqueta: "Hashtags", visible: hashtags.trim().length > 0 },
-    { id: "cta", icono: "📌", etiqueta: "CTA", visible: cta.trim().length > 0 },
-    { id: "miniatura", icono: "🖼", etiqueta: "Miniatura", visible: miniatura.trim().length > 0 },
+  const pestañas: { id: PestanaId; icono: string; etiqueta: string; ayuda: string; visible: boolean }[] = [
+    {
+      id: "guion",
+      icono: "📜",
+      etiqueta: "Guión",
+      ayuda: "El texto hablado completo de la pieza.",
+      visible: guionCount > 0,
+    },
+    {
+      id: "escenas",
+      icono: "🎬",
+      etiqueta: "Escenas",
+      ayuda: "Desglose visual escena por escena, con sus prompts de imagen/video.",
+      visible: escenas.length > 0,
+    },
+    {
+      id: "promptsImagen",
+      icono: "🖼",
+      etiqueta: "Prompts de imágenes",
+      ayuda: "Los prompts listos para copiar en herramientas de imagen (Gemini).",
+      visible: promptsImagenCount > 0,
+    },
+    {
+      id: "promptsVideo",
+      icono: "🎥",
+      etiqueta: "Prompts para video IA",
+      ayuda: "Los prompts listos para copiar en herramientas de video (Kling/Runway/Veo).",
+      visible: promptsVideoCount > 0,
+    },
+    {
+      id: "narracion",
+      icono: "🎙",
+      etiqueta: "Narración",
+      ayuda: "La voz en off general de la pieza, aparte del diálogo de cada escena.",
+      visible: narracion.trim().length > 0,
+    },
+    {
+      id: "copy",
+      icono: "✍",
+      etiqueta: "Copy",
+      ayuda: "El texto que acompaña la publicación.",
+      visible: copy.trim().length > 0,
+    },
+    {
+      id: "hashtags",
+      icono: "🏷",
+      etiqueta: "Hashtags",
+      ayuda: "Los hashtags recomendados para la publicación.",
+      visible: hashtags.trim().length > 0,
+    },
+    {
+      id: "cta",
+      icono: "📌",
+      etiqueta: "CTA",
+      ayuda: "El llamado a la acción de cierre.",
+      visible: cta.trim().length > 0,
+    },
+    {
+      id: "miniatura",
+      icono: "🖼",
+      etiqueta: "Miniatura",
+      ayuda: "La imagen de portada/preview de la pieza.",
+      visible: miniatura.trim().length > 0,
+    },
   ];
   const visibles = pestañas.filter((p) => p.visible);
   const [tabActiva, setTabActiva] = useState<PestanaId>(visibles[0]?.id ?? "copy");
@@ -195,6 +249,12 @@ export function ResultadoTabs({
               </button>
             ))}
           </div>
+
+          {visibles.find((p) => p.id === tabActiva) ? (
+            <p className="mt-2 text-[12px] text-text-muted">
+              {visibles.find((p) => p.id === tabActiva)?.ayuda}
+            </p>
+          ) : null}
 
           <div className="mt-3">
             {tabActiva === "guion" ? (

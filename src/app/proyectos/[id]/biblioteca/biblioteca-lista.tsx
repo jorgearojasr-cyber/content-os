@@ -18,7 +18,14 @@ import { ConfirmDialog, PromptDialog, SelectDialog } from "@/components/confirm-
 import { explicarError } from "@/lib/errores";
 import { formatearFechaChile } from "@/lib/fecha";
 import { urlImagenVisible } from "@/lib/imagen-url";
-import { iconoFormato, parseEscenas, type Bloque, type Escena, type PersonajeResumen } from "@/lib/types";
+import {
+  ETIQUETA_TIPO_FOTO_PERSONAJE,
+  iconoFormato,
+  parseEscenas,
+  type Bloque,
+  type Escena,
+  type PersonajeResumen,
+} from "@/lib/types";
 
 export type BloqueConDias = Bloque & { diasRestantes?: number };
 export type Vista = "activos" | "archivados" | "papelera";
@@ -51,13 +58,142 @@ function InstagramEmbed({ html }: { html: string }) {
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+/** Guía para el prompt de imagen fija (Gemini/Nano Banana) — una sola foto
+ * de referencia (la de tipo "rostro"), igual que siempre: ese flujo es de
+ * pegar una foto y un prompt juntos en el chat, no de subir referencias
+ * múltiples a una herramienta. */
+function GuiaImagenFija({ promptVisual, personaje }: { promptVisual: string; personaje?: PersonajeResumen }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Imagen fija (Gemini)
+      </p>
+      <ol className="space-y-3 text-[12.5px] text-text">
+        <li>
+          <p className="font-medium">1. Abre Gemini</p>
+          <a
+            href="https://gemini.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-block text-accent underline"
+          >
+            gemini.google.com ↗
+          </a>
+          <p className="mt-1 text-[11px] text-text-muted">
+            Si el texto en pantalla no sale legible, prueba con ChatGPT/GPT Image en su lugar.
+          </p>
+        </li>
+
+        {personaje?.fotoUrl ? (
+          <li>
+            <p className="font-medium">
+              2. Descarga la foto de referencia de {personaje.nombre || "tu Personaje"}
+            </p>
+            <a
+              href={urlImagenVisible(personaje.fotoUrl)}
+              download
+              className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+            >
+              Descargar foto
+            </a>
+          </li>
+        ) : null}
+
+        <li>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium">3. Copia este prompt</p>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(promptVisual)}
+              className="text-[12px] text-accent hover:underline"
+            >
+              Copiar
+            </button>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
+            {promptVisual}
+          </p>
+        </li>
+
+        <li>
+          <p className="font-medium">4. Cuando tengas la imagen</p>
+          <p className="mt-1 text-[12px] text-text-muted">
+            Publícala y pega el link de Instagram en &ldquo;Evidencia de publicación&rdquo; (abajo)
+            para dejarlo guardado en esta misma pieza.
+          </p>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+/** Guía para el prompt de video IA (Kling/Runway/Veo) — a diferencia de
+ * Gemini, estas herramientas aceptan varias fotos de referencia a la vez
+ * (Elements en Kling, References en Runway), así que ofrece las hasta 4
+ * fotos disponibles del Personaje, cada una con su etiqueta, en vez de una
+ * sola. */
+function GuiaVideoIA({ promptVideo, personaje }: { promptVideo: string; personaje?: PersonajeResumen }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Video IA (Kling / Runway / Veo)
+      </p>
+      <ol className="space-y-3 text-[12.5px] text-text">
+        {personaje && personaje.fotos.length > 0 ? (
+          <li>
+            <p className="font-medium">
+              1. Descarga las fotos de referencia de {personaje.nombre || "tu Personaje"}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {personaje.fotos.map((f) => (
+                <a
+                  key={f.url}
+                  href={urlImagenVisible(f.url)}
+                  download
+                  className="inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
+                >
+                  {ETIQUETA_TIPO_FOTO_PERSONAJE[f.tipo]}
+                </a>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-text-muted">
+              Sube estas fotos como referencia de personaje en Kling (Elements) o Runway
+              (References) antes de generar.
+            </p>
+          </li>
+        ) : null}
+
+        <li>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium">
+              {personaje && personaje.fotos.length > 0 ? "2." : "1."} Copia este prompt
+            </p>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(promptVideo)}
+              className="text-[12px] text-accent hover:underline"
+            >
+              Copiar
+            </button>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
+            {promptVideo}
+          </p>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
 /** Guía de producción de una escena — solo existe si la escena tiene
- * `promptVisual` (componente de imagen fija). Se expande individualmente,
- * sin afectar a las demás escenas de la misma pieza. */
+ * `promptVisual` (imagen fija) y/o `promptVideo` (video IA); cada uno
+ * muestra su propia sub-guía, independiente, cuando aplica. Se expande
+ * individualmente, sin afectar a las demás escenas de la misma pieza. */
 function GuiaProduccionEscena({ escena, personaje }: { escena: Escena; personaje?: PersonajeResumen }) {
   const [abierta, setAbierta] = useState(false);
   const promptVisual = escena.promptVisual?.trim();
-  if (!promptVisual) return null;
+  const promptVideo = escena.promptVideo?.trim();
+  if (!promptVisual && !promptVideo) return null;
 
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2">
@@ -71,71 +207,23 @@ function GuiaProduccionEscena({ escena, personaje }: { escena: Escena; personaje
       </button>
 
       {abierta ? (
-        <ol className="mt-2.5 space-y-3 text-[12.5px] text-text">
-          <li>
-            <p className="font-medium">1. Abre Gemini</p>
-            <a
-              href="https://gemini.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-block text-accent underline"
-            >
-              gemini.google.com ↗
-            </a>
-            <p className="mt-1 text-[11px] text-text-muted">
-              Si el texto en pantalla no sale legible, prueba con ChatGPT/GPT Image en su lugar.
-            </p>
-          </li>
-
-          {personaje?.fotoUrl ? (
-            <li>
-              <p className="font-medium">
-                2. Descarga la foto de referencia de {personaje.nombre || "tu Personaje"}
-              </p>
-              <a
-                href={urlImagenVisible(personaje.fotoUrl)}
-                download
-                className="mt-1 inline-block rounded-lg bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent hover:opacity-80"
-              >
-                Descargar foto
-              </a>
-            </li>
-          ) : null}
-
-          <li>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">3. Copia este prompt</p>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(promptVisual)}
-                className="text-[12px] text-accent hover:underline"
-              >
-                Copiar
-              </button>
-            </div>
-            <p className="mt-1 whitespace-pre-wrap rounded-lg bg-surface-2 p-2.5 text-[12px] text-text-muted">
-              {promptVisual}
-            </p>
-          </li>
-
-          <li>
-            <p className="font-medium">4. Cuando tengas la imagen</p>
-            <p className="mt-1 text-[12px] text-text-muted">
-              Publícala y pega el link de Instagram en &ldquo;Evidencia de publicación&rdquo; (abajo)
-              para dejarlo guardado en esta misma pieza.
-            </p>
-          </li>
-        </ol>
+        <div className="mt-2.5 space-y-4">
+          {promptVisual ? <GuiaImagenFija promptVisual={promptVisual} personaje={personaje} /> : null}
+          {promptVideo ? <GuiaVideoIA promptVideo={promptVideo} personaje={personaje} /> : null}
+        </div>
       ) : null}
     </div>
   );
 }
 
 /** Sección "Guía de producción": una guía por escena, solo para las que
- * tienen componente de imagen fija (`promptVisual`). No aparece si ninguna
- * escena la tiene (piezas de puro texto, o guardadas antes de este campo). */
+ * tienen componente de imagen fija (`promptVisual`) y/o video IA
+ * (`promptVideo`). No aparece si ninguna escena tiene ninguno de los dos
+ * (piezas de puro texto, o guardadas antes de estos campos). */
 function GuiaProduccion({ bloque, personaje }: { bloque: BloqueConDias; personaje?: PersonajeResumen }) {
-  const escenas = parseEscenas(bloque.escenasJson).filter((e) => e.promptVisual?.trim());
+  const escenas = parseEscenas(bloque.escenasJson).filter(
+    (e) => e.promptVisual?.trim() || e.promptVideo?.trim(),
+  );
   if (escenas.length === 0) return null;
 
   return (

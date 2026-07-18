@@ -101,19 +101,72 @@ export type Identidad = {
 
 export type IdentidadInput = Omit<Identidad, "id" | "proyectoId" | "updatedAt">;
 
-/** Máximo de fotos de referencia del Personaje permitidas. */
+/** Máximo de fotos de referencia del Personaje permitidas — uno por cada
+ * `TipoFotoPersonaje`, así que este número siempre debe calzar con
+ * `TIPOS_FOTO_PERSONAJE.length`. */
 export const MAX_FOTOS_PERSONAJE = 4;
 
+/** Los 4 tipos de foto de referencia de un Personaje — cada uno es su
+ * propio slot fijo en la UI de edición (ver `FotosPersonaje`), no una
+ * posición arbitraria en un arreglo. */
+export const TIPOS_FOTO_PERSONAJE = ["rostro", "perfil", "medioCuerpo", "cuerpoCompleto"] as const;
+export type TipoFotoPersonaje = (typeof TIPOS_FOTO_PERSONAJE)[number];
+
+export const ETIQUETA_TIPO_FOTO_PERSONAJE: Record<TipoFotoPersonaje, string> = {
+  rostro: "Rostro",
+  perfil: "Perfil",
+  medioCuerpo: "Medio cuerpo",
+  cuerpoCompleto: "Cuerpo completo",
+};
+
+/** Texto de ayuda breve por tipo, mostrado junto a cada slot de carga en la
+ * edición de Personaje. */
+export const AYUDA_TIPO_FOTO_PERSONAJE: Record<TipoFotoPersonaje, string> = {
+  rostro: "Primer plano frontal — es la referencia principal de identidad.",
+  perfil: "De perfil o 3/4 — ayuda a mantener la cara consistente en otros ángulos.",
+  medioCuerpo: "Desde el torso hacia arriba — útil para escenas de medio cuerpo.",
+  cuerpoCompleto: "De cuerpo entero — útil para escenas de acción o cuerpo completo.",
+};
+
+/** Solo `rostro` es obligatoria — es el mínimo para que el Personaje
+ * funcione como referencia visual, igual que hoy (antes de tener tipos, la
+ * "primera" foto cumplía este mismo rol implícitamente). */
+export const TIPO_FOTO_PERSONAJE_OBLIGATORIO: TipoFotoPersonaje = "rostro";
+
+export type FotoPersonaje = { url: string; tipo: TipoFotoPersonaje };
+
 /**
- * Adapta `fotosUrlsJson` (columna `jsonb`) a un arreglo de URLs; ante un
- * valor ausente o con forma inesperada, devuelve un arreglo vacío. Nunca
- * más de `MAX_FOTOS_PERSONAJE`, aunque la columna llegara a tener más.
+ * Adapta `fotosUrlsJson` (columna `jsonb`) a un arreglo de fotos tipadas;
+ * ante un valor ausente, con forma inesperada, o con un `tipo` que ya no es
+ * uno de los 4 válidos, devuelve un arreglo vacío (o descarta solo esa
+ * entrada). Nunca más de `MAX_FOTOS_PERSONAJE`, aunque la columna llegara a
+ * tener más.
  */
-export function parseFotosPersonaje(json: unknown): string[] {
+export function parseFotosPersonaje(json: unknown): FotoPersonaje[] {
   if (!Array.isArray(json)) return [];
   return json
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .filter(
+      (v): v is FotoPersonaje =>
+        typeof v === "object" &&
+        v !== null &&
+        typeof (v as { url?: unknown }).url === "string" &&
+        (v as { url: string }).url.trim().length > 0 &&
+        (TIPOS_FOTO_PERSONAJE as readonly string[]).includes((v as { tipo?: unknown }).tipo as string),
+    )
     .slice(0, MAX_FOTOS_PERSONAJE);
+}
+
+/** La foto de un tipo específico, o `null` si ese slot no está cargado. */
+export function fotoPorTipo(fotos: FotoPersonaje[], tipo: TipoFotoPersonaje): string | null {
+  return fotos.find((f) => f.tipo === tipo)?.url ?? null;
+}
+
+/** La foto "principal" de un Personaje para avatares/miniaturas en toda la
+ * app — siempre prefiere `rostro` (el tipo obligatorio); si por algún
+ * motivo no está cargada, cae a la primera foto disponible de cualquier
+ * tipo, para no dejar el avatar vacío. */
+export function fotoPrincipal(fotos: FotoPersonaje[]): string | null {
+  return fotoPorTipo(fotos, TIPO_FOTO_PERSONAJE_OBLIGATORIO) ?? fotos[0]?.url ?? null;
 }
 
 /** Adapta `personajeIdsJson` (columna `jsonb` de `bloques`) a un arreglo de
@@ -124,15 +177,16 @@ export function parsePersonajeIds(json: unknown): string[] {
   return json.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
 }
 
-export type PersonajeResumen = { nombre: string; fotoUrl: string | null };
+export type PersonajeResumen = { nombre: string; fotoUrl: string | null; fotos: FotoPersonaje[] };
 
-/** Mapa id -> {nombre, primera foto} para resolver rápido qué Personaje
- * generó un Bloque (`bloque.personajeId`) sin pasar el objeto completo —
- * usado por la guía de producción de Biblioteca. */
+/** Mapa id -> {nombre, foto principal, fotos completas} para resolver
+ * rápido qué Personaje generó un Bloque (`bloque.personajeId`) sin pasar el
+ * objeto completo — usado por la guía de producción de Biblioteca. */
 export function personajesPorId(personajes: Personaje[]): Record<string, PersonajeResumen> {
   const mapa: Record<string, PersonajeResumen> = {};
   for (const p of personajes) {
-    mapa[p.id] = { nombre: p.nombre, fotoUrl: parseFotosPersonaje(p.fotosUrlsJson)[0] ?? null };
+    const fotos = parseFotosPersonaje(p.fotosUrlsJson);
+    mapa[p.id] = { nombre: p.nombre, fotoUrl: fotoPrincipal(fotos), fotos };
   }
   return mapa;
 }
@@ -187,7 +241,8 @@ export type Personaje = {
   vozDescrita: string;
   gestos: string;
   muletillas: string;
-  /** Columna `jsonb` — arreglo de hasta 4 URLs (o `[]`). Usar `parseFotosPersonaje()`. */
+  /** Columna `jsonb` — arreglo de hasta `MAX_FOTOS_PERSONAJE` fotos tipadas
+   * `{url, tipo}` (o `[]`). Usar `parseFotosPersonaje()`. */
   fotosUrlsJson: unknown;
   createdAt: string;
 };

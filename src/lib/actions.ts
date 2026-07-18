@@ -29,14 +29,26 @@ import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
   esConversionAVideo,
+  fotoPrincipal,
   MAX_FOTOS_PERSONAJE,
   parseEscenas,
   parseFotosPersonaje,
   parsePersonajeIds,
   parsePlanEdicion,
   TIPOS_ACTIVO,
+  TIPOS_FOTO_PERSONAJE,
 } from "./types";
-import type { Avatar, AvatarInput, CalidadImagen, Identidad, IdentidadInput, Personaje, PersonajeInput } from "./types";
+import type {
+  Avatar,
+  AvatarInput,
+  CalidadImagen,
+  FotoPersonaje,
+  Identidad,
+  IdentidadInput,
+  Personaje,
+  PersonajeInput,
+  TipoFotoPersonaje,
+} from "./types";
 
 const PAPELERA_RETENCION_DIAS = 7;
 
@@ -256,12 +268,42 @@ function leerCamposPersonaje(formData: FormData) {
   ) as unknown as PersonajeInput;
 }
 
-function leerFotosDeFormData(formData: FormData): string[] {
-  return formData
-    .getAll("fotosUrls")
-    .map((v) => String(v).trim())
-    .filter((v) => v.length > 0)
-    .slice(0, MAX_FOTOS_PERSONAJE);
+/** Cada foto ya subida viaja como un `<input type="hidden" name="fotos">`
+ * con su `{url, tipo}` serializado en JSON (ver `FotosPersonaje`) —
+ * entradas con JSON inválido o `tipo` desconocido se descartan en
+ * silencio. Además, cada slot vacío expone su propio campo de texto
+ * `foto-{tipo}` (el "pega el enlace" de `FileUploader`) para una URL
+ * pegada a mano que nunca pasó por `subirFotoPersonaje`/
+ * `subirArchivoTemporal` — se usa solo si ese tipo no llegó ya por el
+ * campo `fotos`. */
+function leerFotosDeFormData(formData: FormData): FotoPersonaje[] {
+  const desdeJson = formData
+    .getAll("fotos")
+    .map((v) => {
+      try {
+        return JSON.parse(String(v)) as unknown;
+      } catch {
+        return null;
+      }
+    })
+    .filter(
+      (v): v is FotoPersonaje =>
+        typeof v === "object" &&
+        v !== null &&
+        typeof (v as { url?: unknown }).url === "string" &&
+        (TIPOS_FOTO_PERSONAJE as readonly string[]).includes((v as { tipo?: unknown }).tipo as string),
+    );
+
+  const desdePegado = TIPOS_FOTO_PERSONAJE.map((tipo) => {
+    const url = String(formData.get(`foto-${tipo}`) ?? "").trim();
+    return url ? { url, tipo } : null;
+  }).filter((v): v is FotoPersonaje => v !== null);
+
+  const combinado = [...desdeJson];
+  for (const foto of desdePegado) {
+    if (!combinado.some((f) => f.tipo === foto.tipo)) combinado.push(foto);
+  }
+  return combinado.slice(0, MAX_FOTOS_PERSONAJE);
 }
 
 /** Crea un Personaje nuevo — nunca sobrescribe uno existente, ni siquiera
@@ -300,40 +342,48 @@ export async function deletePersonaje(personajeId: string) {
 
   await db.delete(personajes).where(eq(personajes.id, personajeId));
 
-  for (const url of parseFotosPersonaje(existente?.fotosUrlsJson)) {
-    await eliminarArchivoSubido(url).catch(() => {});
+  for (const foto of parseFotosPersonaje(existente?.fotosUrlsJson)) {
+    await eliminarArchivoSubido(foto.url).catch(() => {});
   }
 
   revalidarRutasPersonaje(existente?.proyectoId ?? null);
 }
 
-/** Sube una foto de referencia a un Personaje YA GUARDADO (hasta
- * `MAX_FOTOS_PERSONAJE`) y persiste de inmediato — no espera a que se
- * guarde el resto del formulario. Para un Personaje todavía sin guardar
- * ("+ Nuevo personaje"), usar `subirArchivoTemporal` en su lugar. */
-export async function subirFotoPersonaje(personajeId: string, formData: FormData): Promise<string[]> {
+/** Sube una foto de referencia de un `tipo` específico (rostro/perfil/
+ * medioCuerpo/cuerpoCompleto) a un Personaje YA GUARDADO, y persiste de
+ * inmediato — no espera a que se guarde el resto del formulario. Cada tipo
+ * es su propio slot fijo: subir a un tipo que ya tenía foto REEMPLAZA esa
+ * foto (borra el blob viejo), no la agrega como una quinta. Para un
+ * Personaje todavía sin guardar ("+ Nuevo personaje"), usar
+ * `subirArchivoTemporal` en su lugar. */
+export async function subirFotoPersonaje(
+  personajeId: string,
+  tipo: TipoFotoPersonaje,
+  formData: FormData,
+): Promise<FotoPersonaje[]> {
   const archivo = formData.get("foto");
   if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
 
   const personaje = await getPersonaje(personajeId);
   const fotosActuales = parseFotosPersonaje(personaje?.fotosUrlsJson);
-  if (fotosActuales.length >= MAX_FOTOS_PERSONAJE) {
-    throw new Error(`Ya tienes ${MAX_FOTOS_PERSONAJE} fotos de referencia — elimina una antes de subir otra.`);
-  }
+  const fotoReemplazada = fotosActuales.find((f) => f.tipo === tipo);
 
   const url = await guardarArchivoSubido(archivo);
-  const fotosNuevas = [...fotosActuales, url];
+  const fotosNuevas = [...fotosActuales.filter((f) => f.tipo !== tipo), { url, tipo }];
 
   await db.update(personajes).set({ fotosUrlsJson: fotosNuevas }).where(eq(personajes.id, personajeId));
+
+  if (fotoReemplazada) await eliminarArchivoSubido(fotoReemplazada.url).catch(() => {});
 
   revalidarRutasPersonaje(personaje?.proyectoId ?? null);
   return fotosNuevas;
 }
 
-/** Elimina una foto de referencia (y su blob) de un Personaje ya guardado. */
-export async function eliminarFotoPersonaje(personajeId: string, url: string): Promise<string[]> {
+/** Elimina una foto de referencia (y su blob) de un Personaje ya guardado —
+ * identificada por su URL, no por tipo (cada URL es única entre las 4). */
+export async function eliminarFotoPersonaje(personajeId: string, url: string): Promise<FotoPersonaje[]> {
   const personaje = await getPersonaje(personajeId);
-  const fotosNuevas = parseFotosPersonaje(personaje?.fotosUrlsJson).filter((f) => f !== url);
+  const fotosNuevas = parseFotosPersonaje(personaje?.fotosUrlsJson).filter((f) => f.url !== url);
 
   await db.update(personajes).set({ fotosUrlsJson: fotosNuevas }).where(eq(personajes.id, personajeId));
 
@@ -834,11 +884,12 @@ export async function generarImagenParaEscena(
   const promptImagen = escenas[index].promptImagen.trim();
   if (!promptImagen) throw new Error("Esta escena no tiene un prompt de imagen para generar.");
 
-  // Usa la PRIMERA foto del Personaje asociado al bloque como referencia —
-  // múltiples referencias a la vez sería una mejora futura del proveedor de
-  // imagen, no de esta ronda (ver comentario en imagen-provider.ts).
+  // Usa la foto de tipo "rostro" del Personaje asociado al bloque como
+  // referencia (o la primera disponible si por algún motivo no tiene rostro
+  // cargado) — múltiples referencias a la vez sería una mejora futura del
+  // proveedor de imagen, no de esta ronda (ver comentario en imagen-provider.ts).
   const personaje = bloque.personajeId ? await getPersonaje(bloque.personajeId) : null;
-  const fotoReferenciaUrl = parseFotosPersonaje(personaje?.fotosUrlsJson).at(0);
+  const fotoReferenciaUrl = fotoPrincipal(parseFotosPersonaje(personaje?.fotosUrlsJson)) ?? undefined;
 
   const imagenGeneradaUrl = await generarImagenIA(promptImagen, fotoReferenciaUrl, calidad);
 

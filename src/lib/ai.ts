@@ -95,7 +95,24 @@ const EscenaSchema = z.object({
   descripcion: z.string(),
   guionHablado: z.string(),
   promptImagen: z.string(),
-  promptVideo: z.string(),
+  promptVideo: z.string().describe(
+    "Prompt para herramientas de video IA (Kling/Runway/Veo) — un párrafo "
+      + "en español enfocado en ACCIÓN, composición, movimiento de cámara, "
+      + "iluminación y diálogo/gestos de esta escena. REGLA CLAVE sobre "
+      + "Personajes: revisa la sección 'Personaje'/'Personajes' de la "
+      + "identidad de arriba — si el Personaje de esta escena tiene 'Fotos "
+      + "de referencia' cargadas ahí, NO redescribas su edad, rasgos "
+      + "físicos, vestimenta ni apariencia en este texto (sería redundante "
+      + "y puede contradecir la foto real); en su lugar, indica "
+      + "explícitamente que se debe usar la imagen de referencia adjunta "
+      + "para mantener su identidad (ej. 'usa la imagen de referencia del "
+      + "personaje para mantener su apariencia exacta') y dedica el resto "
+      + "del párrafo por completo a la dirección de la escena. Si el "
+      + "Personaje NO tiene fotos de referencia cargadas (o la escena no "
+      + "usa ningún Personaje), sí incluye su descripción física completa "
+      + "como referencia visual, igual que en promptVisual. Cadena vacía "
+      + "si esta escena no tiene componente de video.",
+  ),
   textoEnPantalla: z.string(),
   elementoConcreto: z.string().describe(
     "Solo para contenido tipo lista de N cosas/elementos (ej. carrusel de "
@@ -111,13 +128,18 @@ const EscenaSchema = z.object({
       + "Banana como herramienta principal) — un solo párrafo en español, "
       + "sintaxis natural y descriptiva, SIN parámetros técnicos de otra "
       + "herramienta (nada de '--ar', '--v', etc.). Combina, cuando aplique: "
-      + "la descripción física exacta de cada Personaje que participe en esta "
-      + "escena (todos, si hay más de uno), "
       + "el elementoConcreto de esta escena, la acción o composición (ej. "
       + "'de pie junto a', 'señalando'), el texto en pantalla que debe "
       + "aparecer legible en la imagen, y el estilo visual de marca (colores, "
-      + "tono) tomado de la Identidad. Cadena vacía si esta escena no tiene "
-      + "ningún componente visual de imagen fija.",
+      + "tono) tomado de la Identidad. Misma REGLA CLAVE sobre Personajes que "
+      + "en promptVideo: si el Personaje de esta escena tiene 'Fotos de "
+      + "referencia' cargadas en la identidad, NO redescribas su apariencia "
+      + "física en texto — el usuario pega esa foto junto con este prompt en "
+      + "Gemini, así que basta con mencionar brevemente que debe respetar la "
+      + "identidad visual del Personaje de la foto adjunta. Sin fotos "
+      + "cargadas, sí incluye la descripción física exacta de cada Personaje "
+      + "que participe en esta escena (todos, si hay más de uno). Cadena "
+      + "vacía si esta escena no tiene ningún componente visual de imagen fija.",
   ),
 });
 

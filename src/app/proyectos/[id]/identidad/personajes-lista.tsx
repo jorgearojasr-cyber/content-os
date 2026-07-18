@@ -9,7 +9,7 @@ import { FotosPersonaje } from "@/components/fotos-personaje";
 import { explicarError } from "@/lib/errores";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { parseFotosPersonaje } from "@/lib/types";
-import type { Personaje } from "@/lib/types";
+import type { FotoPersonaje, Personaje, TipoFotoPersonaje } from "@/lib/types";
 import type { PersonajeSugerido } from "@/lib/ai";
 
 const LARGO_RESUMEN = 80;
@@ -46,8 +46,8 @@ export function PersonajesLista({
   onCreate: (formData: FormData) => Promise<{ id: string }>;
   onUpdate: (personajeId: string, formData: FormData) => Promise<void>;
   onDelete: (personajeId: string) => Promise<void>;
-  onSubirFoto: (personajeId: string, formData: FormData) => Promise<string[]>;
-  onEliminarFoto: (personajeId: string, url: string) => Promise<string[]>;
+  onSubirFoto: (personajeId: string, tipo: TipoFotoPersonaje, formData: FormData) => Promise<FotoPersonaje[]>;
+  onEliminarFoto: (personajeId: string, url: string) => Promise<FotoPersonaje[]>;
   onSubirTemporal: (formData: FormData) => Promise<string>;
   onEliminarTemporal: (url: string) => Promise<void>;
   onGenerarPersonaje: (
@@ -152,8 +152,8 @@ export function PersonajesLista({
             setAbierto(null);
           }}
           onCancelar={() => setAbierto(null)}
-          onSubirFoto={onSubirTemporal}
-          onEliminarFoto={onEliminarTemporal}
+          onSubirFoto={(_tipo, fd) => onSubirTemporal(fd)}
+          onEliminarFoto={(_tipo, url) => onEliminarTemporal(url)}
         />
       ) : null}
 
@@ -172,11 +172,11 @@ export function PersonajesLista({
                     setAbierto(null);
                   }}
                   onCancelar={() => setAbierto(null)}
-                  onSubirFoto={async (fd) => {
-                    const nuevas = await onSubirFoto(p.id, fd);
-                    return nuevas.at(-1) ?? "";
+                  onSubirFoto={async (tipo, fd) => {
+                    const nuevas = await onSubirFoto(p.id, tipo, fd);
+                    return nuevas.find((f) => f.tipo === tipo)?.url ?? "";
                   }}
-                  onEliminarFoto={async (url) => {
+                  onEliminarFoto={async (_tipo, url) => {
                     await onEliminarFoto(p.id, url);
                   }}
                 />
@@ -246,11 +246,10 @@ export function PersonajeForm({
   personaje: Personaje | null;
   onSubmit: (formData: FormData) => Promise<void>;
   onCancelar: () => void;
-  onSubirFoto: (formData: FormData) => Promise<string>;
-  onEliminarFoto: (url: string) => Promise<void>;
+  onSubirFoto: (tipo: TipoFotoPersonaje, formData: FormData) => Promise<string>;
+  onEliminarFoto: (tipo: TipoFotoPersonaje, url: string) => Promise<void>;
 }) {
   const fotosIniciales = parseFotosPersonaje(personaje?.fotosUrlsJson);
-  const [fotos, setFotos] = useState<string[]>(fotosIniciales);
 
   return (
     <Card className="border border-accent/30 bg-accent-soft/20">
@@ -282,22 +281,8 @@ export function PersonajeForm({
           multiline={false}
         />
         <div className="mt-3.5">
-          <label className="mb-1 block text-[12.5px] text-text-muted">Fotos de referencia (hasta 4)</label>
-          <FotosPersonaje
-            fotosIniciales={fotos}
-            onSubir={async (fd) => {
-              const url = await onSubirFoto(fd);
-              const nuevas = [...fotos, url];
-              setFotos(nuevas);
-              return nuevas;
-            }}
-            onEliminar={async (url) => {
-              await onEliminarFoto(url);
-              const nuevas = fotos.filter((f) => f !== url);
-              setFotos(nuevas);
-              return nuevas;
-            }}
-          />
+          <label className="mb-1 block text-[12.5px] text-text-muted">Fotos de referencia</label>
+          <FotosPersonaje fotosIniciales={fotosIniciales} onSubir={onSubirFoto} onEliminar={onEliminarFoto} />
         </div>
         <div className="mt-4 flex gap-2">
           <BotonGuardar texto={personaje ? "Guardar cambios" : "Crear personaje"} />

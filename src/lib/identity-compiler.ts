@@ -1,5 +1,5 @@
 import type { Avatar, Identidad, Personaje } from "./types";
-import { avatarTieneContenido, parseFotosPersonaje } from "./types";
+import { avatarTieneContenido, ETIQUETA_TIPO_FOTO_PERSONAJE, parseFotosPersonaje } from "./types";
 
 /** Campos de texto de `Identidad` que siguen viviendo ahí de verdad (Marca,
  * Estilo, Contacto). Los antiguos campos de Personaje/Avatar quedaron
@@ -42,14 +42,17 @@ function formatearAvatar(avatar: Avatar | null | undefined): string {
     .join("\n");
 }
 
-/** Renderiza las fotos de referencia del Personaje SELECCIONADO (hasta 4)
- * numeradas, igual de literal que el resto del compilador — no elige "la
- * mejor". */
+/** Renderiza las fotos de referencia del Personaje SELECCIONADO (hasta 4),
+ * cada una con su tipo (Rostro/Perfil/Medio cuerpo/Cuerpo completo) — así
+ * el modelo sabe, para cada escena, qué imagen de referencia corresponde
+ * usar en vez de redescribir físicamente al Personaje (ver `promptVideo`/
+ * `promptVisual` en ai.ts). Igual de literal que el resto del compilador —
+ * no elige "la mejor". */
 function formatearFotosPersonaje(personaje: Personaje | null | undefined): string {
   if (!personaje) return "";
   const fotos = parseFotosPersonaje(personaje.fotosUrlsJson);
   if (fotos.length === 0) return "";
-  return fotos.map((url, i) => `${i + 1}. ${url}`).join("\n");
+  return fotos.map((f, i) => `${i + 1}. ${ETIQUETA_TIPO_FOTO_PERSONAJE[f.tipo]}: ${f.url}`).join("\n");
 }
 
 const CAMPOS_PERSONAJE: Array<[keyof Personaje, string]> = [

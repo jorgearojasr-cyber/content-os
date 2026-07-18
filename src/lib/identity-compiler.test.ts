@@ -153,15 +153,18 @@ describe("compileIdentity", () => {
     expect(salida).not.toContain("Avatar del cliente ideal");
   });
 
-  it("renderiza las fotos de referencia del Personaje SELECCIONADO numeradas", () => {
+  it("renderiza las fotos de referencia del Personaje SELECCIONADO numeradas, con su tipo", () => {
     const personaje = basePersonaje({
       nombre: "Don José Luis",
-      fotosUrlsJson: ["https://blob/foto1.jpg", "https://blob/foto2.jpg"],
+      fotosUrlsJson: [
+        { url: "https://blob/foto1.jpg", tipo: "rostro" },
+        { url: "https://blob/foto2.jpg", tipo: "cuerpoCompleto" },
+      ],
     });
     const salida = compileIdentity(baseIdentidad(), { personajes: [personaje] });
     expect(salida).toContain("Fotos de referencia:");
-    expect(salida).toContain("1. https://blob/foto1.jpg");
-    expect(salida).toContain("2. https://blob/foto2.jpg");
+    expect(salida).toContain("1. Rostro: https://blob/foto1.jpg");
+    expect(salida).toContain("2. Cuerpo completo: https://blob/foto2.jpg");
   });
 
   it("nunca incluye Contacto por defecto, aunque haya datos cargados", () => {
