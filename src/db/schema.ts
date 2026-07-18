@@ -46,6 +46,34 @@ export const identidades = pgTable("identidades", {
   ctaHabituales: text("cta_habituales").notNull().default(""),
   hashtagsFrecuentes: text("hashtags_frecuentes").notNull().default(""),
   restricciones: text("restricciones").notNull().default(""),
+  // Ronda "entrenamiento permanente de marca". Mapeo anti-duplicación:
+  // personalidad/tono ya viven en `voz`; qué jamás haría en `restricciones`;
+  // objetivos de largo plazo en `objetivo`; principios editoriales en
+  // `reglas`; identidad visual resumida en `look`. Todos con default ""
+  // — las identidades existentes no cambian su salida compilada.
+  // -- Esencia --
+  promesa: text("promesa").notNull().default(""),
+  posicionamiento: text("posicionamiento").notNull().default(""),
+  // Uno de ARQUETIPOS_MARCA (types.ts) — select fijo, "" = sin definir.
+  arquetipo: text("arquetipo").notNull().default(""),
+  manifiesto: text("manifiesto").notNull().default(""),
+  // -- Audiencia --
+  emociones: text("emociones").notNull().default(""),
+  impactoEsperado: text("impacto_esperado").notNull().default(""),
+  adaptacionAudiencia: text("adaptacion_audiencia").notNull().default(""),
+  // -- Voz y estilo (formalidad/humor/nivelTecnico: selects fijos de
+  //    types.ts; palabras*: listas separadas por coma, editadas como chips) --
+  formalidad: text("formalidad").notNull().default(""),
+  humor: text("humor").notNull().default(""),
+  nivelTecnico: text("nivel_tecnico").notNull().default(""),
+  palabrasSiempre: text("palabras_siempre").notNull().default(""),
+  palabrasNunca: text("palabras_nunca").notNull().default(""),
+  frasesCaracteristicas: text("frases_caracteristicas").notNull().default(""),
+  // -- Contenido --
+  estructuraContenidos: text("estructura_contenidos").notNull().default(""),
+  respuestaCriticas: text("respuesta_criticas").notNull().default(""),
+  // -- Límites --
+  diferenciadores: text("diferenciadores").notNull().default(""),
   // Avatar del cliente ideal (ver AvatarCliente en types.ts)
   avatarJson: jsonb("avatar_json").notNull().default({}),
 

@@ -15,6 +15,7 @@ export function SeccionColapsable({
   subtitulo,
   tieneContenido,
   resumen,
+  progreso,
   children,
 }: {
   titulo: string;
@@ -23,6 +24,9 @@ export function SeccionColapsable({
   /** Texto de una línea mostrado en vez del subtítulo mientras está plegada
    * (ej. el primer campo con contenido, o "N entradas"). */
   resumen?: string;
+  /** Indicador sutil de completitud, ej. "3/6 completados" — puramente
+   * informativo, nunca bloquea nada. */
+  progreso?: string;
   children: ReactNode;
 }) {
   const [abierto, setAbierto] = useState(!tieneContenido);
@@ -36,11 +40,16 @@ export function SeccionColapsable({
         className="-m-1.5 flex w-[calc(100%+0.75rem)] cursor-pointer items-start justify-between gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-surface-2"
       >
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-display text-lg font-normal tracking-wide sm:text-xl">{titulo}</h2>
             {tieneContenido ? (
               <span className="text-accent" aria-hidden>
                 ✓
+              </span>
+            ) : null}
+            {progreso ? (
+              <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10.5px] text-text-muted">
+                {progreso}
               </span>
             ) : null}
           </div>

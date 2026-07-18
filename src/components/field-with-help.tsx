@@ -9,6 +9,7 @@ export function FieldWithHelp({
   tip,
   placeholder,
   ejemplos,
+  opciones,
   multiline = true,
 }: {
   label: string;
@@ -17,6 +18,10 @@ export function FieldWithHelp({
   tip?: string;
   placeholder?: string;
   ejemplos?: readonly string[];
+  /** Con opciones, el campo es un <select> de valores fijos (escalas como
+   * formalidad/nivel técnico funcionan mejor así que como texto libre) —
+   * siempre con "Sin definir" ("") como primera opción. */
+  opciones?: readonly string[];
   multiline?: boolean;
 }) {
   const id = name;
@@ -28,7 +33,23 @@ export function FieldWithHelp({
         {label}
       </label>
       {tip ? <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">{tip}</p> : null}
-      <Campo id={id} name={name} defaultValue={defaultValue} placeholder={placeholder} />
+      {opciones ? (
+        <select
+          id={id}
+          name={name}
+          defaultValue={defaultValue ?? ""}
+          className="w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text"
+        >
+          <option value="">— Sin definir —</option>
+          {opciones.map((op) => (
+            <option key={op} value={op}>
+              {op}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <Campo id={id} name={name} defaultValue={defaultValue} placeholder={placeholder} />
+      )}
       {ejemplos && ejemplos.length > 0 ? (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {ejemplos.map((ejemplo) => (

@@ -20,7 +20,10 @@ const sql = neon(process.env.DATABASE_URL);
     console.log(`${table_name}: ${filas.length} filas`);
   }
   const nombre = `backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
-  const destino = path.join(__dirname, "backups", nombre);
+  // El script vive en scripts/ — los respaldos van a backups/ en la raíz
+  // del proyecto (gitignoreado).
+  const destino = path.join(__dirname, "..", "backups", nombre);
+  fs.mkdirSync(path.dirname(destino), { recursive: true });
   fs.writeFileSync(destino, JSON.stringify(respaldo, null, 1));
   console.log(`\nRespaldo guardado en: ${destino}`);
   console.log(`Tamaño: ${(fs.statSync(destino).size / 1024).toFixed(1)} KB`);

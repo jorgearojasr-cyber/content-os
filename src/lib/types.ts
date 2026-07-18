@@ -81,6 +81,32 @@ export type Identidad = {
   hashtagsFrecuentes: string;
   restricciones: string;
 
+  // Entrenamiento permanente de marca (ver mapeo anti-duplicación en
+  // schema.ts — nada de esto duplica campos existentes).
+  promesa: string;
+  posicionamiento: string;
+  /** Uno de ARQUETIPOS_MARCA ("" = sin definir). */
+  arquetipo: string;
+  manifiesto: string;
+  emociones: string;
+  impactoEsperado: string;
+  adaptacionAudiencia: string;
+  /** Uno de NIVELES_FORMALIDAD ("" = sin definir). */
+  formalidad: string;
+  /** Uno de TIPOS_HUMOR ("" = sin definir). */
+  humor: string;
+  /** Uno de NIVELES_TECNICOS ("" = sin definir). */
+  nivelTecnico: string;
+  /** Lista separada por coma — editada como chips. */
+  palabrasSiempre: string;
+  /** Lista separada por coma — editada como chips. Complementa `reglas`
+   * (prosa) con una lista accionable de palabras prohibidas. */
+  palabrasNunca: string;
+  frasesCaracteristicas: string;
+  estructuraContenidos: string;
+  respuestaCriticas: string;
+  diferenciadores: string;
+
   /** Columna `jsonb` — ya es un objeto (o `{}`), no un string. Usar `parseAvatar()`. */
   avatarJson: unknown;
 
@@ -115,6 +141,46 @@ export type Identidad = {
 };
 
 export type IdentidadInput = Omit<Identidad, "id" | "proyectoId" | "updatedAt">;
+
+/** Los 12 arquetipos clásicos de marca — un marco estándar que cualquier
+ * IA externa reconoce sin explicación adicional. Select fijo. */
+export const ARQUETIPOS_MARCA = [
+  "El Sabio",
+  "El Héroe",
+  "El Cuidador",
+  "El Explorador",
+  "El Rebelde",
+  "El Mago",
+  "El Hombre Común",
+  "El Amante",
+  "El Bufón",
+  "El Creador",
+  "El Gobernante",
+  "El Inocente",
+] as const;
+
+/** Escalas fijas de voz — funcionan mejor como select que como texto libre
+ * (un valor consistente y comparable, no una redacción distinta cada vez). */
+export const NIVELES_FORMALIDAD = [
+  "Muy cercano (tuteo, coloquial)",
+  "Cercano pero profesional",
+  "Neutro",
+  "Formal",
+] as const;
+
+export const NIVELES_TECNICOS = [
+  "Muy simple (cero tecnicismos)",
+  "Simple, con términos técnicos explicados",
+  "Intermedio (audiencia con nociones)",
+  "Técnico (audiencia experta)",
+] as const;
+
+export const TIPOS_HUMOR = [
+  "Sin humor",
+  "Humor sutil ocasional",
+  "Humor cotidiano y cercano",
+  "Humor abierto / bromista",
+] as const;
 
 /** Máximo de fotos de referencia del Personaje permitidas — uno por cada
  * `TipoFotoPersonaje`, así que este número siempre debe calzar con

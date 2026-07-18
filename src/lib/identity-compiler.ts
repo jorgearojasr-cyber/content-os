@@ -253,6 +253,11 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
 
   const avatarFormateado = formatearAvatar(avatar);
 
+  // Los campos de la ronda "entrenamiento permanente" se INTERCALAN en
+  // posiciones semánticas — es seguro para la compatibilidad porque las
+  // entradas vacías se omiten: con datos anteriores (campos nuevos en ""),
+  // las líneas renderizadas y su orden quedan byte-idénticos a los de antes
+  // (test de regresión explícito en identity-compiler.test.ts).
   const marca = incluirMarca
     ? seccion("Marca", [
         ["Voz y personalidad", identidad.voz],
@@ -260,8 +265,16 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
         ["Objetivo del proyecto", identidad.objetivo],
         ["Historia de la marca", identidad.historia],
         ["Valores", identidad.valores],
+        ["Promesa de valor", identidad.promesa],
+        ["Posicionamiento", identidad.posicionamiento],
+        ["Arquetipo de marca", identidad.arquetipo],
+        ["Manifiesto de marca", identidad.manifiesto],
         ["Audiencia", identidad.audiencia],
+        ["Emociones a transmitir", identidad.emociones],
+        ["Qué debe pensar la audiencia después de consumir el contenido", identidad.impactoEsperado],
+        ["Cómo adaptar el contenido según la audiencia", identidad.adaptacionAudiencia],
         ["Competidores", identidad.competidores],
+        ["Diferenciadores frente a la competencia", identidad.diferenciadores],
         ["Manual de marca", identidad.manualMarca],
         avatarFormateado ? `Avatar del cliente ideal:\n${avatarFormateado}` : "",
       ])
@@ -274,6 +287,14 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
         ["CTA habituales", identidad.ctaHabituales],
         ["Hashtags frecuentes", identidad.hashtagsFrecuentes],
         ["Restricciones (qué evitar siempre)", identidad.restricciones],
+        ["Nivel de formalidad", identidad.formalidad],
+        ["Humor permitido", identidad.humor],
+        ["Nivel técnico del contenido", identidad.nivelTecnico],
+        ["Palabras y expresiones que siempre usa", identidad.palabrasSiempre],
+        ["Palabras que nunca debe usar", identidad.palabrasNunca],
+        ["Frases características", identidad.frasesCaracteristicas],
+        ["Estructura habitual de los contenidos", identidad.estructuraContenidos],
+        ["Cómo responder críticas y comentarios", identidad.respuestaCriticas],
       ])
     : "";
 
@@ -335,6 +356,22 @@ const CAMPOS_DE_CONTENIDO = [
   "ctaHabituales",
   "hashtagsFrecuentes",
   "restricciones",
+  "promesa",
+  "posicionamiento",
+  "arquetipo",
+  "manifiesto",
+  "emociones",
+  "impactoEsperado",
+  "adaptacionAudiencia",
+  "formalidad",
+  "humor",
+  "nivelTecnico",
+  "palabrasSiempre",
+  "palabrasNunca",
+  "frasesCaracteristicas",
+  "estructuraContenidos",
+  "respuestaCriticas",
+  "diferenciadores",
   "paleta",
   "tipografia",
   "look",
@@ -365,12 +402,28 @@ const CAMPOS_MARCA = [
   "audiencia",
   "competidores",
   "manualMarca",
+  "promesa",
+  "posicionamiento",
+  "arquetipo",
+  "manifiesto",
+  "emociones",
+  "impactoEsperado",
+  "adaptacionAudiencia",
+  "diferenciadores",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 const CAMPOS_LINEAMIENTOS = [
   "ctaHabituales",
   "hashtagsFrecuentes",
   "restricciones",
+  "formalidad",
+  "humor",
+  "nivelTecnico",
+  "palabrasSiempre",
+  "palabrasNunca",
+  "frasesCaracteristicas",
+  "estructuraContenidos",
+  "respuestaCriticas",
 ] as const satisfies ReadonlyArray<CampoTextoIdentidad>;
 
 const CAMPOS_ESTILO = [

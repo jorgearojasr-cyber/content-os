@@ -21,22 +21,126 @@ import {
 } from "@/lib/actions";
 import { Card, SectionTitle } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
+import { CampoChips } from "@/components/campo-chips";
 import { FieldWithHelp } from "@/components/field-with-help";
 import { FileUploader } from "@/components/file-uploader";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
+import { PromptMaestro } from "@/components/prompt-maestro";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
-import { identidadPorSeccion, resumenPorSeccion } from "@/lib/identity-compiler";
+import { identidadTieneContacto } from "@/lib/identity-compiler";
+import {
+  primerCampoConContenido,
+  progresoSeccion,
+  SECCIONES_IDENTIDAD,
+} from "@/lib/identidad-secciones";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import {
   EJEMPLOS_IDENTIDAD,
   OBJETIVO_TIP,
   OBJETIVOS_SUGERIDOS,
 } from "@/lib/identidad-ejemplos";
+import {
+  ARQUETIPOS_MARCA,
+  NIVELES_FORMALIDAD,
+  NIVELES_TECNICOS,
+  TIPOS_HUMOR,
+} from "@/lib/types";
+import type { Identidad } from "@/lib/types";
 import { IdentidadAiTools } from "./ai-tools";
 import { PersonajesLista } from "./personajes-lista";
 import { AvataresLista } from "./avatares-lista";
 
 const LARGO_RESUMEN = 80;
+
+/** Los campos de cada sección, ya como JSX — la agrupación (qué campo vive
+ * en qué sección) es SECCIONES_IDENTIDAD en identidad-secciones.ts; acá
+ * solo se decide el input de cada uno (texto, textarea, select, chips,
+ * uploader). Ningún campo existente se renombra en la base de datos. */
+function camposDeSeccion(id: string, identidad: Identidad, onSubirLogo: (formData: FormData) => Promise<string>) {
+  switch (id) {
+    case "esencia":
+      return (
+        <>
+          <FieldWithHelp label="Historia de la marca" name="historia" defaultValue={identidad.historia} {...EJEMPLOS_IDENTIDAD.historia} />
+          <FieldWithHelp label="Valores" name="valores" defaultValue={identidad.valores} {...EJEMPLOS_IDENTIDAD.valores} />
+          <FieldWithHelp label="Promesa de valor" name="promesa" defaultValue={identidad.promesa} multiline={false} {...EJEMPLOS_IDENTIDAD.promesa} />
+          <FieldWithHelp label="Posicionamiento" name="posicionamiento" defaultValue={identidad.posicionamiento} multiline={false} {...EJEMPLOS_IDENTIDAD.posicionamiento} />
+          <FieldWithHelp label="Arquetipo de marca" name="arquetipo" defaultValue={identidad.arquetipo} opciones={ARQUETIPOS_MARCA} tip="El marco clásico de personalidad que cualquier IA reconoce sin explicación — elige el que más se parezca." />
+          <FieldWithHelp label="Manifiesto de marca" name="manifiesto" defaultValue={identidad.manifiesto} {...EJEMPLOS_IDENTIDAD.manifiesto} />
+          <FieldWithHelp
+            label="Objetivo del proyecto"
+            name="objetivo"
+            defaultValue={identidad.objetivo}
+            tip={OBJETIVO_TIP}
+            placeholder="Ej: educar a mi audiencia sobre construcción"
+            ejemplos={OBJETIVOS_SUGERIDOS}
+            multiline={false}
+          />
+          <FieldWithHelp label="Manual de marca" name="manualMarca" defaultValue={identidad.manualMarca} {...EJEMPLOS_IDENTIDAD.manualMarca} />
+        </>
+      );
+    case "audiencia":
+      return (
+        <>
+          <FieldWithHelp label="Audiencia (resumen general)" name="audiencia" defaultValue={identidad.audiencia} {...EJEMPLOS_IDENTIDAD.audiencia} />
+          <FieldWithHelp label="Emociones a transmitir" name="emociones" defaultValue={identidad.emociones} multiline={false} {...EJEMPLOS_IDENTIDAD.emociones} />
+          <FieldWithHelp label="Qué debe pensar la persona después" name="impactoEsperado" defaultValue={identidad.impactoEsperado} {...EJEMPLOS_IDENTIDAD.impactoEsperado} />
+          <FieldWithHelp label="Adaptación según audiencia" name="adaptacionAudiencia" defaultValue={identidad.adaptacionAudiencia} {...EJEMPLOS_IDENTIDAD.adaptacionAudiencia} />
+        </>
+      );
+    case "voz":
+      return (
+        <>
+          <FieldWithHelp label="Voz y personalidad" name="voz" defaultValue={identidad.voz} {...EJEMPLOS_IDENTIDAD.voz} />
+          <FieldWithHelp label="Nivel de formalidad" name="formalidad" defaultValue={identidad.formalidad} opciones={NIVELES_FORMALIDAD} tip={EJEMPLOS_IDENTIDAD.formalidad.tip} />
+          <FieldWithHelp label="Tipo de humor permitido" name="humor" defaultValue={identidad.humor} opciones={TIPOS_HUMOR} tip={EJEMPLOS_IDENTIDAD.humor.tip} />
+          <FieldWithHelp label="Nivel técnico del contenido" name="nivelTecnico" defaultValue={identidad.nivelTecnico} opciones={NIVELES_TECNICOS} tip={EJEMPLOS_IDENTIDAD.nivelTecnico.tip} />
+          <CampoChips label="Palabras y expresiones que siempre usa" name="palabrasSiempre" defaultValue={identidad.palabrasSiempre} tip={EJEMPLOS_IDENTIDAD.palabrasSiempre.tip} placeholder={EJEMPLOS_IDENTIDAD.palabrasSiempre.placeholder} />
+          <CampoChips label="Palabras que nunca debe usar" name="palabrasNunca" defaultValue={identidad.palabrasNunca} tip={EJEMPLOS_IDENTIDAD.palabrasNunca.tip} placeholder={EJEMPLOS_IDENTIDAD.palabrasNunca.placeholder} />
+          <FieldWithHelp label="Frases características" name="frasesCaracteristicas" defaultValue={identidad.frasesCaracteristicas} {...EJEMPLOS_IDENTIDAD.frasesCaracteristicas} />
+        </>
+      );
+    case "contenido":
+      return (
+        <>
+          <FieldWithHelp label="Estructura habitual de los contenidos" name="estructuraContenidos" defaultValue={identidad.estructuraContenidos} {...EJEMPLOS_IDENTIDAD.estructuraContenidos} />
+          <FieldWithHelp label="Reglas de escritura (principios editoriales)" name="reglas" defaultValue={identidad.reglas} {...EJEMPLOS_IDENTIDAD.reglas} />
+          <FieldWithHelp label="Estructura de CTA" name="estructuraCta" defaultValue={identidad.estructuraCta} multiline={false} {...EJEMPLOS_IDENTIDAD.estructuraCta} />
+          <FieldWithHelp label="CTA habituales" name="ctaHabituales" defaultValue={identidad.ctaHabituales} {...EJEMPLOS_IDENTIDAD.ctaHabituales} />
+          <FieldWithHelp label="Hashtags frecuentes" name="hashtagsFrecuentes" defaultValue={identidad.hashtagsFrecuentes} {...EJEMPLOS_IDENTIDAD.hashtagsFrecuentes} />
+          <FieldWithHelp label="Cómo responder críticas y comentarios" name="respuestaCriticas" defaultValue={identidad.respuestaCriticas} {...EJEMPLOS_IDENTIDAD.respuestaCriticas} />
+        </>
+      );
+    case "visual":
+      return (
+        <>
+          <FieldWithHelp label="Paleta de colores" name="paleta" defaultValue={identidad.paleta} multiline={false} {...EJEMPLOS_IDENTIDAD.paleta} />
+          <FieldWithHelp label="Tipografía" name="tipografia" defaultValue={identidad.tipografia} multiline={false} {...EJEMPLOS_IDENTIDAD.tipografia} />
+          <FieldWithHelp label="Look visual (identidad visual resumida)" name="look" defaultValue={identidad.look} {...EJEMPLOS_IDENTIDAD.look} />
+          <FieldWithHelp label="Cámara" name="camara" defaultValue={identidad.camara} multiline={false} {...EJEMPLOS_IDENTIDAD.camara} />
+          <FieldWithHelp label="Ritmo" name="ritmo" defaultValue={identidad.ritmo} multiline={false} {...EJEMPLOS_IDENTIDAD.ritmo} />
+          <div className="mt-3.5">
+            <label className="mb-1 block text-[12.5px] text-text-muted">Logo</label>
+            <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">
+              Sube una imagen desde tu computador, arrástrala, pégala con Ctrl+V, o usa un enlace
+              público.
+            </p>
+            <FileUploader name="logoUrl" defaultValue={identidad.logoUrl} onUpload={onSubirLogo} />
+          </div>
+        </>
+      );
+    case "limites":
+      return (
+        <>
+          <FieldWithHelp label="Restricciones (qué jamás haría la marca)" name="restricciones" defaultValue={identidad.restricciones} {...EJEMPLOS_IDENTIDAD.restricciones} />
+          <FieldWithHelp label="Competidores" name="competidores" defaultValue={identidad.competidores} {...EJEMPLOS_IDENTIDAD.competidores} />
+          <FieldWithHelp label="Diferenciadores frente a la competencia" name="diferenciadores" defaultValue={identidad.diferenciadores} {...EJEMPLOS_IDENTIDAD.diferenciadores} />
+        </>
+      );
+    default:
+      return null;
+  }
+}
 
 export default async function IdentidadPage({
   params,
@@ -63,8 +167,10 @@ export default async function IdentidadPage({
 
   const tienePersonaje = personajes.length > 0;
   const tieneAvatar = avatares.length > 0;
-  const porSeccion = identidadPorSeccion(identidad, { tienePersonaje, tieneAvatar });
-  const resumen = resumenPorSeccion(identidad);
+  const tieneContacto = identidadTieneContacto(identidad);
+  const activosVisuales = activos
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
   const resumenPersonajes = tienePersonaje
     ? `${personajes.length} personaje${personajes.length === 1 ? "" : "s"}`
     : "";
@@ -87,153 +193,30 @@ export default async function IdentidadPage({
       />
 
       <form action={boundUpdate} className="space-y-5">
-        <SeccionColapsable
-          titulo="Marca"
-          subtitulo="La voz, las reglas y el rumbo del proyecto."
-          tieneContenido={porSeccion.marca}
-          resumen={extraerFragmento(resumen.marca, LARGO_RESUMEN)}
-        >
-          <FieldWithHelp
-            label="Voz y personalidad"
-            name="voz"
-            defaultValue={identidad.voz}
-            {...EJEMPLOS_IDENTIDAD.voz}
-          />
-          <FieldWithHelp
-            label="Reglas de escritura"
-            name="reglas"
-            defaultValue={identidad.reglas}
-            {...EJEMPLOS_IDENTIDAD.reglas}
-          />
-          <FieldWithHelp
-            label="Objetivo del proyecto"
-            name="objetivo"
-            defaultValue={identidad.objetivo}
-            tip={OBJETIVO_TIP}
-            placeholder="Ej: educar a mi audiencia sobre construcción"
-            ejemplos={OBJETIVOS_SUGERIDOS}
-            multiline={false}
-          />
-          <FieldWithHelp
-            label="Historia de la marca"
-            name="historia"
-            defaultValue={identidad.historia}
-            {...EJEMPLOS_IDENTIDAD.historia}
-          />
-          <FieldWithHelp
-            label="Valores"
-            name="valores"
-            defaultValue={identidad.valores}
-            {...EJEMPLOS_IDENTIDAD.valores}
-          />
-          <FieldWithHelp
-            label="Audiencia (resumen general)"
-            name="audiencia"
-            defaultValue={identidad.audiencia}
-            {...EJEMPLOS_IDENTIDAD.audiencia}
-          />
-          <FieldWithHelp
-            label="Competidores"
-            name="competidores"
-            defaultValue={identidad.competidores}
-            {...EJEMPLOS_IDENTIDAD.competidores}
-          />
-          <FieldWithHelp
-            label="Manual de marca"
-            name="manualMarca"
-            defaultValue={identidad.manualMarca}
-            {...EJEMPLOS_IDENTIDAD.manualMarca}
-          />
-        </SeccionColapsable>
-
-        <SeccionColapsable
-          titulo="Lineamientos de contenido"
-          subtitulo="Qué decir siempre y qué evitar siempre — CTA, hashtags y restricciones."
-          tieneContenido={porSeccion.lineamientos}
-          resumen={extraerFragmento(resumen.lineamientos, LARGO_RESUMEN)}
-        >
-          <FieldWithHelp
-            label="CTA habituales"
-            name="ctaHabituales"
-            defaultValue={identidad.ctaHabituales}
-            {...EJEMPLOS_IDENTIDAD.ctaHabituales}
-          />
-          <FieldWithHelp
-            label="Hashtags frecuentes"
-            name="hashtagsFrecuentes"
-            defaultValue={identidad.hashtagsFrecuentes}
-            {...EJEMPLOS_IDENTIDAD.hashtagsFrecuentes}
-          />
-          <FieldWithHelp
-            label="Restricciones (qué evitar siempre)"
-            name="restricciones"
-            defaultValue={identidad.restricciones}
-            {...EJEMPLOS_IDENTIDAD.restricciones}
-          />
-        </SeccionColapsable>
-
-        <SeccionColapsable
-          titulo="Estilo"
-          subtitulo="Cómo se ve y se siente cada pieza."
-          tieneContenido={porSeccion.estilo}
-          resumen={extraerFragmento(resumen.estilo, LARGO_RESUMEN)}
-        >
-          <FieldWithHelp
-            label="Paleta de colores"
-            name="paleta"
-            defaultValue={identidad.paleta}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.paleta}
-          />
-          <FieldWithHelp
-            label="Tipografía"
-            name="tipografia"
-            defaultValue={identidad.tipografia}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.tipografia}
-          />
-          <FieldWithHelp
-            label="Look visual"
-            name="look"
-            defaultValue={identidad.look}
-            {...EJEMPLOS_IDENTIDAD.look}
-          />
-          <FieldWithHelp
-            label="Cámara"
-            name="camara"
-            defaultValue={identidad.camara}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.camara}
-          />
-          <FieldWithHelp
-            label="Ritmo"
-            name="ritmo"
-            defaultValue={identidad.ritmo}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.ritmo}
-          />
-          <FieldWithHelp
-            label="Estructura de CTA"
-            name="estructuraCta"
-            defaultValue={identidad.estructuraCta}
-            multiline={false}
-            {...EJEMPLOS_IDENTIDAD.estructuraCta}
-          />
-          <div className="mt-3.5">
-            <label className="mb-1 block text-[12.5px] text-text-muted">Logo</label>
-            <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">
-              Sube una imagen desde tu computador, arrástrala, pégala con Ctrl+V, o usa un
-              enlace público.
-            </p>
-            <FileUploader name="logoUrl" defaultValue={identidad.logoUrl} onUpload={boundSubirLogo} />
-          </div>
-        </SeccionColapsable>
+        {SECCIONES_IDENTIDAD.map((seccion) => {
+          const { completados, total } = progresoSeccion(identidad, seccion);
+          return (
+            <SeccionColapsable
+              key={seccion.id}
+              titulo={seccion.titulo}
+              subtitulo={seccion.subtitulo}
+              tieneContenido={completados > 0}
+              progreso={`${completados}/${total}`}
+              resumen={extraerFragmento(primerCampoConContenido(identidad, seccion), LARGO_RESUMEN)}
+            >
+              {camposDeSeccion(seccion.id, identidad, boundSubirLogo)}
+            </SeccionColapsable>
+          );
+        })}
 
         <SeccionColapsable
           titulo="Contacto (opcional)"
           subtitulo="Estos datos solo se incluyen en el contenido cuando tú lo actives al crear."
-          tieneContenido={porSeccion.contacto}
-          resumen={extraerFragmento(resumen.contacto, LARGO_RESUMEN)}
+          tieneContenido={tieneContacto}
+          resumen={extraerFragmento(
+            identidad.sitioWeb || identidad.telefono || identidad.direccion,
+            LARGO_RESUMEN,
+          )}
         >
           <FieldWithHelp
             label="Sitio web"
@@ -299,12 +282,24 @@ export default async function IdentidadPage({
       </SeccionColapsable>
 
       <Card>
-        <SectionTitle subtitle="Esto es exactamente lo que el Compilador de Identidad produce ahora mismo — lo que se usará en cada generación futura, sin resumir.">
-          Vista previa del Compilador
+        <SectionTitle subtitle="El documento completo de tu marca, siempre actualizado — cópialo para trabajar con cualquier IA externa sin pasar por Crear.">
+          Prompt Maestro de Identidad
+        </SectionTitle>
+        <PromptMaestro
+          identidad={identidad}
+          personajes={personajes}
+          avatar={avatares[0] ?? null}
+          activosVisuales={activosVisuales}
+        />
+      </Card>
+
+      <Card>
+        <SectionTitle subtitle="Estado de entrenamiento por sección del Compilador — lo mismo que ve Crear al armar el contexto.">
+          Estado del Compilador
         </SectionTitle>
         <IdentidadChecklist
           identidad={identidad}
-          activosCount={activos.filter((a) => a.tipo === "foto").length}
+          activosCount={activosVisuales.length}
           tienePersonaje={tienePersonaje}
           tieneAvatar={tieneAvatar}
           personaje={personajes[0] ?? null}

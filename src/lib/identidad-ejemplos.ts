@@ -140,9 +140,86 @@ export const EJEMPLOS_IDENTIDAD: Record<string, CampoEjemplo> = {
     ejemplos: ["#construccion #remodelacion #casapropia"],
   },
   restricciones: {
-    tip: "Lo que NUNCA debe aparecer en el contenido — temas, palabras, promesas o comparaciones prohibidas.",
+    tip: "Lo que la marca JAMÁS haría ni diría — temas, palabras, promesas o comparaciones prohibidas en cualquier contenido.",
     placeholder: "Ej: nunca criticar a otros maestros, no prometer plazos exactos",
     ejemplos: ["Nunca criticar a otros maestros por nombre", "No prometer plazos ni precios exactos"],
+  },
+  promesa: {
+    tip: "Qué garantiza la marca a su audiencia en una frase — el mensaje central que se repite en todo.",
+    placeholder: "Ej: con ObraBien aprendes a construir informado, sin miedo a que te estafen",
+    ejemplos: ["Aprende a construir informado, sin miedo a que te estafen"],
+  },
+  posicionamiento: {
+    tip: "Cómo quiere ser percibida frente a las alternativas — el lugar que ocupa en la cabeza de la audiencia.",
+    placeholder: "Ej: la fuente de construcción más confiable y educativa de Chile",
+    ejemplos: ["La fuente de construcción más confiable y educativa de Chile"],
+  },
+  manifiesto: {
+    tip: "La declaración de identidad en las propias palabras de la marca — un texto citable, de 3-6 frases, que resume todo lo demás.",
+    placeholder:
+      "Ej: Creemos que construir no debería dar miedo. Que la información clara vale más que la venta rápida...",
+    ejemplos: [],
+  },
+  emociones: {
+    tip: "Qué debe SENTIR la persona al consumir el contenido — guía el tono emocional de cada pieza.",
+    placeholder: "Ej: confianza, alivio, ganas de aprender",
+    ejemplos: ["Confianza, alivio y ganas de aprender", "Seguridad de estar en buenas manos"],
+  },
+  impactoEsperado: {
+    tip: "Qué debe PENSAR o hacer la persona después de consumir el contenido — el resultado mental de cada pieza.",
+    placeholder: "Ej: 'esto lo puedo hacer bien si me informo' — y guardar el contenido para cuando construya",
+    ejemplos: ["'Esto lo puedo hacer bien si me informo primero'"],
+  },
+  adaptacionAudiencia: {
+    tip: "Cómo varía el contenido entre tus audiencias (ver Avatares) — mismo mensaje, distinto ángulo.",
+    placeholder:
+      "Ej: a propietarios se les habla de decisiones y costos; a maestros, de técnica y prestigio profesional",
+    ejemplos: ["A propietarios: decisiones y costos. A maestros: técnica y prestigio."],
+  },
+  formalidad: {
+    tip: "Qué tan formal habla la marca — un valor fijo para que todas las piezas suenen igual.",
+    placeholder: "",
+    ejemplos: [],
+  },
+  humor: {
+    tip: "Cuánto humor se permite — fija el límite para que ninguna pieza se pase ni quede acartonada.",
+    placeholder: "",
+    ejemplos: [],
+  },
+  nivelTecnico: {
+    tip: "Qué tan técnico puede ser el contenido — calibra las explicaciones de forma consistente.",
+    placeholder: "",
+    ejemplos: [],
+  },
+  palabrasSiempre: {
+    tip: "Las palabras y expresiones que hacen reconocible a la marca — se sugieren en cada pieza.",
+    placeholder: "Ej: obra bien hecha (Enter para agregar)",
+    ejemplos: [],
+  },
+  palabrasNunca: {
+    tip: "Palabras concretas prohibidas — complementa las Reglas de escritura con una lista accionable.",
+    placeholder: "Ej: garantizado (Enter para agregar)",
+    ejemplos: [],
+  },
+  frasesCaracteristicas: {
+    tip: "Frases completas que la marca repite y la audiencia asocia con ella — para cerrar o abrir piezas.",
+    placeholder: "Ej: 'Construye informado, construye mejor.' / 'La obra bien hecha se nota.'",
+    ejemplos: ["'Construye informado, construye mejor.'"],
+  },
+  estructuraContenidos: {
+    tip: "El esqueleto habitual de una pieza, de gancho a cierre — para que todas fluyan igual.",
+    placeholder: "Ej: gancho (3 seg) → problema real → explicación simple → ejemplo → CTA",
+    ejemplos: ["Gancho (3 seg) → problema real → explicación simple → ejemplo concreto → CTA"],
+  },
+  respuestaCriticas: {
+    tip: "Cómo responde la marca a críticas y comentarios difíciles — la voz también se entrena ahí.",
+    placeholder: "Ej: agradecer, responder con datos, nunca discutir; si hay error, reconocerlo de frente",
+    ejemplos: ["Agradecer, responder con datos, nunca discutir; reconocer errores de frente"],
+  },
+  diferenciadores: {
+    tip: "Por qué elegirte a ti y no a la competencia — lo que nadie más puede decir igual.",
+    placeholder: "Ej: educación objetiva sin vender productos, maestros verificados, normativa chilena real",
+    ejemplos: ["Educación objetiva sin vender productos; normativa chilena citada correctamente"],
   },
 };
 

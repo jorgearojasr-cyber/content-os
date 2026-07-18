@@ -23,6 +23,22 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
     ctaHabituales: "",
     hashtagsFrecuentes: "",
     restricciones: "",
+    promesa: "",
+    posicionamiento: "",
+    arquetipo: "",
+    manifiesto: "",
+    emociones: "",
+    impactoEsperado: "",
+    adaptacionAudiencia: "",
+    formalidad: "",
+    humor: "",
+    nivelTecnico: "",
+    palabrasSiempre: "",
+    palabrasNunca: "",
+    frasesCaracteristicas: "",
+    estructuraContenidos: "",
+    respuestaCriticas: "",
+    diferenciadores: "",
     avatarJson: {},
     personajeNombre: "",
     personajePersonalidad: "",
@@ -164,6 +180,78 @@ describe("compileIdentity", () => {
     const identidad = baseIdentidad({ voz: "Directa", reglas: "Sin tecnicismos" });
     const salida = compileIdentity(identidad);
     expect(salida).toBe("## Marca\nVoz y personalidad: Directa\nReglas de escritura: Sin tecnicismos");
+  });
+
+  it("regresión ronda entrenamiento: con SOLO los campos previos poblados, la salida es idéntica a la de antes", () => {
+    // Reproduce la forma real de una identidad pre-ronda (Marca completa +
+    // Lineamientos), con los 16 campos nuevos vacíos — el orden y las
+    // líneas deben ser exactamente los históricos.
+    const identidad = baseIdentidad({
+      voz: "Cercana",
+      reglas: "Sin clickbait",
+      objetivo: "Educar",
+      historia: "Nació en obra",
+      valores: "Honestidad",
+      audiencia: "Dueños de casa",
+      competidores: "Canales de YouTube",
+      manualMarca: "Priorizar utilidad",
+      ctaHabituales: "Síguenos",
+      hashtagsFrecuentes: "#obra",
+      restricciones: "Nunca inventar datos",
+    });
+    expect(compileIdentity(identidad)).toBe(
+      "## Marca\n" +
+        "Voz y personalidad: Cercana\n" +
+        "Reglas de escritura: Sin clickbait\n" +
+        "Objetivo del proyecto: Educar\n" +
+        "Historia de la marca: Nació en obra\n" +
+        "Valores: Honestidad\n" +
+        "Audiencia: Dueños de casa\n" +
+        "Competidores: Canales de YouTube\n" +
+        "Manual de marca: Priorizar utilidad\n\n" +
+        "## Lineamientos de contenido\n" +
+        "CTA habituales: Síguenos\n" +
+        "Hashtags frecuentes: #obra\n" +
+        "Restricciones (qué evitar siempre): Nunca inventar datos",
+    );
+  });
+
+  it("incluye los campos de entrenamiento permanente cuando están definidos", () => {
+    const identidad = baseIdentidad({
+      promesa: "Construye informado",
+      posicionamiento: "La fuente más confiable",
+      arquetipo: "El Sabio",
+      manifiesto: "Creemos que construir no debería dar miedo",
+      emociones: "Confianza y alivio",
+      impactoEsperado: "Esto lo puedo hacer bien",
+      adaptacionAudiencia: "A maestros: técnica",
+      formalidad: "Cercano pero profesional",
+      humor: "Humor sutil ocasional",
+      nivelTecnico: "Muy simple (cero tecnicismos)",
+      palabrasSiempre: "obra bien hecha, maestro",
+      palabrasNunca: "garantizado, barato",
+      frasesCaracteristicas: "'Construye informado, construye mejor.'",
+      estructuraContenidos: "gancho → problema → solución → CTA",
+      respuestaCriticas: "Responder con datos, nunca discutir",
+      diferenciadores: "Educación sin vender productos",
+    });
+    const salida = compileIdentity(identidad);
+    expect(salida).toContain("Promesa de valor: Construye informado");
+    expect(salida).toContain("Posicionamiento: La fuente más confiable");
+    expect(salida).toContain("Arquetipo de marca: El Sabio");
+    expect(salida).toContain("Manifiesto de marca: Creemos que construir no debería dar miedo");
+    expect(salida).toContain("Emociones a transmitir: Confianza y alivio");
+    expect(salida).toContain("Qué debe pensar la audiencia después de consumir el contenido: Esto lo puedo hacer bien");
+    expect(salida).toContain("Cómo adaptar el contenido según la audiencia: A maestros: técnica");
+    expect(salida).toContain("Diferenciadores frente a la competencia: Educación sin vender productos");
+    expect(salida).toContain("Nivel de formalidad: Cercano pero profesional");
+    expect(salida).toContain("Humor permitido: Humor sutil ocasional");
+    expect(salida).toContain("Nivel técnico del contenido: Muy simple (cero tecnicismos)");
+    expect(salida).toContain("Palabras y expresiones que siempre usa: obra bien hecha, maestro");
+    expect(salida).toContain("Palabras que nunca debe usar: garantizado, barato");
+    expect(salida).toContain("Frases características: 'Construye informado, construye mejor.'");
+    expect(salida).toContain("Estructura habitual de los contenidos: gancho → problema → solución → CTA");
+    expect(salida).toContain("Cómo responder críticas y comentarios: Responder con datos, nunca discutir");
   });
 
   it("sin personaje seleccionado, la sección Personaje no aparece aunque incluirPersonaje sea true", () => {
