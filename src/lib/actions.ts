@@ -7,24 +7,8 @@ import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { activos, avatares, bloques, identidades, notas, personajes, proyectos } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
-import type { PosicionLogo } from "./identity-compiler";
-import {
-  completarProyecto,
-  generarContenido,
-  generarPersonaje,
-  generarPlanEdicion,
-  inferirConfiguracion,
-  revisarEscena,
-} from "./ai";
-import type {
-  ConfiguracionInferida,
-  ContenidoGenerado,
-  ContenidoInput,
-  EscenaRevisada,
-  IdentidadCompletaSugerida,
-  PersonajeSugerido,
-  PlanEdicion,
-} from "./ai";
+import { completarProyecto, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
+import type { EscenaRevisada, IdentidadCompletaSugerida, PersonajeSugerido, PlanEdicion } from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
 import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
@@ -572,31 +556,6 @@ export async function getBloque(proyectoId: string, bloqueId: string) {
   return rows[0] ?? null;
 }
 
-/** Cuando el usuario elige "Automático" en el selector de Personaje (2+
- * disponibles entre los del proyecto y del estudio), el sistema elige por
- * palabras clave del tema contra cada Personaje — mismo criterio que el
- * resto de Reutilización Inteligente, sin gastar un llamado extra a la IA.
- * Sin coincidencias, cae al más reciente (mismo criterio de "por defecto"
- * que usa el resto de la app). `null` solo si no hay ningún candidato. */
-async function elegirPersonajeAutomatico(proyectoId: string, tema: string): Promise<Personaje | null> {
-  const [propios, estudio] = await Promise.all([getPersonajes(proyectoId), getPersonajesDelEstudio()]);
-  const candidatos = [...propios, ...estudio];
-  if (candidatos.length === 0) return null;
-
-  const palabrasClave = extraerPalabrasClave(tema);
-  if (palabrasClave.length > 0) {
-    const [mejor] = rankearResultados(
-      candidatos,
-      (p) => `${p.nombre} ${p.personalidad} ${p.fisica} ${p.vestuario} ${p.vozDescrita} ${p.gestos} ${p.muletillas}`,
-      (p) => ({ id: p.id, titulo: p.nombre, fragmento: "" }),
-      palabrasClave,
-      1,
-    );
-    if (mejor) return candidatos.find((c) => c.id === mejor.id) ?? null;
-  }
-  return candidatos[0];
-}
-
 /**
  * Genera una pieza de contenido con IA para el wizard de "Crear". Compila
  * la identidad del proyecto automáticamente — el cliente nunca maneja
@@ -610,70 +569,6 @@ async function elegirPersonajeAutomatico(proyectoId: string, tema: string): Prom
  * sigue siendo de a uno). El cliente lo necesita para guardar el bloque con
  * el/los Personaje(s) correctos asociados.
  */
-export async function generarContenidoAction(
-  proyectoId: string,
-  input: Omit<ContenidoInput, "identidadCompilada"> & {
-    /** Casillas "Qué incluir en esta pieza" de Crear — controlan qué
-     * secciones del Compilador se pasan a esta generación en particular.
-     * Nunca se guardan; solo viven mientras dura este llamado. */
-    incluirPersonaje?: boolean;
-    incluirMarca?: boolean;
-    incluirContacto?: boolean;
-    /** Cuáles Personajes de la lista del proyecto/estudio usar en esta
-     * generación (selección múltiple en Crear cuando hay más de uno
-     * disponible). Vacío/ausente con `incluirPersonaje: true` = "Automático",
-     * el sistema elige uno solo. Ausente con `incluirPersonaje: false` =
-     * ninguno, la sección se omite. */
-    personajeIds?: string[];
-    avatarId?: string;
-    /** Posición de logo elegida en "Incluir logo" (Paso 4 de Crear).
-     * Ausente/`undefined` = sin instrucción de logo para esta pieza. */
-    posicionLogo?: PosicionLogo;
-  },
-): Promise<ContenidoGenerado & { personajeIdsUsados: string[] }> {
-  const { incluirPersonaje, incluirMarca, incluirContacto, personajeIds, avatarId, posicionLogo, ...resto } = input;
-  const idsExplicitos = (personajeIds ?? []).filter((id) => id.trim().length > 0);
-  const personajeAutomatico = Boolean(incluirPersonaje) && idsExplicitos.length === 0;
-  const [identidad, personajesExplicitos, avatar, personajeAuto, activosDelProyecto] = await Promise.all([
-    getIdentidad(proyectoId),
-    // Sin acotar por proyecto a propósito: cada id puede ser de un
-    // Personaje del estudio, que no pertenece a este (ni a ningún) proyecto.
-    Promise.all(idsExplicitos.map((id) => getPersonaje(id))),
-    avatarId ? getAvatarPorId(proyectoId, avatarId) : Promise.resolve(null),
-    personajeAutomatico ? elegirPersonajeAutomatico(proyectoId, resto.tema) : Promise.resolve(null),
-    getActivos(proyectoId),
-  ]);
-  const personajes =
-    personajesExplicitos.filter((p): p is Personaje => p !== null).length > 0
-      ? personajesExplicitos.filter((p): p is Personaje => p !== null)
-      : personajeAuto
-        ? [personajeAuto]
-        : [];
-  // Siempre incluidos si existen (a diferencia de Personaje, no hay casilla
-  // de "usar Activos" — son contexto disponible, no una elección explícita
-  // por pieza, igual que Marca/Estilo).
-  const activosVisuales = activosDelProyecto
-    .filter((a) => a.tipo === "foto")
-    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
-  const identidadCompilada = identidad
-    ? compileIdentity(identidad, {
-        incluirPersonaje,
-        incluirMarca,
-        incluirContacto,
-        personajes,
-        activosVisuales,
-        avatar,
-        posicionLogo,
-      })
-    : "";
-  const contenido = await generarContenido({
-    ...resto,
-    identidadCompilada,
-    variosPersonajes: personajes.length >= 2,
-  });
-  return { ...contenido, personajeIdsUsados: personajes.map((p) => p.id) };
-}
-
 /**
  * "Revisar cambios" — cuando el usuario edita a mano Descripción o Texto
  * en pantalla de una escena (en la revisión de Crear, todavía sin
@@ -681,9 +576,8 @@ export async function generarContenidoAction(
  * a generar SOLO los prompts/referencias de esa escena (ver `revisarEscena`
  * en ai.ts), con el resto de las escenas como contexto de coherencia — sin
  * reiniciar toda la pieza. Recompila la identidad con los mismos
- * Personajes/Activos que ya tenía la pieza, igual que
- * `generarContenidoAction`, para que la revisión use las mismas
- * instrucciones (fotos de referencia, etc.) que la generación original.
+ * Personajes/Activos que ya tenía la pieza, para que la revisión use las
+ * mismas instrucciones (fotos de referencia, etc.) que el contexto original.
  *
  * `contexto` (tema/tipoContenido/tipoProduccion/personajeIds) va como
  * parámetro SEPARADO de `input` (escena/otrasEscenas) a propósito: en la
@@ -727,29 +621,6 @@ export async function revisarEscenaAction(
     escena: input.escena,
     otrasEscenas: input.otrasEscenas,
   });
-}
-
-/**
- * "Crear rápido": infiere la configuración de producción a partir de una
- * idea libre. El cliente siempre debe mostrar el resultado como un resumen
- * editable para confirmar antes de llamar a `generarContenidoAction` — esta
- * función nunca genera el contenido final por sí sola. Usa el Personaje y
- * el Avatar más recientes del proyecto (si hay varios) solo para informar
- * mejor la inferencia — no hay casillas de selección en este paso.
- */
-export async function inferirConfiguracionAction(
-  proyectoId: string,
-  idea: string,
-): Promise<ConfiguracionInferida> {
-  const [identidad, personaje, avatar] = await Promise.all([
-    getIdentidad(proyectoId),
-    getPersonajes(proyectoId).then((lista) => lista[0] ?? null),
-    getAvatares(proyectoId).then((lista) => lista[0] ?? null),
-  ]);
-  const identidadCompilada = identidad
-    ? compileIdentity(identidad, { personajes: personaje ? [personaje] : [], avatar })
-    : "";
-  return inferirConfiguracion(idea, identidadCompilada);
 }
 
 /** Parsea un campo JSON (`escenasJson`, `personajeIds`) que llega

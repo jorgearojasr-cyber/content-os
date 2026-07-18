@@ -3,14 +3,12 @@ import { notFound } from "next/navigation";
 import {
   buscarContenidoRelacionado,
   createBloque,
-  generarContenidoAction,
   getActivos,
   getAvatares,
   getBloques,
   getIdentidad,
   getPersonajes,
   getPersonajesDelEstudio,
-  inferirConfiguracionAction,
   revisarEscenaAction,
 } from "@/lib/actions";
 import { identityHasContent } from "@/lib/identity-compiler";
@@ -30,8 +28,8 @@ export default async function CrearPage({
   const personajesEstudio = await getPersonajesDelEstudio();
   const avatares = await getAvatares(proyectoId);
   const bloquesRecientes = (await getBloques(proyectoId)).slice(0, 3);
-  const boundInferir = inferirConfiguracionAction.bind(null, proyectoId);
-  const boundGenerar = generarContenidoAction.bind(null, proyectoId);
+  const activosFoto = activos.filter((a) => a.tipo === "foto");
+  const activosVisuales = activosFoto.map((a) => ({ etiqueta: a.nombre, url: a.valor }));
   const boundCreate = createBloque.bind(null, proyectoId);
   const boundRevisarEscena = revisarEscenaAction.bind(null, proyectoId);
   const tieneIdentidad = identityHasContent(identidad, {
@@ -56,10 +54,9 @@ export default async function CrearPage({
         personajes={personajes}
         personajesEstudio={personajesEstudio}
         avatares={avatares}
-        activosCount={activos.filter((a) => a.tipo === "foto").length}
+        activosCount={activosFoto.length}
+        activosVisuales={activosVisuales}
         bloquesRecientes={bloquesRecientes}
-        onInferir={boundInferir}
-        onGenerar={boundGenerar}
         onGuardar={boundCreate}
         onBuscarRelacionado={buscarContenidoRelacionado}
         onRevisarEscena={boundRevisarEscena}

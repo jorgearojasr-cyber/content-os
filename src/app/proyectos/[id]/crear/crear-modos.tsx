@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { Button, Card, SectionTitle, Textarea } from "@/components/ui";
+import { Button, Card, Label, SectionTitle, Textarea } from "@/components/ui";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
-import { explicarError } from "@/lib/errores";
 import { formatearFechaChile } from "@/lib/fecha";
-import { identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
+import { compileIdentity, identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
 import { urlImagenVisible } from "@/lib/imagen-url";
 import { extraerFragmento } from "@/lib/reutilizacion";
+import { construirPlantillaExportacion, parsearRespuestaIA } from "@/lib/exportar-contexto";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
-import type { ConfiguracionInferida, ContenidoGenerado, ContenidoInput, EscenaRevisada } from "@/lib/ai";
+import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
-import type { PosicionLogo } from "@/lib/identity-compiler";
+import type { ActivoVisual, PosicionLogo } from "@/lib/identity-compiler";
 import { fotoPrincipal, iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
 import type { Avatar, Bloque, Identidad, Personaje } from "@/lib/types";
 
@@ -27,30 +27,10 @@ const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
 type Modo = "rapido" | "guiado" | "profesional";
 
 const MODOS: { id: Modo; icono: string; etiqueta: string; descripcion: string }[] = [
-  { id: "rapido", icono: "🚀", etiqueta: "Crear rápido", descripcion: "La IA decide por ti" },
+  { id: "rapido", icono: "🚀", etiqueta: "Crear rápido", descripcion: "Solo la idea, el resto queda automático" },
   { id: "guiado", icono: "🎨", etiqueta: "Crear guiado", descripcion: "Tú decides el formato y estilo" },
   { id: "profesional", icono: "⚙️", etiqueta: "Modo profesional", descripcion: "Control total de cada detalle" },
 ];
-
-/** Límite visual de referencia para el contador de caracteres de la idea —
- * no bloquea el envío, no existe un límite real en el backend. */
-const LIMITE_IDEA_VISUAL = 600;
-
-/** Se monta desde cero cada vez que empieza a cargar, así el contador
- * arranca en 0 sin necesitar resetear estado dentro de un efecto. */
-function Cronometro() {
-  const [segundos, setSegundos] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setSegundos((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return <p className="mt-3 font-mono text-[12px] text-text-muted">{segundos}s</p>;
-}
-
-function segundosDesdeDuracion(duracion: string): number | undefined {
-  const match = duracion.match(/^(\d+)s$/);
-  return match ? Number(match[1]) : undefined;
-}
 
 /** La única opción es de proyecto -> se auto-selecciona sin selector (cero
  * fricción). Cualquier otro caso con al menos 2 opciones (de proyecto y/o
@@ -178,15 +158,15 @@ function PersonajeThumbnails({
 }
 
 /**
- * "Qué incluir en esta pieza" — mismas casillas antes del botón de generar
- * en los 3 modos (un solo componente, no una copia por modo). Controlan
- * qué secciones del Compilador se pasan a esta generación en particular
- * (ver `OpcionesCompilado` en identity-compiler.ts); no cambian nada
- * guardado en Identidad. Cuando hay más de un Personaje disponible (de
- * este proyecto y/o del estudio) o más de un Avatar, aparece un selector
- * de cuál usar — con uno solo DE PROYECTO, no hay selector, cero fricción
- * agregada; un Personaje del estudio, en cambio, siempre requiere elección
- * explícita del usuario, incluso si es la única opción disponible.
+ * "Qué incluir en esta pieza" — mismas casillas antes de exportar el
+ * contexto en los 3 modos (un solo componente, no una copia por modo).
+ * Controlan qué secciones del Compilador se incluyen en el contexto
+ * exportado (ver `OpcionesCompilado` en identity-compiler.ts); no cambian
+ * nada guardado en Identidad. Cuando hay más de un Personaje disponible
+ * (de este proyecto y/o del estudio) o más de un Avatar, aparece un
+ * selector de cuál usar — con uno solo DE PROYECTO, no hay selector, cero
+ * fricción agregada; un Personaje del estudio, en cambio, siempre requiere
+ * elección explícita del usuario, incluso si es la única opción disponible.
  */
 function QueIncluir({
   mostrarPersonaje,
@@ -264,7 +244,7 @@ function QueIncluir({
                     checked={personajeIds.length === 0}
                     onChange={onElegirAutomatico}
                   />
-                  ✨ Automático (que la IA elija según el contexto)
+                  ✨ Automático (usa el primero disponible)
                 </label>
                 {personajes.length > 0 ? (
                   <div className="mt-1.5">
@@ -373,6 +353,66 @@ function QueIncluir({
   );
 }
 
+/**
+ * "Exportar contexto" / "Pegar resultado" — reemplaza el botón que antes
+ * llamaba a la API para generar la pieza completa. `contextoExportable` ya
+ * viene armado (Identidad + idea + configuración + plantilla de formato,
+ * ver `construirPlantillaExportacion`); acá solo se copia y se recibe la
+ * respuesta pegada de vuelta. `onEstructurar` la parsea con texto plano
+ * (sin IA, ver `parsearRespuestaIA`) y entrega el resultado a la pantalla
+ * de revisión de siempre (`ResultadoTabs`), que no sabe ni le importa si
+ * el contenido vino de una IA interna o de un pegado manual.
+ */
+function ExportarYPegar({
+  contextoExportable,
+  respuestaPegada,
+  setRespuestaPegada,
+  onEstructurar,
+  avisoParseo,
+}: {
+  contextoExportable: string;
+  respuestaPegada: string;
+  setRespuestaPegada: (v: string) => void;
+  onEstructurar: () => void;
+  avisoParseo: string;
+}) {
+  const [copiado, setCopiado] = useState(false);
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <p className="mb-2 font-display text-[15px]">Exportar y pegar</p>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => {
+          navigator.clipboard.writeText(contextoExportable);
+          setCopiado(true);
+          setTimeout(() => setCopiado(false), 2000);
+        }}
+      >
+        📋 {copiado ? "Copiado ✓" : "Exportar contexto"}
+      </Button>
+      <p className="mt-2 text-[12px] text-text-muted">
+        Copia esto y pégalo en Claude.ai, ChatGPT o Gemini (con tu cuenta normal, sin costo
+        adicional). Cuando tengas la respuesta, pégala abajo.
+      </p>
+
+      <Label htmlFor="respuestaPegada">Pegar resultado</Label>
+      <Textarea
+        id="respuestaPegada"
+        value={respuestaPegada}
+        onChange={(e) => setRespuestaPegada(e.target.value)}
+        placeholder="Pega acá la respuesta completa que te dio la IA externa"
+        className="min-h-[160px]"
+      />
+      {avisoParseo ? <p className="mt-1.5 text-[12px] text-danger">{avisoParseo}</p> : null}
+      <Button type="button" className="mt-2" disabled={!respuestaPegada.trim()} onClick={onEstructurar}>
+        Estructurar
+      </Button>
+    </div>
+  );
+}
+
 export function CrearModos({
   proyectoId,
   identidad,
@@ -380,9 +420,8 @@ export function CrearModos({
   personajesEstudio,
   avatares,
   activosCount,
+  activosVisuales,
   bloquesRecientes,
-  onInferir,
-  onGenerar,
   onGuardar,
   onBuscarRelacionado,
   onRevisarEscena,
@@ -393,18 +432,12 @@ export function CrearModos({
   personajesEstudio: Personaje[];
   avatares: Avatar[];
   activosCount: number;
+  /** Fotos de lugar (Activos tipo "foto") del proyecto — se incluyen
+   * siempre en el contexto exportado si existen, igual que ya hacía la
+   * generación automática (no hay casilla de "usar Activos", son
+   * contexto disponible, igual que Marca/Estilo). */
+  activosVisuales: ActivoVisual[];
   bloquesRecientes: Bloque[];
-  onInferir: (idea: string) => Promise<ConfiguracionInferida>;
-  onGenerar: (
-    input: Omit<ContenidoInput, "identidadCompilada"> & {
-      incluirPersonaje?: boolean;
-      incluirMarca?: boolean;
-      incluirContacto?: boolean;
-      personajeIds?: string[];
-      avatarId?: string;
-      posicionLogo?: PosicionLogo;
-    },
-  ) => Promise<ContenidoGenerado & { personajeIdsUsados: string[] }>;
   onGuardar: (formData: FormData) => Promise<void>;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
   onRevisarEscena: (
@@ -433,22 +466,16 @@ export function CrearModos({
 
   const [modo, setModo] = useState<Modo>("rapido");
   const [config, setConfig] = useState<ConfigCreacion>(CONFIG_VACIA);
-  const [idea, setIdea] = useState("");
-  const [inferencia, setInferencia] = useState<ConfiguracionInferida | null>(null);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState("");
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
+  const [respuestaPegada, setRespuestaPegada] = useState("");
+  const [avisoParseo, setAvisoParseo] = useState("");
   // "Ninguno" es la selección por defecto al cargar la pantalla — clics en
-  // las miniaturas de la tarjeta "Personajes" (o en las casillas de Paso 5,
-  // misma fuente de verdad) durante la sesión la cambian, pero solo en
-  // memoria (se pierde al recargar, aposta). `ids: []` = "Ninguno".
-  // Selección múltiple: 2+ ids seleccionados juntos componen escenas de
-  // interacción conjunta (ver `variosPersonajes` en generarContenidoAction).
-  // `ids` e `incluir` viven en UN solo estado (no dos separados) para que
-  // las actualizaciones sean atómicas — dos toggles seguidos (ej. clic en
-  // Carolina y clic en Don José en sucesión rápida) podían pisarse entre sí
-  // si `incluir` se derivaba en un `setState` aparte con el arreglo viejo
-  // capturado por clausura.
+  // las miniaturas de la tarjeta "Personajes" (o en las casillas de "Qué
+  // incluir en esta pieza", misma fuente de verdad) durante la sesión la
+  // cambian, pero solo en memoria (se pierde al recargar, aposta). `ids:
+  // []` = "Ninguno". Selección múltiple: 2+ ids seleccionados juntos se
+  // listan juntos en el contexto exportado para que la IA externa arme
+  // escenas de interacción conjunta entre ellos.
   const [personajeSeleccion, setPersonajeSeleccion] = useState<{ ids: string[]; incluir: boolean }>({
     ids: [],
     incluir: false,
@@ -457,17 +484,17 @@ export function CrearModos({
   function setIncluirPersonaje(v: boolean) {
     setPersonajeSeleccion((prev) => ({ ...prev, incluir: v }));
   }
-  // Los Personajes realmente usados en la última generación (los elegidos a
-  // mano, o el que decidió el sistema en "Automático") — es lo que se
-  // guarda con el bloque, no el valor crudo del selector.
+  // Los Personajes realmente incluidos en el contexto exportado — se
+  // guardan con el bloque al confirmar, igual que antes.
   const [personajeIdsUsados, setPersonajeIdsUsados] = useState<string[]>([]);
 
   // Única función que modifica la selección de Personajes por clic directo
-  // (carrusel o casillas de Paso 5, ambos la llaman igual) — alterna la
-  // membresía en el arreglo y sincroniza "Usar Personaje" según si queda
+  // (carrusel o casillas de "Qué incluir", ambos la llaman igual) — alterna
+  // la membresía en el arreglo y sincroniza "Usar Personaje" según si queda
   // algo seleccionado, en una sola actualización atómica. Al llegar a 0,
   // "Ninguno" vuelve a quedar resaltado solo (deriva de `ids.length === 0`),
-  // sin lógica aparte — así el carrusel y Paso 5 SIEMPRE reflejan lo mismo.
+  // sin lógica aparte — así el carrusel y "Qué incluir" SIEMPRE reflejan lo
+  // mismo.
   function alternarPersonajeSeleccionado(id: string) {
     setPersonajeSeleccion((prev) => {
       const nuevo = prev.ids.includes(id) ? prev.ids.filter((x) => x !== id) : [...prev.ids, id];
@@ -477,14 +504,15 @@ export function CrearModos({
 
   // Tile "Ninguno" del carrusel: vacía la selección Y desmarca "Usar
   // Personaje" — mutuamente excluyente con tener cualquier Personaje
-  // seleccionado, como pide la ronda de selección múltiple.
+  // seleccionado.
   function seleccionarNinguno() {
     setPersonajeSeleccion({ ids: [], incluir: false });
   }
 
-  // "✨ Automático" de Paso 5: vacía la selección SIN desmarcar "Usar
-  // Personaje" — a diferencia de "Ninguno", sigue queriendo un Personaje,
-  // solo deja que el sistema elija uno.
+  // "✨ Automático" de "Qué incluir": vacía la selección SIN desmarcar
+  // "Usar Personaje" — a diferencia de "Ninguno", sigue queriendo un
+  // Personaje; el contexto exportado usa el primero disponible (ver
+  // `personajesParaExportar` más abajo) en vez de que un modelo decida.
   function elegirPersonajeAutomatico() {
     setPersonajeSeleccion((prev) => ({ ids: [], incluir: prev.incluir }));
   }
@@ -499,92 +527,65 @@ export function CrearModos({
   function empezarDeNuevo() {
     setResultado(null);
     setPersonajeIdsUsados([]);
-    setInferencia(null);
-    setIdea("");
     setConfig(CONFIG_VACIA);
-    setError("");
+    setRespuestaPegada("");
+    setAvisoParseo("");
   }
 
-  async function analizarIdea() {
-    if (!idea.trim()) return;
-    setCargando(true);
-    setError("");
-    try {
-      const inferida = await onInferir(idea);
-      setInferencia(inferida);
-      setConfig({
-        tipoContenido: inferida.formato,
-        tipoProduccion: inferida.tipoProduccion,
-        tema: idea,
-        plataforma: inferida.plataforma ?? "",
-        tipoPublicacion: "",
-        duracion: inferida.duracionSegundos ? `${inferida.duracionSegundos}s` : "",
-        numeroEscenas: inferida.numeroEscenas ? String(inferida.numeroEscenas) : "",
-        numeroPaginas: inferida.numeroPaginas ? String(inferida.numeroPaginas) : "",
-        estiloImagen: inferida.estiloImagen ?? "",
-      });
-    } catch (e) {
-      setError(explicarError(e));
-    } finally {
-      setCargando(false);
-    }
-  }
+  // Los Personajes que van en el contexto exportado: la selección manual
+  // del usuario, o (con "✨ Automático" y "Usar Personaje" marcado) el
+  // primero disponible del proyecto/estudio — sin IA que decida cuál es
+  // más relevante, es solo una elección por defecto simple.
+  const todosLosPersonajes = [...personajes, ...personajesEstudio];
+  const personajesParaExportar = !incluirPersonaje
+    ? []
+    : personajeSeleccion.ids.length > 0
+      ? todosLosPersonajes.filter((p) => personajeSeleccion.ids.includes(p.id))
+      : todosLosPersonajes.slice(0, 1);
 
-  async function generar() {
-    if (!config.tipoContenido || !config.tema.trim()) return;
-    setCargando(true);
-    setError("");
-    try {
-      const temaFinal =
-        config.tipoContenido === "Video Largo" && config.duracion.trim()
-          ? `${config.tema} (duración aproximada: ${config.duracion.trim()})`
-          : config.tema;
-
-      // Specs reales del Tipo de publicación elegido (Reel/Story/Post/...
-      // ver TIPOS_PUBLICACION_POR_PLATAFORMA) — el aspect ratio siempre se
-      // pasa; la duración objetivo solo cae al máximo del formato cuando
-      // el usuario no eligió una duración explícita en el selector propio.
-      const specPublicacion = TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
-        (t) => t.value === config.tipoPublicacion,
-      );
-
-      const resultadoGenerado = await onGenerar({
+  const puedeExportar = !!config.tipoContenido && config.tema.trim().length > 0;
+  const contextoExportable = puedeExportar
+    ? construirPlantillaExportacion({
+        identidadCompilada: compileIdentity(identidad, {
+          incluirMarca,
+          incluirPersonaje,
+          incluirContacto,
+          personajes: personajesParaExportar,
+          activosVisuales,
+          avatar: incluirMarca ? (avatares.find((a) => a.id === avatarId) ?? avatares[0] ?? null) : null,
+          posicionLogo: incluirLogo ? posicionLogo : null,
+        }),
         tipoContenido: config.tipoContenido,
         tipoProduccion: config.tipoProduccion || "IA decide automáticamente",
-        tema: temaFinal,
+        tema:
+          config.tipoContenido === "Video Largo" && config.duracion.trim()
+            ? `${config.tema} (duración aproximada: ${config.duracion.trim()})`
+            : config.tema,
         plataforma: config.plataforma || undefined,
-        duracionSegundos: segundosDesdeDuracion(config.duracion) ?? specPublicacion?.duracionMaxSegundos,
-        aspectRatio: specPublicacion?.aspectRatio,
-        numeroEscenas:
-          config.numeroEscenas && config.numeroEscenas !== "Automático"
-            ? Number(config.numeroEscenas)
-            : undefined,
-        numeroPaginas:
-          config.numeroPaginas && config.numeroPaginas !== "Automático"
-            ? Number(config.numeroPaginas)
-            : undefined,
+        duracion: config.tipoContenido !== "Video Largo" ? config.duracion || undefined : undefined,
+        numeroEscenas: config.numeroEscenas || undefined,
+        numeroPaginas: config.numeroPaginas || undefined,
         estiloImagen: config.estiloImagen || undefined,
-        incluirPersonaje,
-        incluirMarca,
-        incluirContacto,
-        personajeIds: incluirPersonaje ? personajeSeleccion.ids : undefined,
-        avatarId: incluirMarca ? avatarId || undefined : undefined,
-        posicionLogo: incluirLogo ? posicionLogo : undefined,
-      });
-      const { personajeIdsUsados: idsUsados, ...contenido } = resultadoGenerado;
-      setPersonajeIdsUsados(idsUsados);
-      setResultado(contenido);
-    } catch (e) {
-      setError(explicarError(e));
-    } finally {
-      setCargando(false);
-    }
+      })
+    : "";
+
+  function estructurarRespuesta() {
+    if (!respuestaPegada.trim()) return;
+    const { contenido, reconocido } = parsearRespuestaIA(respuestaPegada);
+    setPersonajeIdsUsados(personajesParaExportar.map((p) => p.id));
+    setResultado(contenido);
+    setAvisoParseo(
+      reconocido
+        ? ""
+        : "No reconocí el formato esperado en el texto pegado — lo dejé completo, editable, en la " +
+            "pestaña \"Copy\" de la revisión, para que lo estructures a mano.",
+    );
   }
 
-  // Se repite en las 3 ramas de abajo (resultado / cargando / formulario) —
-  // Identidad activa y Contenido reciente siempre se muestran, sin importar
-  // en qué paso del flujo esté el usuario. Una sola definición para no
-  // triplicar el JSX.
+  // Se repite en las 2 ramas de abajo (resultado / formulario) — Identidad
+  // activa y Contenido reciente siempre se muestran, sin importar en qué
+  // paso del flujo esté el usuario. Una sola definición para no triplicar
+  // el JSX.
   const identidadActivaYReciente = (
     <>
       {personajes.length > 0 ? (
@@ -618,7 +619,7 @@ export function CrearModos({
       ) : null}
 
       <Card>
-        <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que la IA usa automáticamente, sin que tengas que volver a seleccionarlo.">
+        <SectionTitle subtitle="Lo que el Compilador de Identidad tiene guardado para este proyecto ahora mismo — esto es lo que se incluye en el contexto exportado, sin que tengas que volver a seleccionarlo.">
           Identidad activa
         </SectionTitle>
         <IdentidadChecklist
@@ -658,9 +659,9 @@ export function CrearModos({
 
   if (resultado) {
     // Resumen de una línea arriba de los tabs — mismos datos ya elegidos en
-    // Paso 4/5 (config + personajeIdsUsados, lo REALMENTE usado en esta
-    // generación, no el estado crudo y aún editable del carrusel), nunca
-    // vueltos a inferir. "Duración" se generaliza a "N láminas" para
+    // los Pasos de configuración + personajeIdsUsados (los REALMENTE
+    // incluidos en el contexto exportado, no el estado crudo y aún
+    // editable del carrusel). "Duración" se generaliza a "N láminas" para
     // Carrusel, que no tiene duración pero sí un tamaño equivalente.
     const specPublicacionUsada = TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
       (t) => t.value === config.tipoPublicacion,
@@ -687,6 +688,11 @@ export function CrearModos({
 
     return (
       <>
+        {avisoParseo ? (
+          <p className="rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-3 text-[13px] text-text">
+            {avisoParseo}
+          </p>
+        ) : null}
         <ResultadoTabs
           proyectoId={proyectoId}
           resultado={resultado}
@@ -699,21 +705,6 @@ export function CrearModos({
           onEmpezarDeNuevo={empezarDeNuevo}
           onRevisarEscena={onRevisarEscena}
         />
-        {identidadActivaYReciente}
-      </>
-    );
-  }
-
-  if (cargando) {
-    return (
-      <>
-        <Card className="text-center">
-          <p className="font-display text-[16px]">✨ Creando tu contenido…</p>
-          <p className="mt-2 text-[13px] text-text-muted">
-            Esto puede tardar 20-40 segundos — Claude está trabajando, no se colgó la app.
-          </p>
-          <Cronometro />
-        </Card>
         {identidadActivaYReciente}
       </>
     );
@@ -742,85 +733,7 @@ export function CrearModos({
         ))}
       </div>
 
-      {modo === "rapido" ? (
-        inferencia ? (
-          <div>
-            <p className="mb-4 rounded-xl border border-accent/30 bg-accent-soft p-3.5 text-[13.5px] text-text">
-              Vamos a crear un <strong>{config.tipoContenido}</strong>
-              {config.duracion ? ` de ${config.duracion}` : ""}
-              {config.numeroEscenas ? ` en ${config.numeroEscenas} escenas` : ""}
-              {config.numeroPaginas ? ` en ${config.numeroPaginas} páginas` : ""} — {inferencia.razonamiento}
-              {" "}¿Confirmas o ajustas?
-            </p>
-            <CamposCreacion
-              config={config}
-              onChange={setConfig}
-              progresivo={false}
-              proyectoId={proyectoId}
-              onBuscarRelacionado={onBuscarRelacionado}
-            />
-            {error ? <p className="mt-3 text-[12.5px] text-danger">{error}</p> : null}
-            <div className="mt-4">
-              <QueIncluir
-                mostrarPersonaje={hayPersonajeDisponible}
-                incluirPersonaje={incluirPersonaje}
-                setIncluirPersonaje={setIncluirPersonaje}
-                personajes={personajes}
-                personajesEstudio={personajesEstudio}
-                personajeIds={personajeSeleccion.ids}
-                onTogglePersonaje={alternarPersonajeSeleccionado}
-                onElegirAutomatico={elegirPersonajeAutomatico}
-                incluirMarca={incluirMarca}
-                setIncluirMarca={setIncluirMarca}
-                avatares={avatares}
-                avatarId={avatarId}
-                setAvatarId={setAvatarId}
-                mostrarContacto={tieneContacto}
-                incluirContacto={incluirContacto}
-                setIncluirContacto={setIncluirContacto}
-                logoUrl={identidad.logoUrl}
-                incluirLogo={incluirLogo}
-                setIncluirLogo={setIncluirLogo}
-                posicionLogo={posicionLogo}
-                setPosicionLogo={setPosicionLogo}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" onClick={() => setInferencia(null)}>
-                  Volver a escribir la idea
-                </Button>
-                <Button type="button" onClick={generar}>
-                  🚀 Crear contenido
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <p className="mb-2 font-display text-[16px]">¿Qué quieres crear?</p>
-            <p className="mb-2 text-[13px] text-text-muted">
-              Describe la idea y la IA infiere el formato, la producción, la plataforma y la
-              estructura — vas a poder confirmar o ajustar antes de generar el contenido final.
-            </p>
-            <div className="relative">
-              <Textarea
-                value={idea}
-                onChange={(e) => setIdea(e.target.value)}
-                placeholder="Ej: Un reel mostrando 5 errores comunes al construir un radier"
-                className="min-h-[110px] pb-6"
-              />
-              <span className="pointer-events-none absolute bottom-2.5 right-3.5 text-[11px] text-text-muted">
-                {idea.length} / {LIMITE_IDEA_VISUAL}
-              </span>
-            </div>
-            {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
-            <Button type="button" className="mt-3" disabled={!idea.trim()} onClick={analizarIdea}>
-              Analizar idea
-            </Button>
-          </div>
-        )
-      ) : null}
-
-      {modo === "guiado" ? (
+      {modo === "rapido" || modo === "guiado" ? (
         <div>
           <CamposCreacion
             config={config}
@@ -831,8 +744,6 @@ export function CrearModos({
           />
           {config.tipoContenido && config.tema.trim() ? (
             <div className="mt-5 border-t border-border pt-4">
-              <p className="mb-1 text-[12.5px] text-text-muted">Paso 5</p>
-              {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
               <QueIncluir
                 mostrarPersonaje={hayPersonajeDisponible}
                 incluirPersonaje={incluirPersonaje}
@@ -856,9 +767,13 @@ export function CrearModos({
                 posicionLogo={posicionLogo}
                 setPosicionLogo={setPosicionLogo}
               />
-              <Button type="button" onClick={generar}>
-                🚀 Crear contenido
-              </Button>
+              <ExportarYPegar
+                contextoExportable={contextoExportable}
+                respuestaPegada={respuestaPegada}
+                setRespuestaPegada={setRespuestaPegada}
+                onEstructurar={estructurarRespuesta}
+                avisoParseo={avisoParseo}
+              />
             </div>
           ) : null}
         </div>
@@ -874,7 +789,6 @@ export function CrearModos({
             onBuscarRelacionado={onBuscarRelacionado}
           />
           <div className="mt-5 border-t border-border pt-4">
-            {error ? <p className="mb-2 text-[12.5px] text-danger">{error}</p> : null}
             <QueIncluir
               mostrarPersonaje={hayPersonajeDisponible}
               incluirPersonaje={incluirPersonaje}
@@ -898,13 +812,20 @@ export function CrearModos({
               posicionLogo={posicionLogo}
               setPosicionLogo={setPosicionLogo}
             />
-            <Button
-              type="button"
-              disabled={!config.tipoContenido || !config.tema.trim()}
-              onClick={generar}
-            >
-              🚀 Crear contenido
-            </Button>
+            {puedeExportar ? (
+              <ExportarYPegar
+                contextoExportable={contextoExportable}
+                respuestaPegada={respuestaPegada}
+                setRespuestaPegada={setRespuestaPegada}
+                onEstructurar={estructurarRespuesta}
+                avisoParseo={avisoParseo}
+              />
+            ) : (
+              <p className="text-[12.5px] text-text-muted">
+                Completa al menos el tipo de contenido y la idea (Paso 3) para poder exportar el
+                contexto.
+              </p>
+            )}
           </div>
         </div>
       ) : null}
