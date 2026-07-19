@@ -6,12 +6,16 @@ import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components
 import { EscenasEditor } from "@/components/escenas-editor";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { PlanEdicionPanel } from "@/components/plan-edicion-panel";
+import { QueIncluir } from "@/components/que-incluir";
 import { ValidadorConsistencia } from "@/components/validador-consistencia";
+import { identidadTieneContacto } from "@/lib/identity-compiler";
+import type { PosicionLogo } from "@/lib/identity-compiler";
 import { explicarError } from "@/lib/errores";
 import {
   esConversionAVideo,
   parsePlanEdicion,
   reemplazarSeccionEscenas,
+  type Avatar,
   type Bloque,
   type CalidadImagen,
   type Escena,
@@ -21,12 +25,16 @@ import {
 import type { EscenaRevisada, PlanEdicion } from "@/lib/ai";
 
 const DURACION_CONFIRMACION_MS = 2000;
+const POSICION_LOGO_DEFAULT: PosicionLogo = "inferior-derecha";
 
 /**
  * Ver/editar un bloque ya guardado cuyo `escenasJson` no es null: reutiliza
  * el mismo EscenasEditor de la pantalla Crear. Al guardar, `texto` se
  * sincroniza reemplazando solo su sección "## Escenas" — el resto (Copy,
  * Hashtags, CTA, etc., si el usuario los edita a mano abajo) queda intacto.
+ * Los toggles de "Qué incluir en esta pieza" (mismo QueIncluir de Crear
+ * Paso 4) se precargan con lo que el bloque ya tenía guardado, y viajan en
+ * vivo a "Regenerar prompts" para esa escena — ver `revisarEscena` abajo.
  */
 export function EditarBloqueConEscenas({
   bloque,
@@ -40,21 +48,48 @@ export function EditarBloqueConEscenas({
   tienePersonaje,
   tieneAvatar,
   personajesUsados,
+  personajes,
+  personajesEstudio,
+  avatares,
+  personajeIdsIniciales,
 }: {
   bloque: Bloque;
   escenasIniciales: Escena[];
   onUpdate: (formData: FormData) => Promise<void>;
   onGenerarImagen: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
   onGenerarPlanEdicion: (regenerar: boolean) => Promise<PlanEdicion>;
-  onRevisarEscena: (input: {
-    escena: { numero: number; descripcion: string; textoEnPantalla: string };
-    otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
-  }) => Promise<EscenaRevisada>;
+  /** Sin `contexto` pre-aplicado (a diferencia de antes) — se arma acá con
+   * los toggles EN VIVO y se pasa en cada llamada, igual que ya hace Crear
+   * (ver revisarEscena() abajo y ResultadoTabs). */
+  onRevisarEscena: (
+    contexto: {
+      tema: string;
+      tipoContenido: string;
+      tipoProduccion: string;
+      personajeIds?: string[];
+      incluirMarca?: boolean;
+      incluirLogo?: boolean;
+      posicionLogo?: PosicionLogo | null;
+      incluirContacto?: boolean;
+      avatarId?: string;
+    },
+    input: {
+      escena: { numero: number; descripcion: string; textoEnPantalla: string };
+      otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
+    },
+  ) => Promise<EscenaRevisada>;
   identidad: Identidad | null;
   activosCount: number;
   tienePersonaje: boolean;
   tieneAvatar: boolean;
   personajesUsados: Personaje[];
+  personajes: Personaje[];
+  personajesEstudio: Personaje[];
+  avatares: Avatar[];
+  /** Personajes que esta pieza ya tenía seleccionados al guardarse (ver
+   * `personajeIdsJson`/`personajeId` del bloque) — precarga el toggle
+   * "Usar Personaje" y su selector, no arranca vacío. */
+  personajeIdsIniciales: string[];
 }) {
   const router = useRouter();
   const [titulo, setTitulo] = useState(bloque.titulo);
@@ -64,15 +99,69 @@ export function EditarBloqueConEscenas({
   const [guardado, setGuardado] = useState(false);
   const [error, setError] = useState("");
 
+  // "Qué incluir en esta pieza" — precargado con lo que el bloque ya tenía
+  // guardado (no vacío), mismo componente y misma forma de estado que Crear
+  // Paso 4 (ver QueIncluir en que-incluir.tsx).
+  const [personajeSeleccion, setPersonajeSeleccion] = useState<{ ids: string[]; incluir: boolean }>({
+    ids: personajeIdsIniciales,
+    incluir: personajeIdsIniciales.length > 0,
+  });
+  const incluirPersonaje = personajeSeleccion.incluir;
+  const [incluirMarca, setIncluirMarca] = useState(bloque.incluirMarca);
+  const [avatarId, setAvatarId] = useState(avatares[0]?.id ?? "");
+  const [incluirContacto, setIncluirContacto] = useState(bloque.incluirContacto);
+  const [incluirLogo, setIncluirLogo] = useState(bloque.incluirLogo);
+  const [posicionLogo, setPosicionLogo] = useState<PosicionLogo>(
+    (bloque.posicionLogo as PosicionLogo | null) ?? POSICION_LOGO_DEFAULT,
+  );
+
+  const hayPersonajeDisponible = personajes.length > 0 || personajesEstudio.length > 0;
+  const mostrarContacto = identidad ? identidadTieneContacto(identidad) : false;
+
+  function alternarPersonajeSeleccionado(id: string) {
+    setPersonajeSeleccion((prev) => ({
+      ...prev,
+      ids: prev.ids.includes(id) ? prev.ids.filter((x) => x !== id) : [...prev.ids, id],
+    }));
+  }
+
+  function elegirPersonajeAutomatico() {
+    setPersonajeSeleccion((prev) => ({ ...prev, ids: [] }));
+  }
+
+  // "✨ Automático" (selección vacía con "Usar Personaje" marcado) toma el
+  // primero disponible del proyecto/estudio — mismo criterio que
+  // `personajesParaExportar` en Crear (crear-modos.tsx), para que el
+  // comportamiento sea idéntico al de la pieza cuando se creó.
+  const todosLosPersonajes = [...personajes, ...personajesEstudio];
+  const personajeIdsParaRevisar = !incluirPersonaje
+    ? []
+    : personajeSeleccion.ids.length > 0
+      ? personajeSeleccion.ids
+      : todosLosPersonajes.slice(0, 1).map((p) => p.id);
+
   function revisarEscena(escena: Escena, otrasEscenas: Escena[]) {
-    return onRevisarEscena({
-      escena: { numero: escena.numero, descripcion: escena.descripcion, textoEnPantalla: escena.textoEnPantalla },
-      otrasEscenas: otrasEscenas.map((e) => ({
-        numero: e.numero,
-        descripcion: e.descripcion,
-        textoEnPantalla: e.textoEnPantalla,
-      })),
-    });
+    return onRevisarEscena(
+      {
+        tema: bloque.titulo,
+        tipoContenido: bloque.formato,
+        tipoProduccion: bloque.formato,
+        personajeIds: personajeIdsParaRevisar,
+        incluirMarca,
+        incluirLogo,
+        posicionLogo: incluirLogo ? posicionLogo : null,
+        incluirContacto,
+        avatarId: incluirMarca ? avatarId : undefined,
+      },
+      {
+        escena: { numero: escena.numero, descripcion: escena.descripcion, textoEnPantalla: escena.textoEnPantalla },
+        otrasEscenas: otrasEscenas.map((e) => ({
+          numero: e.numero,
+          descripcion: e.descripcion,
+          textoEnPantalla: e.textoEnPantalla,
+        })),
+      },
+    );
   }
 
   async function guardar() {
@@ -85,6 +174,10 @@ export function EditarBloqueConEscenas({
       fd.set("formato", bloque.formato);
       fd.set("texto", reemplazarSeccionEscenas(texto, escenas) || "(sin contenido)");
       fd.set("escenasJson", JSON.stringify(escenas));
+      fd.set("incluirMarca", String(incluirMarca));
+      fd.set("incluirLogo", String(incluirLogo));
+      if (incluirLogo) fd.set("posicionLogo", posicionLogo);
+      fd.set("incluirContacto", String(incluirContacto));
       await onUpdate(fd);
       router.refresh();
       setGuardado(true);
@@ -103,6 +196,30 @@ export function EditarBloqueConEscenas({
 
         <Label htmlFor="titulo">Título</Label>
         <Input id="titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
+
+        <QueIncluir
+          mostrarPersonaje={hayPersonajeDisponible}
+          incluirPersonaje={incluirPersonaje}
+          setIncluirPersonaje={(v) => setPersonajeSeleccion((prev) => ({ ...prev, incluir: v }))}
+          personajes={personajes}
+          personajesEstudio={personajesEstudio}
+          personajeIds={personajeSeleccion.ids}
+          onTogglePersonaje={alternarPersonajeSeleccionado}
+          onElegirAutomatico={elegirPersonajeAutomatico}
+          incluirMarca={incluirMarca}
+          setIncluirMarca={setIncluirMarca}
+          avatares={avatares}
+          avatarId={avatarId}
+          setAvatarId={setAvatarId}
+          mostrarContacto={mostrarContacto}
+          incluirContacto={incluirContacto}
+          setIncluirContacto={setIncluirContacto}
+          logoUrl={identidad?.logoUrl ?? ""}
+          incluirLogo={incluirLogo}
+          setIncluirLogo={setIncluirLogo}
+          posicionLogo={posicionLogo}
+          setPosicionLogo={setPosicionLogo}
+        />
 
         <Label>Escenas</Label>
         <p className="mb-2 text-[12.5px] text-text-muted">

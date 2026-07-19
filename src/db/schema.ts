@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 
 /**
  * Un Proyecto es el contenedor superior (OBRABIEN, INJAR, futuros).
@@ -320,6 +320,17 @@ export const bloques = pgTable("bloques", {
   // no aparece en el Calendario, solo vive en Biblioteca. No dispara nada
   // automático (sin recordatorios/notificaciones), es solo organización.
   fechaPlanificada: text("fecha_planificada"),
+  // Toggles de "Qué incluir en esta pieza" (Paso 4 de Crear) con los que se
+  // generó/editó esta pieza — se precargan al editar, para que el usuario
+  // vea el estado real antes de cambiar algo (ver QueIncluir en
+  // que-incluir.tsx). Piezas creadas antes de que existieran estas columnas
+  // quedan con los defaults de abajo (mismos defaults que usa Crear).
+  incluirMarca: boolean("incluir_marca").notNull().default(true),
+  incluirLogo: boolean("incluir_logo").notNull().default(false),
+  // PosicionLogo (ver identity-compiler.ts) como texto libre — null = sin
+  // posición elegida (equivalente a incluirLogo = false).
+  posicionLogo: text("posicion_logo"),
+  incluirContacto: boolean("incluir_contacto").notNull().default(false),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

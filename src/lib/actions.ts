@@ -18,6 +18,7 @@ import {
   proyectos,
 } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
+import type { PosicionLogo } from "./identity-compiler";
 import { completarProyecto, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
 import type { EscenaRevisada, IdentidadCompletaSugerida, PersonajeSugerido, PlanEdicion } from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
@@ -740,22 +741,43 @@ export async function revisarEscenaAction(
     tipoContenido: string;
     tipoProduccion: string;
     personajeIds?: string[];
+    /** Toggles actuales de "Qué incluir en esta pieza" — reflejan el
+     * estado EN VIVO de los controles del cliente al momento de presionar
+     * "Regenerar prompts", no necesariamente lo que quedó guardado en el
+     * bloque (que solo se actualiza al confirmar "Guardar cambios"). Sin
+     * estos campos (Crear todavía sin guardar), se usan los defaults de
+     * `compileIdentity`. */
+    incluirMarca?: boolean;
+    incluirLogo?: boolean;
+    posicionLogo?: PosicionLogo | null;
+    incluirContacto?: boolean;
+    avatarId?: string;
   },
   input: {
     escena: Pick<Escena, "numero" | "descripcion" | "textoEnPantalla">;
     otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
   },
 ): Promise<EscenaRevisada> {
-  const [identidad, personajesExplicitos, activosDelProyecto] = await Promise.all([
+  const [identidad, personajesExplicitos, activosDelProyecto, avatar] = await Promise.all([
     getIdentidad(proyectoId),
     Promise.all((contexto.personajeIds ?? []).map((id) => getPersonaje(id))),
     getActivos(proyectoId),
+    contexto.avatarId ? getAvatarPorId(proyectoId, contexto.avatarId) : Promise.resolve(null),
   ]);
   const personajes = personajesExplicitos.filter((p): p is Personaje => p !== null);
   const activosVisuales = activosDelProyecto
     .filter((a) => a.tipo === "foto")
     .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
-  const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, activosVisuales }) : "";
+  const identidadCompilada = identidad
+    ? compileIdentity(identidad, {
+        incluirMarca: contexto.incluirMarca,
+        incluirContacto: contexto.incluirContacto,
+        personajes,
+        activosVisuales,
+        avatar: contexto.incluirMarca !== false ? avatar : null,
+        posicionLogo: contexto.incluirLogo ? (contexto.posicionLogo ?? null) : null,
+      })
+    : "";
 
   return revisarEscena({
     identidadCompilada,
@@ -820,6 +842,14 @@ export async function createBloque(proyectoId: string, formData: FormData) {
   const personajeId = idsPersonajes[0] ?? null;
   const avatarId = String(formData.get("avatarId") ?? "").trim() || null;
   const tema = String(formData.get("tema") ?? "").trim();
+  // Toggles de "Qué incluir en esta pieza" (Paso 4) — se persisten junto
+  // con el bloque para poder precargarlos al editar (ver QueIncluir en
+  // que-incluir.tsx). Ausentes en el FormData = mismos defaults que Crear.
+  const incluirMarcaRaw = formData.get("incluirMarca");
+  const incluirMarca = incluirMarcaRaw === null ? true : incluirMarcaRaw === "true";
+  const incluirLogo = formData.get("incluirLogo") === "true";
+  const posicionLogo = incluirLogo ? String(formData.get("posicionLogo") ?? "").trim() || null : null;
+  const incluirContacto = formData.get("incluirContacto") === "true";
 
   const [identidad, personajes, avatar] = await Promise.all([
     getIdentidad(proyectoId),
@@ -841,6 +871,10 @@ export async function createBloque(proyectoId: string, formData: FormData) {
     texto,
     identidadCompilada,
     escenasJson,
+    incluirMarca,
+    incluirLogo,
+    posicionLogo,
+    incluirContacto,
   });
 
   if (tema) await marcarNotaComoTrabajadaSiHizoMatch(proyectoId, tema, bloqueId);
@@ -879,18 +913,28 @@ async function marcarNotaComoTrabajadaSiHizoMatch(proyectoId: string, tema: stri
   revalidatePath("/segundo-cerebro");
 }
 
-/** Actualiza título/formato/texto y, opcionalmente, `escenasJson`.
- * `identidadCompilada` queda congelado desde la creación — es evidencia de
- * qué identidad se usó entonces. `escenasJson` solo se toca si vino
- * explícitamente en el formData (el formulario de texto plano, sin
- * escenas, nunca lo envía — así no se borra por accidente). */
+/** Actualiza título/formato/texto y, opcionalmente, `escenasJson` y los
+ * toggles de "Qué incluir en esta pieza". `identidadCompilada` queda
+ * congelado desde la creación — es evidencia de qué identidad se usó
+ * entonces. Cada campo opcional solo se toca si vino explícitamente en el
+ * formData (el formulario de texto plano, sin escenas, nunca los envía —
+ * así no se borran por accidente). */
 export async function updateBloque(proyectoId: string, bloqueId: string, formData: FormData) {
   const titulo = String(formData.get("titulo") ?? "").trim();
   const formato = String(formData.get("formato") ?? "manual").trim();
   const texto = String(formData.get("texto") ?? "").trim();
   if (!titulo || !texto) throw new Error("El bloque necesita título y texto.");
 
-  const actualizacion: { titulo: string; formato: string; texto: string; escenasJson?: unknown } = {
+  const actualizacion: {
+    titulo: string;
+    formato: string;
+    texto: string;
+    escenasJson?: unknown;
+    incluirMarca?: boolean;
+    incluirLogo?: boolean;
+    posicionLogo?: string | null;
+    incluirContacto?: boolean;
+  } = {
     titulo,
     formato,
     texto,
@@ -901,6 +945,21 @@ export async function updateBloque(proyectoId: string, bloqueId: string, formDat
     const valor = String(escenasJsonRaw);
     actualizacion.escenasJson = valor.trim() ? parsearJsonDeFormData(valor) : null;
   }
+
+  const incluirMarcaRaw = formData.get("incluirMarca");
+  if (incluirMarcaRaw !== null) actualizacion.incluirMarca = incluirMarcaRaw === "true";
+
+  const incluirLogoRaw = formData.get("incluirLogo");
+  if (incluirLogoRaw !== null) {
+    const incluirLogo = incluirLogoRaw === "true";
+    actualizacion.incluirLogo = incluirLogo;
+    actualizacion.posicionLogo = incluirLogo
+      ? String(formData.get("posicionLogo") ?? "").trim() || null
+      : null;
+  }
+
+  const incluirContactoRaw = formData.get("incluirContacto");
+  if (incluirContactoRaw !== null) actualizacion.incluirContacto = incluirContactoRaw === "true";
 
   await db
     .update(bloques)

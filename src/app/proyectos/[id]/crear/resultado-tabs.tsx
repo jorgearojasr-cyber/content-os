@@ -94,6 +94,10 @@ export function ResultadoTabs({
   personajeIds,
   tema,
   resumenFormato,
+  incluirMarca,
+  incluirLogo,
+  posicionLogo,
+  incluirContacto,
   onGuardar,
   onEmpezarDeNuevo,
   onRevisarEscena,
@@ -119,6 +123,13 @@ export function ResultadoTabs({
    * misma selección de Paso 4/5) — este componente solo la muestra, no
    * recalcula ni infiere nada. "" si no hay nada que mostrar. */
   resumenFormato?: string;
+  /** Toggles de "Qué incluir en esta pieza" (Paso 4) tal como quedaron al
+   * exportar — se guardan junto con el bloque para poder precargarlos al
+   * editar (ver QueIncluir en que-incluir.tsx). */
+  incluirMarca?: boolean;
+  incluirLogo?: boolean;
+  posicionLogo?: string;
+  incluirContacto?: boolean;
   onGuardar: (formData: FormData) => Promise<void>;
   onEmpezarDeNuevo: () => void;
   /** Re-genera los prompts/referencias de una escena editada a mano — ver
@@ -257,6 +268,10 @@ export function ResultadoTabs({
       fd.set("escenasJson", escenas.length > 0 ? JSON.stringify(escenas) : "");
       if (personajeIds && personajeIds.length > 0) fd.set("personajeIds", JSON.stringify(personajeIds));
       if (tema) fd.set("tema", tema);
+      fd.set("incluirMarca", String(incluirMarca ?? true));
+      fd.set("incluirLogo", String(incluirLogo ?? false));
+      if (posicionLogo) fd.set("posicionLogo", posicionLogo);
+      fd.set("incluirContacto", String(incluirContacto ?? false));
       await onGuardar(fd);
       router.push(`/proyectos/${proyectoId}/biblioteca`);
     } catch (e) {

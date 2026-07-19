@@ -141,9 +141,9 @@ const MOTORES = [
     prioridad: 3,
     estructuraNarrativa:
       "1) La postura, dicha directamente, sin rodeos. 2) El fundamento basado en experiencia real, no en generalidades. 3) Reconocer honestamente cuándo la otra postura también tiene sentido, si aplica.",
-    variablesUtilizadas: "IDEA, VOZ, PERSONAJE",
+    variablesUtilizadas: "IDEA, VOZ",
     promptMaestro:
-      "Sobre {{IDEA}}, toma una postura clara y directa desde la experiencia real (no genérica). Fundaméntala con algo que hayas vivido o visto en el rubro, no con lugares comunes. Si la otra postura también tiene mérito en algún caso, dilo con honestidad — no fuerces una opinión absoluta. Voz: {{VOZ}}{{PERSONAJE}}.",
+      "Sobre {{IDEA}}, toma una postura clara y directa desde la experiencia real (no genérica). Fundaméntala con algo que hayas vivido o visto en el rubro, no con lugares comunes. Si la otra postura también tiene mérito en algún caso, dilo con honestidad — no fuerces una opinión absoluta. Voz: {{VOZ}}.",
     ejemplo: "Idea: '¿vale la pena la autoconstrucción?' → postura directa ('para una ampliación chica sí, para una casa completa no'), fundamentada en casos vistos, reconociendo la excepción.",
     categoria: "Autoridad",
   },

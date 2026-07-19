@@ -303,6 +303,14 @@ export type Bloque = {
   /** Fecha de publicación PLANEADA, "YYYY-MM-DD" — `null` = sin asignar, no
    * aparece en el Calendario. Ver columna `fechaPlanificada` en schema.ts. */
   fechaPlanificada: string | null;
+  /** Toggles de "Qué incluir en esta pieza" con los que se generó/editó
+   * esta pieza — ver columnas homónimas en schema.ts. `posicionLogo` es
+   * `PosicionLogo` (identity-compiler.ts) como texto libre; `null` = sin
+   * posición elegida. */
+  incluirMarca: boolean;
+  incluirLogo: boolean;
+  posicionLogo: string | null;
+  incluirContacto: boolean;
   createdAt: string;
 };
 

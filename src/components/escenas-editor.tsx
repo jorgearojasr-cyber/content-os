@@ -97,13 +97,15 @@ function GenerarImagenControl({
 }
 
 /**
- * Botón "Revisar cambios" — cuando el usuario edita a mano Descripción o
- * Texto en pantalla, los prompts (imagen/video) y referencias que ya
- * estaban generados pueden quedar desactualizados o incoherentes con el
- * resto de la pieza. En vez de reiniciar toda la pieza desde cero, esto
- * vuelve a pasar SOLO esta escena por el research agent (`revisarEscena`
- * en ai.ts) para regenerar esos campos derivados, con el resto de las
- * escenas como contexto de coherencia.
+ * Botón "🔄 Regenerar prompts con estos cambios" — cuando el usuario edita
+ * a mano Descripción o Texto en pantalla, o cambia los toggles de "Qué
+ * incluir en esta pieza" (Personaje/Logo/Activos), los prompts (imagen/
+ * video) y referencias que ya estaban generados pueden quedar
+ * desactualizados o incoherentes con el resto de la pieza. En vez de
+ * reiniciar toda la pieza desde cero, esto vuelve a pasar SOLO esta escena
+ * por el research agent (`revisarEscena` en ai.ts) para regenerar esos
+ * campos derivados, con el resto de las escenas como contexto de
+ * coherencia.
  */
 function RevisarCambiosControl({
   escena,
@@ -143,10 +145,11 @@ function RevisarCambiosControl({
         disabled={revisando}
         className="text-[12px] text-accent hover:underline disabled:opacity-50"
       >
-        {revisando ? "Revisando…" : "🔄 Revisar cambios"}
+        {revisando ? "Regenerando…" : "🔄 Regenerar prompts con estos cambios"}
       </button>
       <p className="mt-1 text-[11px] text-text-muted">
-        Vuelve a generar los prompts de esta escena a partir de la Descripción/Texto en pantalla actuales.
+        Vuelve a armar el Prompt imagen y Prompt video de esta escena usando la Descripción, Texto en
+        pantalla, y los toggles de arriba (Personaje/Logo/Activos).
       </p>
       {error ? <p className="mt-1 text-[12px] text-danger">{error}</p> : null}
     </div>

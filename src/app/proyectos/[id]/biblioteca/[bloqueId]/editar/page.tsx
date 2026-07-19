@@ -7,6 +7,7 @@ import {
   getBloque,
   getIdentidad,
   getPersonajes,
+  getPersonajesDelEstudio,
   revisarEscenaAction,
   updateBloque,
 } from "@/lib/actions";
@@ -29,10 +30,15 @@ export default async function EditarBloquePage({
   const identidad = await getIdentidad(proyectoId);
   const activos = await getActivos(proyectoId);
   const personajes = await getPersonajes(proyectoId);
+  const personajesEstudio = await getPersonajesDelEstudio();
   const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateBloque.bind(null, proyectoId, bloqueId);
   const boundGenerarImagen = generarImagenParaEscena.bind(null, proyectoId, bloqueId);
   const boundGenerarPlanEdicion = generarPlanEdicionAction.bind(null, proyectoId, bloqueId);
+  // Sin pre-aplicar `contexto` (a diferencia de antes) — ahora se pasa a
+  // cada llamada desde el cliente, con los toggles de "Qué incluir en esta
+  // pieza" EN VIVO (ver EditarBloqueConEscenas), igual que ya hace Crear.
+  const boundRevisarEscenaSinContexto = revisarEscenaAction.bind(null, proyectoId);
 
   // Mismos Personajes que usó esta pieza — para el Validador de Consistencia
   // (ver ValidadorConsistencia) en ambas ramas de abajo.
@@ -46,15 +52,6 @@ export default async function EditarBloquePage({
 
   if (bloque.escenasJson !== null) {
     const escenas = parseEscenas(bloque.escenasJson);
-    // .bind() puro (sin arrow function envolvente) — necesario para que
-    // Next.js siga reconociendo esto como una Server Action válida al
-    // pasarla a un Client Component (ver docstring de revisarEscenaAction).
-    const boundRevisarEscena = revisarEscenaAction.bind(null, proyectoId, {
-      tema: bloque.titulo,
-      tipoContenido: bloque.formato,
-      tipoProduccion: bloque.formato,
-      personajeIds,
-    });
     return (
       <EditarBloqueConEscenas
         bloque={bloque}
@@ -62,12 +59,16 @@ export default async function EditarBloquePage({
         onUpdate={boundUpdate}
         onGenerarImagen={boundGenerarImagen}
         onGenerarPlanEdicion={boundGenerarPlanEdicion}
-        onRevisarEscena={boundRevisarEscena}
+        onRevisarEscena={boundRevisarEscenaSinContexto}
         identidad={identidad}
         activosCount={activos.filter((a) => a.tipo === "foto").length}
         tienePersonaje={personajes.length > 0}
         tieneAvatar={avatares.length > 0}
         personajesUsados={personajesUsados}
+        personajes={personajes}
+        personajesEstudio={personajesEstudio}
+        avatares={avatares}
+        personajeIdsIniciales={personajeIds}
       />
     );
   }

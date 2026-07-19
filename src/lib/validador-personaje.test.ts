@@ -19,6 +19,10 @@ function bloqueBase(overrides: Partial<Bloque> = {}): Bloque {
     linkPublicacion: null,
     instagramEmbedHtml: null,
     fechaPlanificada: null,
+    incluirMarca: true,
+    incluirLogo: false,
+    posicionLogo: null,
+    incluirContacto: false,
     createdAt: new Date().toISOString(),
     ...overrides,
   };
