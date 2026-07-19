@@ -8,11 +8,13 @@ import {
   DURACIONES_VIDEO_CORTO,
   DURACIONES_VIDEO_LARGO_YOUTUBE,
   ESTILOS_IMAGEN,
+  FORMATOS_IMAGEN_FIJA,
   NUMEROS_ESCENAS,
   NUMEROS_PAGINAS_CARRUSEL,
   PLATAFORMAS_CONTENIDO,
   TIPOS_CONTENIDO,
   TIPOS_PRODUCCION,
+  TIPOS_PRODUCCION_IMAGEN,
   TIPOS_PUBLICACION_POR_PLATAFORMA,
   type MotorIA,
   type TipoContenido,
@@ -126,6 +128,13 @@ export function CamposCreacion({
   const esYoutubeVideo = config.plataforma === "YouTube" && config.tipoPublicacion === "Video";
   const opcionesDuracion = esYoutubeVideo ? DURACIONES_VIDEO_LARGO_YOUTUBE : DURACIONES_VIDEO_CORTO;
 
+  // Imagen/Carrusel son piezas ESTÁTICAS — el Paso 2 usa su propio set de
+  // opciones (nunca "escenas" ni B-Roll). El reset al cambiar de Formato ya
+  // lo hace el onClick del Paso 1 (vuelve a CONFIG_VACIA), así que nunca
+  // queda una opción de video seleccionada al llegar acá.
+  const esFormatoImagenFija = (FORMATOS_IMAGEN_FIJA as readonly string[]).includes(config.tipoContenido);
+  const opcionesTipoProduccion = esFormatoImagenFija ? TIPOS_PRODUCCION_IMAGEN : TIPOS_PRODUCCION;
+
   return (
     <div className="space-y-5">
       <div>
@@ -155,7 +164,7 @@ export function CamposCreacion({
           <p className="mb-1 text-[12.5px] text-text-muted">Paso 2</p>
           <p className="mb-3 font-display text-[16px]">¿Cómo quieres comunicarlo?</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {TIPOS_PRODUCCION.map((p) => (
+            {opcionesTipoProduccion.map((p) => (
               <TarjetaSeleccion
                 key={p.value}
                 seleccionado={config.tipoProduccion === p.value}

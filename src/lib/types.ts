@@ -915,6 +915,8 @@ export function iconoFormato(formato: string): string {
   return ICONO_POR_FORMATO.get(formato) ?? "📄";
 }
 
+/** Paso 2 de Crear ("¿Cómo quieres comunicarlo?") para Formatos de VIDEO
+ * (Video Corto, Video Largo, Historia) — sin cambios. */
 export const TIPOS_PRODUCCION = [
   { value: "Persona hablando a cámara", icono: "👤" },
   { value: "Persona + apoyo visual (B-Roll)", icono: "👤" },
@@ -923,6 +925,22 @@ export const TIPOS_PRODUCCION = [
   { value: "Animación", icono: "🎨" },
   { value: "IA decide automáticamente", icono: "🤖" },
 ] as const;
+
+/** Paso 2 de Crear para Formatos de IMAGEN FIJA (Imagen, Carrusel) — las 6
+ * opciones de video no aplican a una pieza estática (nunca hay "escenas" ni
+ * B-Roll), así que usan su propio set relevante. */
+export const TIPOS_PRODUCCION_IMAGEN = [
+  { value: "Persona/retrato real", icono: "👤" },
+  { value: "Producto u objeto", icono: "📦" },
+  { value: "Ilustración o gráfico", icono: "🎨" },
+  { value: "Solo texto/tipografía", icono: "🔤" },
+  { value: "IA decide automáticamente", icono: "🤖" },
+] as const;
+
+/** Los Formatos que son piezas ESTÁTICAS (nunca tienen escenas ni video) —
+ * usan `TIPOS_PRODUCCION_IMAGEN` en vez de `TIPOS_PRODUCCION` en el Paso 2
+ * de Crear. */
+export const FORMATOS_IMAGEN_FIJA = ["Imagen", "Carrusel"] as const;
 
 // "Automático" NO va en este arreglo — el `Select` compartido en
 // crear-campos.tsx ya antepone su propia opción "Automático" (value="")
