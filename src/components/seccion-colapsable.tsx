@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { ESTADO_BLOQUE_INFO, type EstadoBloque } from "@/lib/madurez";
 
 /**
  * Panel plegable para las secciones de Identidad. Estado inicial
@@ -16,6 +17,7 @@ export function SeccionColapsable({
   tieneContenido,
   resumen,
   progreso,
+  estado,
   children,
 }: {
   titulo: string;
@@ -27,6 +29,11 @@ export function SeccionColapsable({
   /** Indicador sutil de completitud, ej. "3/6 completados" — puramente
    * informativo, nunca bloquea nada. */
   progreso?: string;
+  /** ✓ Completo / ⚠ Parcial / ○ Pendiente — reemplaza el simple ✓ de
+   * `tieneContenido` cuando la sección tiene un cálculo real de estado
+   * (ej. las secciones de entrenamiento de Identidad/Personaje). Si no se
+   * pasa, se usa el comportamiento anterior (✓ si `tieneContenido`). */
+  estado?: EstadoBloque;
   children: ReactNode;
 }) {
   const [abierto, setAbierto] = useState(!tieneContenido);
@@ -42,7 +49,18 @@ export function SeccionColapsable({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-display text-lg font-normal tracking-wide sm:text-xl">{titulo}</h2>
-            {tieneContenido ? (
+            {estado ? (
+              <span
+                className={
+                  estado === "completo"
+                    ? "text-[11.5px] text-accent"
+                    : "text-[11.5px] text-text-muted"
+                }
+                title={ESTADO_BLOQUE_INFO[estado].etiqueta}
+              >
+                {ESTADO_BLOQUE_INFO[estado].icono} {ESTADO_BLOQUE_INFO[estado].etiqueta}
+              </span>
+            ) : tieneContenido ? (
               <span className="text-accent" aria-hidden>
                 ✓
               </span>

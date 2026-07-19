@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EMOJI_NIVEL, type NivelCampo } from "@/lib/madurez";
 
 /**
  * Editor de lista corta como chips (palabras que siempre usa / palabras
@@ -14,12 +15,15 @@ export function CampoChips({
   defaultValue = "",
   tip,
   placeholder,
+  nivel,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   tip?: string;
   placeholder?: string;
+  /** Punto sutil 🟢/🟡/🔵 junto al label — igual que FieldWithHelp. */
+  nivel?: NivelCampo;
 }) {
   const [chips, setChips] = useState<string[]>(
     defaultValue
@@ -42,6 +46,11 @@ export function CampoChips({
     <div className="mt-3.5 first:mt-0">
       <label htmlFor={`chips-${name}`} className="mb-1 block text-[12.5px] text-text-muted">
         {label}
+        {nivel ? (
+          <span className="ml-1.5 text-[10px] opacity-70" aria-hidden>
+            {EMOJI_NIVEL[nivel]}
+          </span>
+        ) : null}
       </label>
       {tip ? <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">{tip}</p> : null}
 

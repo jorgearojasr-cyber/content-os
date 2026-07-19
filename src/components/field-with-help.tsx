@@ -1,5 +1,6 @@
 "use client";
 
+import { EMOJI_NIVEL, type NivelCampo } from "@/lib/madurez";
 import { Input, Textarea } from "./ui";
 
 export function FieldWithHelp({
@@ -11,6 +12,7 @@ export function FieldWithHelp({
   ejemplos,
   opciones,
   multiline = true,
+  nivel,
 }: {
   label: string;
   name: string;
@@ -23,6 +25,9 @@ export function FieldWithHelp({
    * siempre con "Sin definir" ("") como primera opción. */
   opciones?: readonly string[];
   multiline?: boolean;
+  /** Punto sutil 🟢/🟡/🔵 junto al label — cuánto importa este campo para
+   * la calidad del contexto exportado. Puramente informativo. */
+  nivel?: NivelCampo;
 }) {
   const id = name;
   const Campo = multiline ? Textarea : Input;
@@ -31,6 +36,11 @@ export function FieldWithHelp({
     <div className="mt-3.5 first:mt-0">
       <label htmlFor={id} className="mb-1 block text-[12.5px] text-text-muted">
         {label}
+        {nivel ? (
+          <span className="ml-1.5 text-[10px] opacity-70" aria-hidden>
+            {EMOJI_NIVEL[nivel]}
+          </span>
+        ) : null}
       </label>
       {tip ? <p className="mb-1.5 text-[12px] leading-snug text-text-muted/80">{tip}</p> : null}
       {opciones ? (

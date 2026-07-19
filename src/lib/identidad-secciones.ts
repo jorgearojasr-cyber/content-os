@@ -1,3 +1,11 @@
+import {
+  calcularMadurezIdentidad,
+  estadoBloque,
+  type CampoParaMadurez,
+  type EstadoBloque,
+  type NivelCampo,
+  type ResultadoMadurez,
+} from "./madurez";
 import type { Identidad } from "./types";
 
 /**
@@ -127,4 +135,86 @@ export function primerCampoConContenido(identidad: Identidad, seccion: SeccionId
     if (valor.trim().length > 0) return valor.trim();
   }
   return "";
+}
+
+/**
+ * MADUREZ DE MARCA — clasificación de los 34 campos "de entrenamiento"
+ * (las 6 secciones de arriba; Contacto queda fuera, como siempre) en 3
+ * niveles de importancia para la calidad del contexto exportado. Es
+ * SOLO una capa visual/UX: `compileIdentity` no cambia, no reordena ni
+ * filtra nada — un campo opcional vacío sigue sin aparecer en el texto
+ * igual que hoy, y uno lleno aparece igual que hoy.
+ *
+ * Ajustes de criterio sobre la sugerencia inicial (reportados, no son
+ * silenciosos): se subieron a 🟢 Esencial `reglas` (principios
+ * editoriales — moldea CADA pieza de texto tanto como `voz`) y
+ * `restricciones` (guardrail de marca, ya era el campo más enfatizado en
+ * los ejemplos de la pestaña). El resto de campos no mencionados
+ * explícitamente en la sugerencia se ubicó por cercanía temática al
+ * campo más parecido que sí fue clasificado.
+ */
+export const NIVELES_CAMPOS_IDENTIDAD: Record<CampoDeSeccion, NivelCampo> = {
+  // Esencia
+  historia: "esencial",
+  valores: "esencial",
+  promesa: "esencial",
+  posicionamiento: "esencial",
+  arquetipo: "esencial",
+  manifiesto: "recomendado",
+  objetivo: "esencial",
+  manualMarca: "opcional",
+  // Audiencia
+  audiencia: "esencial",
+  emociones: "recomendado",
+  impactoEsperado: "recomendado",
+  adaptacionAudiencia: "recomendado",
+  // Voz y estilo
+  voz: "esencial",
+  formalidad: "recomendado",
+  humor: "opcional",
+  nivelTecnico: "recomendado",
+  palabrasSiempre: "recomendado",
+  palabrasNunca: "opcional",
+  frasesCaracteristicas: "recomendado",
+  // Contenido
+  estructuraContenidos: "recomendado",
+  reglas: "esencial",
+  estructuraCta: "opcional",
+  ctaHabituales: "recomendado",
+  hashtagsFrecuentes: "recomendado",
+  respuestaCriticas: "opcional",
+  // Visual
+  paleta: "recomendado",
+  tipografia: "opcional",
+  look: "recomendado",
+  camara: "recomendado",
+  ritmo: "opcional",
+  logoUrl: "opcional",
+  // Límites
+  restricciones: "esencial",
+  competidores: "recomendado",
+  diferenciadores: "recomendado",
+};
+
+function camposParaMadurez(identidad: Identidad, campos: readonly CampoDeSeccion[]): CampoParaMadurez[] {
+  return campos.map((campo) => ({ valor: identidad[campo], nivel: NIVELES_CAMPOS_IDENTIDAD[campo] }));
+}
+
+/** Madurez ponderada de una sección sola — usada para el detalle interno;
+ * el estado ✓/⚠/○ del encabezado usa `estadoSeccion` (no ponderado). */
+export function madurezSeccion(identidad: Identidad, seccion: SeccionIdentidad): ResultadoMadurez {
+  return calcularMadurezIdentidad(camposParaMadurez(identidad, seccion.campos));
+}
+
+/** ✓ Completo / ⚠ Parcial / ○ Pendiente de una sección, calculado
+ * automáticamente a partir de cuántos de sus campos tienen contenido. */
+export function estadoSeccion(identidad: Identidad, seccion: SeccionIdentidad): EstadoBloque {
+  return estadoBloque(camposParaMadurez(identidad, seccion.campos));
+}
+
+/** Madurez ponderada de TODA la Identidad (las 34 campos de las 6
+ * secciones) — la barra de progreso principal de la pestaña. */
+export function madurezIdentidadCompleta(identidad: Identidad): ResultadoMadurez {
+  const todos = SECCIONES_IDENTIDAD.flatMap((s) => camposParaMadurez(identidad, s.campos));
+  return calcularMadurezIdentidad(todos);
 }
