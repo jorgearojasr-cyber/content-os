@@ -763,7 +763,13 @@ export function PersonajeForm({
 
         <div className="mt-4 space-y-3">
           {SECCIONES_PERSONAJE.map((seccion) => {
-            const { completados, total } = progresoSeccionPersonaje(personaje ?? ({} as Personaje), seccion);
+            // Sin Personaje todavía (formulario de "nuevo"), completados/total
+            // no se usan abajo (tieneContenido/progreso/estado ya caen a sus
+            // defaults) — evita construir un Personaje falso con `as` que
+            // rompería progresoSeccionPersonaje al no tener campos reales.
+            const { completados, total } = personaje
+              ? progresoSeccionPersonaje(personaje, seccion)
+              : { completados: 0, total: seccion.campos.length };
             return (
               <SeccionColapsable
                 key={seccion.id}

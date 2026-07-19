@@ -256,6 +256,9 @@ export function progresoSeccionPersonaje(
   personaje: Personaje,
   seccion: SeccionPersonaje,
 ): { completados: number; total: number } {
-  const completados = seccion.campos.filter((campo) => personaje[campo].trim().length > 0).length;
+  // `?? ""` — defensivo ante un `personaje` incompleto (nunca debería pasar
+  // con una fila real de la base de datos, pero evita un TypeError si algún
+  // llamador futuro pasa un objeto parcial en vez de `null`).
+  const completados = seccion.campos.filter((campo) => (personaje[campo] ?? "").trim().length > 0).length;
   return { completados, total: seccion.campos.length };
 }
