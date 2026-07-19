@@ -9,7 +9,11 @@ import { compileIdentity, identidadPorSeccion, identidadTieneContacto } from "@/
 import { urlImagenVisible } from "@/lib/imagen-url";
 import { bloqueEstrategiaNarrativa, construirVariablesMotor } from "@/lib/motor-ia";
 import { contarCoincidencias, extraerFragmento, extraerPalabrasClave } from "@/lib/reutilizacion";
-import { construirPlantillaExportacion, parsearRespuestaIA } from "@/lib/exportar-contexto";
+import {
+  construirPlantillaExportacion,
+  pareceSerLaPlantillaSinCompletar,
+  parsearRespuestaIA,
+} from "@/lib/exportar-contexto";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
 import { ResultadoTabs } from "./resultado-tabs";
 import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
@@ -655,6 +659,18 @@ export function CrearModos({
 
   function estructurarRespuesta() {
     if (!respuestaPegada.trim()) return;
+    // Caso real: pegar de vuelta el contexto EXPORTADO (o su plantilla de
+    // salida) en vez de la respuesta real de la IA — los mismos
+    // encabezados ("## Copy"/"## Escenas") hacen que se "reconozca" igual,
+    // y sin este chequeo se guardaba el placeholder literal como si fuera
+    // contenido real. Bloquea acá, sin avanzar a la pantalla de revisión.
+    if (pareceSerLaPlantillaSinCompletar(respuestaPegada)) {
+      setAvisoParseo(
+        "Esto parece ser la plantilla exportada (sin completar), no la respuesta de la IA — pega la " +
+          "respuesta que te dio Claude/ChatGPT/Gemini, no el texto que copiaste para pegarle a la IA.",
+      );
+      return;
+    }
     const { contenido, reconocido } = parsearRespuestaIA(respuestaPegada);
     setPersonajeIdsUsados(personajesParaExportar.map((p) => p.id));
     setResultado(contenido);

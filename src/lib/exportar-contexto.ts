@@ -92,6 +92,25 @@ const NOTA_FOTO_REAL =
   `si hay un Personaje o Activo con foto real de referencia arriba, indica usar esa foto en vez ` +
   `de describir su apariencia/el lugar desde cero`;
 
+/** El preámbulo de instrucciones ("Responde usando EXACTAMENTE esta
+ * estructura...") es idéntico en las 4 variantes de plantilla — es una
+ * instrucción PARA la IA, en segunda persona, que ninguna respuesta real
+ * repetiría — así que sirve como firma única para detectar cuándo alguien
+ * pegó de vuelta la PLANTILLA sin completar en vez de la respuesta real.
+ * Ver `pareceSerLaPlantillaSinCompletar`. */
+const MARCADOR_PLANTILLA_SIN_COMPLETAR = "Responde usando EXACTAMENTE esta estructura markdown";
+
+/** True si el texto pegado en "Pegar resultado" es (o contiene) la
+ * plantilla exportada sin completar, no una respuesta real de la IA —
+ * caso real: el usuario copia el contexto exportado dos veces seguidas y
+ * pega el mismo texto de vuelta por error. Sin este chequeo,
+ * `parsearRespuestaIA` lo "reconoce" igual (tiene los mismos encabezados
+ * "## Copy"/"## Escenas") y termina guardando el placeholder literal como
+ * si fuera contenido real — bloquea el guardado antes de llegar ahí. */
+export function pareceSerLaPlantillaSinCompletar(textoPegado: string): boolean {
+  return textoPegado.includes(MARCADOR_PLANTILLA_SIN_COMPLETAR);
+}
+
 /** La estructura de salida que se le pide a la IA externa, ramificada por
  * Formato — cada export incluye SOLO la estructura del formato elegido
  * (no el menú completo), y cada variante usa únicamente encabezados y

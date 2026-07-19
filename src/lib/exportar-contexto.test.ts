@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { construirPlantillaExportacion, parsearRespuestaIA } from "./exportar-contexto";
+import {
+  construirPlantillaExportacion,
+  pareceSerLaPlantillaSinCompletar,
+  parsearRespuestaIA,
+} from "./exportar-contexto";
 
 const RESPUESTA_VALIDA = `## Copy
 Un texto de copy de ejemplo para la publicación.
@@ -369,5 +373,39 @@ describe("construirPlantillaExportacion — Motor IA (estrategia narrativa)", ()
     expect(conMotor.indexOf("## Estrategia narrativa")).toBeLessThan(conMotor.indexOf("## Formato de salida"));
     // El Formato sigue determinando la estructura de salida, intacta.
     expect(conMotor).toContain("## Escenas");
+  });
+});
+
+describe("pareceSerLaPlantillaSinCompletar", () => {
+  it("detecta cuando se pegó de vuelta la plantilla exportada sin completar (Video)", () => {
+    const plantilla = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Video Corto",
+      tipoProduccion: "Video con IA",
+      tema: "Una idea",
+    });
+    expect(pareceSerLaPlantillaSinCompletar(plantilla)).toBe(true);
+  });
+
+  it("detecta la plantilla sin completar en los 4 formatos (mismo placeholder de Copy en los 4)", () => {
+    for (const tipoContenido of ["Imagen", "Carrusel", "Historia", "Video Largo"]) {
+      const plantilla = construirPlantillaExportacion({
+        identidadCompilada: "",
+        tipoContenido,
+        tipoProduccion: "IA decide automáticamente",
+        tema: "Una idea",
+      });
+      expect(pareceSerLaPlantillaSinCompletar(plantilla)).toBe(true);
+    }
+  });
+
+  it("NO marca una respuesta real (con el Copy ya completado) como plantilla sin completar", () => {
+    expect(pareceSerLaPlantillaSinCompletar(RESPUESTA_VALIDA)).toBe(false);
+  });
+
+  it("NO marca texto libre normal como plantilla sin completar", () => {
+    expect(pareceSerLaPlantillaSinCompletar("Acá va mi copy real sobre la humedad por capilaridad.")).toBe(
+      false,
+    );
   });
 });
