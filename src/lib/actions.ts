@@ -29,6 +29,7 @@ import {
   fotoPrincipal,
   MAX_FOTOS_PERSONAJE,
   parseEscenas,
+  parseFotosContextoPersonaje,
   parseFotosPersonaje,
   parsePersonajeIds,
   parsePlanEdicion,
@@ -42,6 +43,7 @@ import type {
   CalidadImagen,
   Documento,
   Escena,
+  FotoContextoPersonaje,
   FotoPersonaje,
   Identidad,
   IdentidadInput,
@@ -479,6 +481,58 @@ export async function eliminarFotoPersonaje(personajeId: string, url: string): P
 
   revalidarRutasPersonaje(personaje?.proyectoId ?? null);
   return fotosNuevas;
+}
+
+/** Sube una foto a la galería ADICIONAL de contexto (etiqueta libre, sin
+ * límite de cantidad) — distinta de las 4 fotos de referencia de arriba,
+ * que la guía de producción NO descarga. La etiqueta llega vacía y se
+ * completa después con `editarEtiquetaFotoContexto`. */
+export async function subirFotoContextoPersonaje(
+  personajeId: string,
+  formData: FormData,
+): Promise<FotoContextoPersonaje[]> {
+  const archivo = formData.get("foto");
+  if (!(archivo instanceof File)) throw new Error("No se recibió ningún archivo.");
+
+  const personaje = await getPersonaje(personajeId);
+  const url = await guardarArchivoSubido(archivo);
+  const nuevas = [...parseFotosContextoPersonaje(personaje?.fotosContextoJson), { url, etiqueta: "" }];
+
+  await db.update(personajes).set({ fotosContextoJson: nuevas }).where(eq(personajes.id, personajeId));
+
+  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  return nuevas;
+}
+
+export async function editarEtiquetaFotoContexto(
+  personajeId: string,
+  url: string,
+  etiqueta: string,
+): Promise<FotoContextoPersonaje[]> {
+  const personaje = await getPersonaje(personajeId);
+  const nuevas = parseFotosContextoPersonaje(personaje?.fotosContextoJson).map((f) =>
+    f.url === url ? { ...f, etiqueta: etiqueta.trim() } : f,
+  );
+
+  await db.update(personajes).set({ fotosContextoJson: nuevas }).where(eq(personajes.id, personajeId));
+
+  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  return nuevas;
+}
+
+export async function eliminarFotoContextoPersonaje(
+  personajeId: string,
+  url: string,
+): Promise<FotoContextoPersonaje[]> {
+  const personaje = await getPersonaje(personajeId);
+  const nuevas = parseFotosContextoPersonaje(personaje?.fotosContextoJson).filter((f) => f.url !== url);
+
+  await db.update(personajes).set({ fotosContextoJson: nuevas }).where(eq(personajes.id, personajeId));
+
+  await eliminarArchivoSubido(url).catch(() => {});
+
+  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  return nuevas;
 }
 
 /** Sube un archivo sin tocar la base de datos — usado por el formulario

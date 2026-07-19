@@ -13,6 +13,7 @@ import {
 import { Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
+import { ValidadorConsistencia } from "@/components/validador-consistencia";
 import { FORMATOS_CONTENIDO, parseEscenas, parsePersonajeIds } from "@/lib/types";
 import { EditarBloqueConEscenas } from "./editar-bloque-escenas";
 
@@ -33,14 +34,18 @@ export default async function EditarBloquePage({
   const boundGenerarImagen = generarImagenParaEscena.bind(null, proyectoId, bloqueId);
   const boundGenerarPlanEdicion = generarPlanEdicionAction.bind(null, proyectoId, bloqueId);
 
+  // Mismos Personajes que usó esta pieza — para el Validador de Consistencia
+  // (ver ValidadorConsistencia) en ambas ramas de abajo.
+  const personajeIds =
+    parsePersonajeIds(bloque.personajeIdsJson).length > 0
+      ? parsePersonajeIds(bloque.personajeIdsJson)
+      : bloque.personajeId
+        ? [bloque.personajeId]
+        : [];
+  const personajesUsados = personajes.filter((p) => personajeIds.includes(p.id));
+
   if (bloque.escenasJson !== null) {
     const escenas = parseEscenas(bloque.escenasJson);
-    const personajeIds =
-      parsePersonajeIds(bloque.personajeIdsJson).length > 0
-        ? parsePersonajeIds(bloque.personajeIdsJson)
-        : bloque.personajeId
-          ? [bloque.personajeId]
-          : [];
     // .bind() puro (sin arrow function envolvente) — necesario para que
     // Next.js siga reconociendo esto como una Server Action válida al
     // pasarla a un Client Component (ver docstring de revisarEscenaAction).
@@ -62,6 +67,7 @@ export default async function EditarBloquePage({
         activosCount={activos.filter((a) => a.tipo === "foto").length}
         tienePersonaje={personajes.length > 0}
         tieneAvatar={avatares.length > 0}
+        personajesUsados={personajesUsados}
       />
     );
   }
@@ -114,6 +120,22 @@ export default async function EditarBloquePage({
             tieneAvatar={avatares.length > 0}
             textoDetalle={bloque.identidadCompilada}
           />
+        </Card>
+      ) : null}
+
+      {personajesUsados.length > 0 ? (
+        <Card>
+          <SectionTitle subtitle="Chequeos estructurales, sin IA de visión — ver el alcance en el componente.">
+            Validador de consistencia
+          </SectionTitle>
+          <div className="space-y-2">
+            {personajesUsados.map((p) => (
+              <div key={p.id}>
+                <p className="mb-1 text-[12.5px] font-medium text-text">{p.nombre || "Personaje sin nombre"}</p>
+                <ValidadorConsistencia bloque={bloque} personaje={p} />
+              </div>
+            ))}
+          </div>
         </Card>
       ) : null}
     </div>

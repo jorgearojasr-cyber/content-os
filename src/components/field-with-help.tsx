@@ -6,6 +6,7 @@ import { Input, Textarea } from "./ui";
 export function FieldWithHelp({
   label,
   name,
+  id: idProp,
   defaultValue,
   tip,
   placeholder,
@@ -16,6 +17,11 @@ export function FieldWithHelp({
 }: {
   label: string;
   name: string;
+  /** Id del input/select — por defecto igual a `name`. Pásalo explícito
+   * cuando el mismo `name` de campo se renderiza más de una vez en la
+   * misma página (ej. Identidad y Personaje comparten nombres como
+   * "formalidad"/"historia"/"valores") para no duplicar el `id` en el DOM. */
+  id?: string;
   defaultValue?: string;
   tip?: string;
   placeholder?: string;
@@ -29,7 +35,7 @@ export function FieldWithHelp({
    * la calidad del contexto exportado. Puramente informativo. */
   nivel?: NivelCampo;
 }) {
-  const id = name;
+  const id = idProp ?? name;
   const Campo = multiline ? Textarea : Input;
 
   return (

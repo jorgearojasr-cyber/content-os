@@ -5,7 +5,9 @@ import {
   createPersonaje,
   deleteAvatar,
   deletePersonaje,
+  editarEtiquetaFotoContexto,
   eliminarArchivoTemporal,
+  eliminarFotoContextoPersonaje,
   eliminarFotoPersonaje,
   generarPersonajeAction,
   getActivos,
@@ -13,6 +15,7 @@ import {
   getIdentidad,
   getPersonajes,
   subirArchivoTemporal,
+  subirFotoContextoPersonaje,
   subirFotoPersonaje,
   subirLogo,
   updateAvatar,
@@ -287,6 +290,7 @@ export default async function IdentidadPage({
       >
         <PersonajesLista
           personajes={personajes}
+          identidad={identidad}
           onCreate={boundCreatePersonaje}
           onUpdate={updatePersonaje}
           onDelete={deletePersonaje}
@@ -295,6 +299,9 @@ export default async function IdentidadPage({
           onSubirTemporal={subirArchivoTemporal}
           onEliminarTemporal={eliminarArchivoTemporal}
           onGenerarPersonaje={generarPersonajeAction}
+          onSubirFotoContexto={subirFotoContextoPersonaje}
+          onEditarEtiquetaFotoContexto={editarEtiquetaFotoContexto}
+          onEliminarFotoContexto={eliminarFotoContextoPersonaje}
         />
       </SeccionColapsable>
 

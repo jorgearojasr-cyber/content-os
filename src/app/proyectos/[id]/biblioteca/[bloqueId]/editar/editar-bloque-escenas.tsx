@@ -6,6 +6,7 @@ import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components
 import { EscenasEditor } from "@/components/escenas-editor";
 import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { PlanEdicionPanel } from "@/components/plan-edicion-panel";
+import { ValidadorConsistencia } from "@/components/validador-consistencia";
 import { explicarError } from "@/lib/errores";
 import {
   esConversionAVideo,
@@ -15,6 +16,7 @@ import {
   type CalidadImagen,
   type Escena,
   type Identidad,
+  type Personaje,
 } from "@/lib/types";
 import type { EscenaRevisada, PlanEdicion } from "@/lib/ai";
 
@@ -37,6 +39,7 @@ export function EditarBloqueConEscenas({
   activosCount,
   tienePersonaje,
   tieneAvatar,
+  personajesUsados,
 }: {
   bloque: Bloque;
   escenasIniciales: Escena[];
@@ -51,6 +54,7 @@ export function EditarBloqueConEscenas({
   activosCount: number;
   tienePersonaje: boolean;
   tieneAvatar: boolean;
+  personajesUsados: Personaje[];
 }) {
   const router = useRouter();
   const [titulo, setTitulo] = useState(bloque.titulo);
@@ -146,6 +150,22 @@ export function EditarBloqueConEscenas({
             tieneAvatar={tieneAvatar}
             textoDetalle={bloque.identidadCompilada}
           />
+        </Card>
+      ) : null}
+
+      {personajesUsados.length > 0 ? (
+        <Card>
+          <SectionTitle subtitle="Chequeos estructurales, sin IA de visión — ver el alcance en el componente.">
+            Validador de consistencia
+          </SectionTitle>
+          <div className="space-y-2">
+            {personajesUsados.map((p) => (
+              <div key={p.id}>
+                <p className="mb-1 text-[12.5px] font-medium text-text">{p.nombre || "Personaje sin nombre"}</p>
+                <ValidadorConsistencia bloque={bloque} personaje={p} />
+              </div>
+            ))}
+          </div>
         </Card>
       ) : null}
     </div>

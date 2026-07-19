@@ -345,13 +345,105 @@ export type Personaje = {
   /** Columna `jsonb` — arreglo de hasta `MAX_FOTOS_PERSONAJE` fotos tipadas
    * `{url, tipo}` (o `[]`). Usar `parseFotosPersonaje()`. */
   fotosUrlsJson: unknown;
+
+  // Sistema de identidad completo (Fase B) — ver mapeo anti-duplicación en
+  // schema.ts. Identidad:
+  rolEcosistema: string;
+  lugarOrigen: string;
+  relacionOtrosPersonajes: string;
+  // Personalidad:
+  temperamento: string;
+  nivelEnergia: string;
+  formaEnsenar: string;
+  formaResponder: string;
+  emocionesTransmite: string;
+  defectos: string;
+  fortalezas: string;
+  valores: string;
+  queNuncaHaria: string;
+  // Comunicación:
+  acento: string;
+  velocidad: string;
+  tono: string;
+  volumen: string;
+  palabrasFavoritas: string;
+  palabrasProhibidas: string;
+  /** "" = hereda el de Identidad (marca) — ver `resolverVozPersonaje()`. */
+  formalidad: string;
+  /** "" = hereda el de Identidad (marca). */
+  humor: string;
+  /** "" = hereda el de Identidad (marca). */
+  nivelTecnico: string;
+  // Apariencia física:
+  altura: string;
+  complexion: string;
+  edadAparente: string;
+  colorPiel: string;
+  cabello: string;
+  barba: string;
+  ojos: string;
+  expresionesHabituales: string;
+  postura: string;
+  accesorios: string;
+  // Gestos (alimentan el Prompt Video):
+  gestoManos: string;
+  gestoMirada: string;
+  gestoSonrisa: string;
+  gestoSenalar: string;
+  formaCaminar: string;
+  formaPararse: string;
+  formaInteractuar: string;
+  // Contexto de aparición:
+  herramientasQueUsa: string;
+  materialesQueMuestra: string;
+  ambientesProhibidos: string;
+  /** Chips, máxima prioridad — van primero en cualquier prompt de este
+   * Personaje. Fusiona "vestuario que nunca cambia" + "lo que jamás haría
+   * físicamente" (apariencia; para conducta ver `queNuncaHaria`). */
+  elementosInvariables: string;
+  /** Columna `jsonb` — arreglo de `FotoContextoPersonaje` (o `[]`), galería
+   * adicional de referencia visual con etiqueta libre. Usar
+   * `parseFotosContextoPersonaje()`. NO son las fotos de `fotosUrlsJson`. */
+  fotosContextoJson: unknown;
+
   createdAt: string;
 };
 
 export type PersonajeInput = Omit<
   Personaje,
-  "id" | "proyectoId" | "createdAt" | "fotosUrlsJson" | "versionesJson"
+  "id" | "proyectoId" | "createdAt" | "fotosUrlsJson" | "versionesJson" | "fotosContextoJson"
 >;
+
+/** Los roles posibles de un Personaje dentro del ecosistema de contenido —
+ * select fijo, igual criterio que ARQUETIPOS_MARCA (marco reconocible sin
+ * explicación adicional). */
+export const ROLES_PERSONAJE = [
+  "Educador principal",
+  "Presentador",
+  "Experto técnico",
+  "Anfitrión",
+  "Testimonial / Cliente",
+  "Apoyo secundario",
+  "Narrador",
+  "Otro",
+] as const;
+
+export type FotoContextoPersonaje = { url: string; etiqueta: string };
+
+/** Adapta `fotosContextoJson` a un arreglo tipado — ante un valor ausente o
+ * con forma inesperada, devuelve vacío (o descarta solo esa entrada). Sin
+ * límite de cantidad (a diferencia de `parseFotosPersonaje`). */
+export function parseFotosContextoPersonaje(json: unknown): FotoContextoPersonaje[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter(
+    (v): v is FotoContextoPersonaje =>
+      typeof v === "object" &&
+      v !== null &&
+      typeof (v as { url?: unknown }).url === "string" &&
+      (v as { url: string }).url.trim().length > 0 &&
+      typeof (v as { etiqueta?: unknown }).etiqueta === "string",
+  );
+}
 
 /** Los campos de texto de un Personaje que un snapshot de versión captura —
  * las fotos no se versionan (viven en Blob, siguen siendo las actuales). */
@@ -372,6 +464,49 @@ export const CAMPOS_VERSION_PERSONAJE = [
   "promptVideo",
   "promptVoz",
   "notas",
+  // Fase B — el snapshot de versión sigue siendo "toda la ficha de texto".
+  "rolEcosistema",
+  "lugarOrigen",
+  "relacionOtrosPersonajes",
+  "temperamento",
+  "nivelEnergia",
+  "formaEnsenar",
+  "formaResponder",
+  "emocionesTransmite",
+  "defectos",
+  "fortalezas",
+  "valores",
+  "queNuncaHaria",
+  "acento",
+  "velocidad",
+  "tono",
+  "volumen",
+  "palabrasFavoritas",
+  "palabrasProhibidas",
+  "formalidad",
+  "humor",
+  "nivelTecnico",
+  "altura",
+  "complexion",
+  "edadAparente",
+  "colorPiel",
+  "cabello",
+  "barba",
+  "ojos",
+  "expresionesHabituales",
+  "postura",
+  "accesorios",
+  "gestoManos",
+  "gestoMirada",
+  "gestoSonrisa",
+  "gestoSenalar",
+  "formaCaminar",
+  "formaPararse",
+  "formaInteractuar",
+  "herramientasQueUsa",
+  "materialesQueMuestra",
+  "ambientesProhibidos",
+  "elementosInvariables",
 ] as const satisfies ReadonlyArray<keyof PersonajeInput>;
 
 /** Un snapshot completo de la ficha de texto de un Personaje en un momento
@@ -396,6 +531,31 @@ export function parseVersionesPersonaje(json: unknown): VersionPersonaje[] {
       typeof (v as { campos?: unknown }).campos === "object" &&
       (v as { campos?: unknown }).campos !== null,
   );
+}
+
+/** Los 3 campos de voz que un Personaje puede heredar de la Identidad del
+ * proyecto ("" = hereda) o definir por su cuenta (valor propio prevalece,
+ * SOLO para este Personaje). */
+export type CampoHerencia = "formalidad" | "humor" | "nivelTecnico";
+
+export type ValorHeredado = {
+  valor: string;
+  /** true = viene de Identidad (marca), false = valor propio del Personaje. */
+  heredado: boolean;
+};
+
+/** Resuelve un campo con herencia: el valor propio del Personaje si lo
+ * definió, o el de la Identidad del proyecto si lo dejó vacío. Puro y
+ * determinista — sin IA. Usado tanto por `compilarPersonaje()` como por la
+ * UI para mostrar "Usando el de la marca: X" vs. un valor propio. */
+export function resolverVozPersonaje(
+  personaje: Personaje,
+  identidad: Identidad | null,
+  campo: CampoHerencia,
+): ValorHeredado {
+  const propio = personaje[campo].trim();
+  if (propio) return { valor: propio, heredado: false };
+  return { valor: identidad?.[campo]?.trim() ?? "", heredado: true };
 }
 
 /** True si el personaje tiene al menos un campo de texto con contenido

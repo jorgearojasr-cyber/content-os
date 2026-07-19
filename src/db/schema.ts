@@ -154,6 +154,84 @@ export const personajes = pgTable("personajes", {
   // Arreglo de hasta 4 URLs de Blob — mismo formato que la antigua columna
   // `identidades.fotos_urls_json`, ahora colgando del Personaje dueño.
   fotosUrlsJson: jsonb("fotos_urls_json").notNull().default([]),
+
+  // Expansión "Personaje como sistema de identidad completo" (Fase B). Todos
+  // con default "" — los Personajes existentes quedan intactos. Mapeo
+  // anti-duplicación completo en el commit/reporte de esta ronda; resumen:
+  // "contexto habitual", `personalidad`, `fisica`, `vestuario`, `vozDescrita`,
+  // `gestos`, `muletillas`, `historia`, `edad` y `profesion` YA EXISTÍAN y
+  // solo se REUBICARON en las nuevas secciones de la UI — ninguno se duplica
+  // acá abajo.
+  //
+  // Identidad (rol/origen/relaciones — contexto ya existe arriba).
+  rolEcosistema: text("rol_ecosistema").notNull().default(""),
+  lugarOrigen: text("lugar_origen").notNull().default(""),
+  relacionOtrosPersonajes: text("relacion_otros_personajes").notNull().default(""),
+  // Personalidad — facetas granulares; `personalidad` (arriba) sigue siendo
+  // el resumen general en prosa.
+  temperamento: text("temperamento").notNull().default(""),
+  nivelEnergia: text("nivel_energia").notNull().default(""),
+  formaEnsenar: text("forma_ensenar").notNull().default(""),
+  formaResponder: text("forma_responder").notNull().default(""),
+  emocionesTransmite: text("emociones_transmite").notNull().default(""),
+  defectos: text("defectos").notNull().default(""),
+  fortalezas: text("fortalezas").notNull().default(""),
+  valores: text("valores").notNull().default(""),
+  // Conducta que NUNCA haría (comportamiento) — distinto de
+  // `elementosInvariables` (apariencia física/vestuario, ver más abajo).
+  queNuncaHaria: text("que_nunca_haria").notNull().default(""),
+  // Comunicación — `vozDescrita` y `muletillas` (arriba) ya cubren la voz
+  // general y las frases/muletillas frecuentes.
+  acento: text("acento").notNull().default(""),
+  velocidad: text("velocidad").notNull().default(""),
+  tono: text("tono").notNull().default(""),
+  volumen: text("volumen").notNull().default(""),
+  palabrasFavoritas: text("palabras_favoritas").notNull().default(""),
+  palabrasProhibidas: text("palabras_prohibidas").notNull().default(""),
+  // Herencia de Identidad: "" = usa el valor de la marca del proyecto; con
+  // un valor propio, ese prevalece SOLO para este Personaje. Mismas 3
+  // escalas que Identidad (NIVELES_FORMALIDAD/TIPOS_HUMOR/NIVELES_TECNICOS).
+  formalidad: text("formalidad").notNull().default(""),
+  humor: text("humor").notNull().default(""),
+  nivelTecnico: text("nivel_tecnico").notNull().default(""),
+  // Apariencia física — `fisica`, `vestuario` y `edad` (arriba) ya cubren la
+  // descripción general, el vestuario y la edad real.
+  altura: text("altura").notNull().default(""),
+  complexion: text("complexion").notNull().default(""),
+  // Edad que APARENTA (para prompts de imagen) — distinta de `edad` (dato
+  // biográfico real), que puede no coincidir.
+  edadAparente: text("edad_aparente").notNull().default(""),
+  colorPiel: text("color_piel").notNull().default(""),
+  cabello: text("cabello").notNull().default(""),
+  barba: text("barba").notNull().default(""),
+  ojos: text("ojos").notNull().default(""),
+  expresionesHabituales: text("expresiones_habituales").notNull().default(""),
+  postura: text("postura").notNull().default(""),
+  accesorios: text("accesorios").notNull().default(""),
+  // Gestos — alimentan específicamente el Prompt Video (comportamiento, no
+  // solo apariencia); `gestos` (arriba) sigue siendo el resumen general.
+  gestoManos: text("gesto_manos").notNull().default(""),
+  gestoMirada: text("gesto_mirada").notNull().default(""),
+  gestoSonrisa: text("gesto_sonrisa").notNull().default(""),
+  gestoSenalar: text("gesto_senalar").notNull().default(""),
+  formaCaminar: text("forma_caminar").notNull().default(""),
+  formaPararse: text("forma_pararse").notNull().default(""),
+  formaInteractuar: text("forma_interactuar").notNull().default(""),
+  // Contexto de aparición — "tipo de escenas que visita" ya lo cubre
+  // `contexto` (arriba); acá solo lo nuevo.
+  herramientasQueUsa: text("herramientas_que_usa").notNull().default(""),
+  materialesQueMuestra: text("materiales_que_muestra").notNull().default(""),
+  ambientesProhibidos: text("ambientes_prohibidos").notNull().default(""),
+  // Elementos Invariables — lista de chips que fusiona "vestuario que nunca
+  // cambia" + "lo que jamás haría físicamente" (apariencia, no conducta —
+  // ver `queNuncaHaria` arriba). Máxima prioridad: primero en cada prompt.
+  elementosInvariables: text("elementos_invariables").notNull().default(""),
+  // Galería ADICIONAL de fotos de contexto, con etiqueta libre (mismo
+  // patrón que `activos.etiquetas`) — NO son las 4 fotos de referencia para
+  // IA de video (`fotosUrlsJson`, sin cambios); son solo referencia visual
+  // para el usuario y no las descarga la guía de producción.
+  fotosContextoJson: jsonb("fotos_contexto_json").notNull().default([]),
+
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

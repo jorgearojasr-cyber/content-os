@@ -10,7 +10,7 @@ import { PersonajeForm } from "@/app/proyectos/[id]/identidad/personajes-lista";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { urlImagenVisible } from "@/lib/imagen-url";
 import { fotoPrincipal, parseFotosPersonaje } from "@/lib/types";
-import type { FotoPersonaje, Personaje, Proyecto, TipoFotoPersonaje } from "@/lib/types";
+import type { FotoContextoPersonaje, FotoPersonaje, Personaje, Proyecto, TipoFotoPersonaje } from "@/lib/types";
 
 const LARGO_RESUMEN = 90;
 
@@ -38,6 +38,9 @@ export function PersonajesGlobalLista({
   onEliminarFoto,
   onSubirTemporal,
   onEliminarTemporal,
+  onSubirFotoContexto,
+  onEditarEtiquetaFotoContexto,
+  onEliminarFotoContexto,
 }: {
   personajes: PersonajeGlobal[];
   proyectos: Proyecto[];
@@ -48,6 +51,9 @@ export function PersonajesGlobalLista({
   onEliminarFoto: (personajeId: string, url: string) => Promise<FotoPersonaje[]>;
   onSubirTemporal: (formData: FormData) => Promise<string>;
   onEliminarTemporal: (url: string) => Promise<void>;
+  onSubirFotoContexto: (personajeId: string, formData: FormData) => Promise<FotoContextoPersonaje[]>;
+  onEditarEtiquetaFotoContexto: (personajeId: string, url: string, etiqueta: string) => Promise<FotoContextoPersonaje[]>;
+  onEliminarFotoContexto: (personajeId: string, url: string) => Promise<FotoContextoPersonaje[]>;
 }) {
   const [abierto, setAbierto] = useState<"nuevo" | string | null>(null);
   const [destino, setDestino] = useState("");
@@ -126,6 +132,11 @@ export function PersonajesGlobalLista({
                     onEliminarFoto={async (_tipo, url) => {
                       await onEliminarFoto(p.id, url);
                     }}
+                    onSubirFotoContexto={(fd) => onSubirFotoContexto(p.id, fd)}
+                    onEditarEtiquetaFotoContexto={(url, etiqueta) =>
+                      onEditarEtiquetaFotoContexto(p.id, url, etiqueta)
+                    }
+                    onEliminarFotoContexto={(url) => onEliminarFotoContexto(p.id, url)}
                   />
                 </div>
               );

@@ -1,11 +1,14 @@
 import {
   createPersonaje,
   deletePersonaje,
+  editarEtiquetaFotoContexto,
   eliminarArchivoTemporal,
+  eliminarFotoContextoPersonaje,
   eliminarFotoPersonaje,
   getProyectos,
   getTodosLosPersonajes,
   subirArchivoTemporal,
+  subirFotoContextoPersonaje,
   subirFotoPersonaje,
   updatePersonaje,
 } from "@/lib/actions";
@@ -39,6 +42,9 @@ export default async function PersonajesPage() {
         onEliminarFoto={eliminarFotoPersonaje}
         onSubirTemporal={subirArchivoTemporal}
         onEliminarTemporal={eliminarArchivoTemporal}
+        onSubirFotoContexto={subirFotoContextoPersonaje}
+        onEditarEtiquetaFotoContexto={editarEtiquetaFotoContexto}
+        onEliminarFotoContexto={eliminarFotoContextoPersonaje}
       />
     </main>
   );

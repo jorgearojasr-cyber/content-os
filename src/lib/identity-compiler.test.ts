@@ -6,6 +6,7 @@ import {
   identityHasContent,
   resumenPorSeccion,
 } from "./identity-compiler";
+import { NIVELES_CAMPOS_PERSONAJE } from "./personaje-secciones";
 import type { Avatar, Identidad, Personaje } from "./types";
 
 function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
@@ -64,6 +65,12 @@ function baseIdentidad(overrides: Partial<Identidad> = {}): Identidad {
 }
 
 function basePersonaje(overrides: Partial<Personaje> = {}): Personaje {
+  // Fase B agregó ~40 campos granulares nuevos (ver personaje-secciones.ts)
+  // — se rellenan todos con "" programáticamente para no repetir la lista
+  // a mano en cada fixture de test.
+  const camposNuevos = Object.fromEntries(
+    Object.keys(NIVELES_CAMPOS_PERSONAJE).map((campo) => [campo, ""]),
+  );
   return {
     id: "personaje-1",
     proyectoId: "proy-1",
@@ -85,9 +92,11 @@ function basePersonaje(overrides: Partial<Personaje> = {}): Personaje {
     notas: "",
     versionesJson: [],
     fotosUrlsJson: [],
+    fotosContextoJson: [],
     createdAt: "2026-01-01T00:00:00.000Z",
+    ...camposNuevos,
     ...overrides,
-  };
+  } as Personaje;
 }
 
 function baseAvatar(overrides: Partial<Avatar> = {}): Avatar {
