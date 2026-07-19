@@ -7,6 +7,7 @@ import { IdentidadChecklist } from "@/components/identidad-checklist";
 import { formatearFechaChile } from "@/lib/fecha";
 import { compileIdentity, identidadPorSeccion, identidadTieneContacto } from "@/lib/identity-compiler";
 import { urlImagenVisible } from "@/lib/imagen-url";
+import { bloqueEstrategiaNarrativa, construirVariablesMotor } from "@/lib/motor-ia";
 import { contarCoincidencias, extraerFragmento, extraerPalabrasClave } from "@/lib/reutilizacion";
 import { construirPlantillaExportacion, parsearRespuestaIA } from "@/lib/exportar-contexto";
 import { CamposCreacion, CONFIG_VACIA, type ConfigCreacion } from "./crear-campos";
@@ -15,7 +16,7 @@ import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import type { ActivoVisual, PosicionLogo } from "@/lib/identity-compiler";
 import { fotoPrincipal, iconoFormato, parseFotosPersonaje, TIPOS_PUBLICACION_POR_PLATAFORMA } from "@/lib/types";
-import type { Avatar, Bloque, Documento, Identidad, Personaje } from "@/lib/types";
+import type { Avatar, Bloque, Documento, Identidad, MotorIA, Personaje } from "@/lib/types";
 
 /** Máximo de documentos de Conocimiento que se incluyen en el contexto
  * exportado, y largo máximo del contenido citado por documento — para que
@@ -402,12 +403,16 @@ function ExportarYPegar({
   setRespuestaPegada,
   onEstructurar,
   avisoParseo,
+  onExportar,
 }: {
   contextoExportable: string;
   respuestaPegada: string;
   setRespuestaPegada: (v: string) => void;
   onEstructurar: () => void;
   avisoParseo: string;
+  /** Se dispara al copiar el contexto — registra el uso del Motor IA
+   * seleccionado, si hay uno (estadísticas puras, no bloquea el copiado). */
+  onExportar?: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
 
@@ -421,6 +426,7 @@ function ExportarYPegar({
           navigator.clipboard.writeText(contextoExportable);
           setCopiado(true);
           setTimeout(() => setCopiado(false), 2000);
+          onExportar?.();
         }}
       >
         📋 {copiado ? "Copiado ✓" : "Exportar contexto"}
@@ -448,6 +454,7 @@ function ExportarYPegar({
 
 export function CrearModos({
   proyectoId,
+  proyectoNombre,
   identidad,
   personajes,
   personajesEstudio,
@@ -455,13 +462,17 @@ export function CrearModos({
   activosCount,
   activosVisuales,
   documentos,
+  motores,
   bloquesRecientes,
   temaInicial = "",
   onGuardar,
   onBuscarRelacionado,
   onRevisarEscena,
+  onRegistrarUsoMotor,
 }: {
   proyectoId: string;
+  /** Nombre del proyecto — resuelve la variable {{MARCA}} de un Motor IA. */
+  proyectoNombre: string;
   /** Idea pre-escrita en el Paso 3 (llega desde "Convertir en contenido"
    * del Banco de Ideas, vía query param) — "" = flujo normal en blanco. */
   temaInicial?: string;
@@ -469,6 +480,9 @@ export function CrearModos({
    * + globales) — los que coinciden con la idea por palabras clave se
    * incluyen en "## Conocimiento relevante" del contexto exportado. */
   documentos: Documento[];
+  /** Motores IA disponibles (del proyecto + globales) — estrategia
+   * narrativa opcional, sugerida por palabras clave sin IA. */
+  motores: MotorIA[];
   identidad: Identidad;
   personajes: Personaje[];
   personajesEstudio: Personaje[];
@@ -494,6 +508,7 @@ export function CrearModos({
       otrasEscenas: { numero: number; descripcion: string; textoEnPantalla: string }[];
     },
   ) => Promise<EscenaRevisada>;
+  onRegistrarUsoMotor: (motorId: string, proyectoId: string) => Promise<void>;
 }) {
   const seccionesInfo = identidadPorSeccion(identidad, {
     tienePersonaje: personajes.length > 0,
@@ -586,17 +601,36 @@ export function CrearModos({
       : todosLosPersonajes.slice(0, 1);
 
   const puedeExportar = !!config.tipoContenido && config.tema.trim().length > 0;
+  const identidadCompiladaTexto = compileIdentity(identidad, {
+    incluirMarca,
+    incluirPersonaje,
+    incluirContacto,
+    personajes: personajesParaExportar,
+    activosVisuales,
+    avatar: incluirMarca ? (avatares.find((a) => a.id === avatarId) ?? avatares[0] ?? null) : null,
+    posicionLogo: incluirLogo ? posicionLogo : null,
+  });
+  const conocimientoRelevanteTexto = formatearConocimientoRelevante(documentos, config.tema);
+  // El Motor IA aporta SOLO el ángulo narrativo (educativo, comparativo,
+  // storytelling…) — el Formato ya elegido sigue determinando la
+  // estructura de salida, ver bloqueEstrategiaNarrativa().
+  const motorSeleccionado = motores.find((m) => m.id === config.motorId) ?? null;
+  const estrategiaNarrativaTexto = bloqueEstrategiaNarrativa(
+    motorSeleccionado,
+    construirVariablesMotor({
+      idea: config.tema,
+      identidad,
+      identidadCompilada: identidadCompiladaTexto,
+      personaje: personajesParaExportar[0] ?? null,
+      formato: config.tipoContenido,
+      plataforma: config.plataforma || undefined,
+      conocimientoRelevante: conocimientoRelevanteTexto,
+      proyectoNombre,
+    }),
+  );
   const contextoExportable = puedeExportar
     ? construirPlantillaExportacion({
-        identidadCompilada: compileIdentity(identidad, {
-          incluirMarca,
-          incluirPersonaje,
-          incluirContacto,
-          personajes: personajesParaExportar,
-          activosVisuales,
-          avatar: incluirMarca ? (avatares.find((a) => a.id === avatarId) ?? avatares[0] ?? null) : null,
-          posicionLogo: incluirLogo ? posicionLogo : null,
-        }),
+        identidadCompilada: identidadCompiladaTexto,
         tipoContenido: config.tipoContenido,
         tipoProduccion: config.tipoProduccion || "IA decide automáticamente",
         tema:
@@ -611,9 +645,14 @@ export function CrearModos({
         aspectRatio: TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
           (t) => t.value === config.tipoPublicacion,
         )?.aspectRatio,
-        conocimientoRelevante: formatearConocimientoRelevante(documentos, config.tema),
+        conocimientoRelevante: conocimientoRelevanteTexto,
+        estrategiaNarrativa: estrategiaNarrativaTexto,
       })
     : "";
+
+  function registrarUsoMotorSiCorresponde() {
+    if (motorSeleccionado) onRegistrarUsoMotor(motorSeleccionado.id, proyectoId).catch(() => {});
+  }
 
   function estructurarRespuesta() {
     if (!respuestaPegada.trim()) return;
@@ -787,6 +826,7 @@ export function CrearModos({
             progresivo
             proyectoId={proyectoId}
             onBuscarRelacionado={onBuscarRelacionado}
+            motores={motores}
           />
           {config.tipoContenido && config.tema.trim() ? (
             <div className="mt-5 border-t border-border pt-4">
@@ -819,6 +859,7 @@ export function CrearModos({
                 setRespuestaPegada={setRespuestaPegada}
                 onEstructurar={estructurarRespuesta}
                 avisoParseo={avisoParseo}
+                onExportar={registrarUsoMotorSiCorresponde}
               />
             </div>
           ) : null}
@@ -833,6 +874,7 @@ export function CrearModos({
             progresivo={false}
             proyectoId={proyectoId}
             onBuscarRelacionado={onBuscarRelacionado}
+            motores={motores}
           />
           <div className="mt-5 border-t border-border pt-4">
             <QueIncluir
@@ -865,6 +907,7 @@ export function CrearModos({
                 setRespuestaPegada={setRespuestaPegada}
                 onEstructurar={estructurarRespuesta}
                 avisoParseo={avisoParseo}
+                onExportar={registrarUsoMotorSiCorresponde}
               />
             ) : (
               <p className="text-[12.5px] text-text-muted">

@@ -62,6 +62,13 @@ export type ConfigExportable = {
    * ver `formatearConocimientoRelevante` en crear-modos) — "" o ausente =
    * sin sección de conocimiento. */
   conocimientoRelevante?: string;
+  /** Bloque "## Estrategia narrativa: ..." ya formateado y con
+   * {{VARIABLES}} resueltas (ver `bloqueEstrategiaNarrativa` en
+   * motor-ia.ts) — el Motor IA aporta el ÁNGULO narrativo (educativo,
+   * comparativo, storytelling...), nunca la estructura de salida: se
+   * inyecta DENTRO de esta plantilla ya ramificada por Formato, no la
+   * reemplaza. "" o ausente = sin Motor seleccionado. */
+  estrategiaNarrativa?: string;
 };
 
 /** Encabezado de destino — va PRIMERO en todo contexto exportado, para
@@ -204,6 +211,7 @@ export function construirPlantillaExportacion(config: ConfigExportable): string 
       `de contenido. Sigue la identidad de marca de arriba al pie de la letra, sin resumirla ni ` +
       `contradecirla. Genera contenido de tipo "${config.tipoContenido}", producido como ` +
       `"${config.tipoProduccion}", sobre este tema: "${config.tema}". ${opciones}`.trim(),
+    config.estrategiaNarrativa ?? "",
     bloqueFormatoSalida(config),
   ].filter((b) => b.trim().length > 0);
 

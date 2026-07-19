@@ -344,3 +344,30 @@ Desliza hacia arriba.`;
     expect(contenido.miniatura).toBe("Fotografía de portada mostrando la obra terminada.");
   });
 });
+
+describe("construirPlantillaExportacion — Motor IA (estrategia narrativa)", () => {
+  it("sin estrategiaNarrativa, no agrega ninguna sección nueva (regresión)", () => {
+    const sinMotor = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Video Corto",
+      tipoProduccion: "Video con IA",
+      tema: "Una idea",
+    });
+    expect(sinMotor).not.toContain("## Estrategia narrativa");
+  });
+
+  it("con estrategiaNarrativa, la inserta ENTRE la Tarea y el Formato de salida — nunca lo reemplaza", () => {
+    const conMotor = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Video Corto",
+      tipoProduccion: "Video con IA",
+      tema: "Una idea",
+      estrategiaNarrativa: "## Estrategia narrativa: Educativo\nExplica el concepto paso a paso.",
+    });
+    expect(conMotor).toContain("## Estrategia narrativa: Educativo");
+    expect(conMotor.indexOf("## Tarea")).toBeLessThan(conMotor.indexOf("## Estrategia narrativa"));
+    expect(conMotor.indexOf("## Estrategia narrativa")).toBeLessThan(conMotor.indexOf("## Formato de salida"));
+    // El Formato sigue determinando la estructura de salida, intacta.
+    expect(conMotor).toContain("## Escenas");
+  });
+});

@@ -959,3 +959,108 @@ export const TIPOS_ACTIVO = [
   { value: "recurso_grafico", label: "Recurso gráfico", archivo: true },
   { value: "otro", label: "Otro", archivo: false },
 ] as const;
+
+// ---------------------------------------------------------------------
+// Motores IA — la estrategia narrativa de una pieza (Fase C)
+// ---------------------------------------------------------------------
+
+/**
+ * Motor IA: CÓMO se cuenta la idea (educativo, comparativo, storytelling…)
+ * — el Formato (Video Corto/Carrusel/Imagen/Historia) sigue determinando
+ * la ESTRUCTURA de salida (ver exportar-contexto.ts). Entidad separada de
+ * `PromptGuardado` (Biblioteca de Prompts) — no se tocan entre sí.
+ */
+export type MotorIA = {
+  id: string;
+  /** `null` = Motor global, usable en cualquier proyecto. */
+  proyectoId: string | null;
+  nombre: string;
+  descripcion: string;
+  objetivo: string;
+  cuandoUsar: string;
+  cuandoNoUsar: string;
+  tipoContenidoRecomendado: string;
+  /** Lista separada por coma, editada como chips. */
+  palabrasClave: string;
+  /** Escala 1 (baja) a 5 (alta). */
+  prioridad: number;
+  estructuraNarrativa: string;
+  /** Lista separada por coma de las {{VARIABLES}} que usa este Motor. */
+  variablesUtilizadas: string;
+  /** La plantilla en sí, con {{VARIABLES}} sin resolver. */
+  promptMaestro: string;
+  ejemplo: string;
+  /** Notas internas — nunca se compilan en el contexto exportado. */
+  notasInternas: string;
+  estado: string;
+  categoria: string;
+  version: number;
+  /** "sistema" = protegido, no editable directamente (ver
+   * `actualizarMotorIA` en actions.ts, hace copy-on-edit automático).
+   * "usuario" = editable libremente. */
+  origen: "sistema" | "usuario";
+  /** Solo en copias de usuario: el Motor de Sistema del que se duplicó. */
+  motorOriginalId: string | null;
+  vecesUsado: number;
+  ultimoUsoAt: string | null;
+  /** Columna `jsonb` — arreglo de ids de proyecto donde se ha usado. Usar
+   * `parseProyectosUsadosMotor()`. */
+  proyectosUsadosJson: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Adapta `proyectosUsadosJson` a un arreglo de ids — ante un valor
+ * ausente o con forma inesperada, devuelve vacío. */
+export function parseProyectosUsadosMotor(json: unknown): string[] {
+  if (!Array.isArray(json)) return [];
+  return json.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+}
+
+export const CAMPOS_EDITABLES_MOTOR = [
+  "nombre",
+  "descripcion",
+  "objetivo",
+  "cuandoUsar",
+  "cuandoNoUsar",
+  "tipoContenidoRecomendado",
+  "palabrasClave",
+  "prioridad",
+  "estructuraNarrativa",
+  "variablesUtilizadas",
+  "promptMaestro",
+  "ejemplo",
+  "notasInternas",
+  "estado",
+  "categoria",
+] as const satisfies ReadonlyArray<keyof MotorIA>;
+
+export type MotorIAInput = Pick<MotorIA, (typeof CAMPOS_EDITABLES_MOTOR)[number]>;
+
+export const ESTADOS_MOTOR = ["activo", "archivado"] as const;
+
+/** Agrupación amplia para el filtro por categoría — cada uno de los 15
+ * Motores de Sistema cae en una de estas 5. */
+export const CATEGORIAS_MOTOR = ["Educativo", "Autoridad", "Venta", "Entretenimiento", "Informativo"] as const;
+
+/** Las {{VARIABLES}} que un `promptMaestro` de Motor puede usar — se
+ * resuelven en el momento de compilar (ver `construirVariablesMotor` en
+ * motor-ia.ts), jalando de compileIdentity/compilarPersonaje/datos del
+ * proyecto. Sin IA: reemplazo de texto plano. */
+export const VARIABLES_MOTOR = [
+  "IDEA",
+  "MARCA",
+  "IDENTIDAD",
+  "PERSONAJE",
+  "AUDIENCIA",
+  "ESTILO",
+  "VOZ",
+  "CTA",
+  "HASHTAGS",
+  "CONOCIMIENTO",
+  "ACTIVOS",
+  "OBJETIVO",
+  "FORMATO",
+  "PLATAFORMA",
+] as const;
+export type VariableMotor = (typeof VARIABLES_MOTOR)[number];

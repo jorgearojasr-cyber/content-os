@@ -2,6 +2,7 @@
 
 import { Input, Label, Textarea } from "@/components/ui";
 import { ContenidoRelacionadoPanel } from "@/components/contenido-relacionado-panel";
+import { SelectorMotor } from "@/components/selector-motor";
 import type { ContenidoRelacionado } from "@/lib/actions";
 import {
   DURACIONES_VIDEO_CORTO,
@@ -13,6 +14,7 @@ import {
   TIPOS_CONTENIDO,
   TIPOS_PRODUCCION,
   TIPOS_PUBLICACION_POR_PLATAFORMA,
+  type MotorIA,
   type TipoContenido,
 } from "@/lib/types";
 
@@ -26,6 +28,8 @@ export type ConfigCreacion = {
   numeroEscenas: string;
   numeroPaginas: string;
   estiloImagen: string;
+  /** "" = sin Motor IA (o "Automático") — ver SelectorMotor. */
+  motorId: string;
 };
 
 export const CONFIG_VACIA: ConfigCreacion = {
@@ -38,6 +42,7 @@ export const CONFIG_VACIA: ConfigCreacion = {
   numeroEscenas: "",
   numeroPaginas: "",
   estiloImagen: "",
+  motorId: "",
 };
 
 function TarjetaSeleccion({
@@ -95,12 +100,16 @@ export function CamposCreacion({
   progresivo,
   proyectoId,
   onBuscarRelacionado,
+  motores,
 }: {
   config: ConfigCreacion;
   onChange: (config: ConfigCreacion) => void;
   progresivo: boolean;
   proyectoId: string;
   onBuscarRelacionado: (proyectoId: string, tema: string) => Promise<ContenidoRelacionado>;
+  /** Motores IA disponibles (del proyecto + globales) — detección por
+   * palabras clave sobre la idea del Paso 3, sin IA. */
+  motores: MotorIA[];
 }) {
   function set<K extends keyof ConfigCreacion>(campo: K, valor: ConfigCreacion[K]) {
     onChange({ ...config, [campo]: valor });
@@ -180,6 +189,12 @@ export function CamposCreacion({
             proyectoId={proyectoId}
             tema={config.tema}
             onBuscar={onBuscarRelacionado}
+          />
+          <SelectorMotor
+            idea={config.tema}
+            motores={motores}
+            motorId={config.motorId}
+            onChange={(v) => set("motorId", v)}
           />
         </div>
       ) : null}

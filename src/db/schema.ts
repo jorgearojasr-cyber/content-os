@@ -456,3 +456,69 @@ export const promptsGuardados = pgTable("prompts_guardados", {
     .notNull()
     .default(sql`now()`),
 });
+
+/**
+ * MOTOR IA — la ESTRATEGIA NARRATIVA de una pieza (cómo contarla:
+ * educativo, comparativo, storytelling…), no su estructura de salida (eso
+ * lo decide el Formato, ver `construirPlantillaExportacion` en
+ * exportar-contexto.ts). Entidad completamente separada de
+ * `promptsGuardados` (Biblioteca de Prompts) — esa tabla no se toca ni se
+ * migra en esta ronda, sigue existiendo exactamente igual.
+ *
+ * Los Motores de Sistema (`origen = "sistema"`) NO son editables
+ * directamente: al intentar editarlos, se crea una copia `origen =
+ * "usuario"` vinculada por `motorOriginalId`, y el original nunca cambia
+ * — reemplaza la necesidad de un botón "restaurar", porque el original
+ * nunca se pierde.
+ */
+export const motoresIA = pgTable("motores_ia", {
+  id: text("id").primaryKey(),
+  // Nullable: null = Motor global (usable en cualquier proyecto). Con un
+  // proyecto asignado, es exclusivo de ese proyecto — mismo patrón que
+  // Personajes del estudio y Prompts globales.
+  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
+  nombre: text("nombre").notNull().default(""),
+  descripcion: text("descripcion").notNull().default(""),
+  objetivo: text("objetivo").notNull().default(""),
+  cuandoUsar: text("cuando_usar").notNull().default(""),
+  cuandoNoUsar: text("cuando_no_usar").notNull().default(""),
+  tipoContenidoRecomendado: text("tipo_contenido_recomendado").notNull().default(""),
+  // Lista separada por coma (mismo patrón que `identidades.palabrasSiempre`,
+  // editada como chips) — comparadas en texto plano (sin IA) contra la idea
+  // escrita en Paso 3 de Crear para sugerir el Motor.
+  palabrasClave: text("palabras_clave").notNull().default(""),
+  // Escala 1 (baja) a 5 (alta) — para ordenar sugerencias con % de
+  // coincidencia empatado.
+  prioridad: integer("prioridad").notNull().default(3),
+  estructuraNarrativa: text("estructura_narrativa").notNull().default(""),
+  // Lista separada por coma — qué {{VARIABLES}} usa típicamente este Motor
+  // (informativo, no valida el promptMaestro contra esta lista).
+  variablesUtilizadas: text("variables_utilizadas").notNull().default(""),
+  // La plantilla en sí, con {{VARIABLES}} sin resolver — ver
+  // reemplazarVariablesMotor() en motor-ia.ts para la lista completa de
+  // variables soportadas y de dónde sale cada una.
+  promptMaestro: text("prompt_maestro").notNull().default(""),
+  ejemplo: text("ejemplo").notNull().default(""),
+  // Notas internas de trabajo — nunca se compilan en el contexto exportado.
+  notasInternas: text("notas_internas").notNull().default(""),
+  estado: text("estado").notNull().default("activo"),
+  categoria: text("categoria").notNull().default(""),
+  version: integer("version").notNull().default(1),
+  // "sistema" | "usuario" — ver protección de originales arriba.
+  origen: text("origen").notNull().default("usuario"),
+  // Solo en copias de usuario: el Motor de Sistema del que se duplicó.
+  motorOriginalId: text("motor_original_id"),
+  // Estadísticas de uso — se incrementan cada vez que se exporta contexto
+  // con este Motor seleccionado (ver integración en exportar-contexto.ts).
+  vecesUsado: integer("veces_usado").notNull().default(0),
+  ultimoUsoAt: text("ultimo_uso_at"),
+  // Arreglo de ids de proyecto donde se ha usado — "en qué proyectos" de
+  // las estadísticas de organización.
+  proyectosUsadosJson: jsonb("proyectos_usados_json").notNull().default([]),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`now()`),
+});

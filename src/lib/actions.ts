@@ -11,6 +11,7 @@ import {
   bloques,
   documentos,
   identidades,
+  motoresIA,
   notas,
   personajes,
   promptsGuardados,
@@ -24,6 +25,7 @@ import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
+  CAMPOS_EDITABLES_MOTOR,
   CAMPOS_VERSION_PERSONAJE,
   esConversionAVideo,
   fotoPrincipal,
@@ -33,6 +35,7 @@ import {
   parseFotosPersonaje,
   parsePersonajeIds,
   parsePlanEdicion,
+  parseProyectosUsadosMotor,
   parseVersionesPersonaje,
   TIPOS_ACTIVO,
   TIPOS_FOTO_PERSONAJE,
@@ -47,6 +50,8 @@ import type {
   FotoPersonaje,
   Identidad,
   IdentidadInput,
+  MotorIA,
+  MotorIAInput,
   Personaje,
   PersonajeInput,
   PromptGuardado,
@@ -1730,6 +1735,183 @@ export async function deletePromptGuardado(promptId: string) {
     .returning({ proyectoId: promptsGuardados.proyectoId });
 
   revalidarRutasPrompt(eliminado?.proyectoId ?? null);
+}
+
+// ---------------------------------------------------------------------
+// Motores IA
+// ---------------------------------------------------------------------
+
+function revalidarRutasMotor(proyectoId: string | null) {
+  revalidatePath("/motores");
+  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/motores`);
+}
+
+/** Motores GLOBALES (`proyectoId` null) — mismo patrón que Prompts
+ * globales/Personajes del estudio. */
+export async function getMotoresGlobales(): Promise<MotorIA[]> {
+  return db.select().from(motoresIA).where(isNull(motoresIA.proyectoId)).orderBy(desc(motoresIA.createdAt)) as Promise<
+    MotorIA[]
+  >;
+}
+
+/** Motores de UN proyecto (los suyos + los globales combinados) — usado
+ * por la pestaña "Motores" del proyecto y por Crear (detección por
+ * palabras clave). */
+export async function getMotoresDeProyecto(proyectoId: string): Promise<MotorIA[]> {
+  const [propios, globales] = await Promise.all([
+    db.select().from(motoresIA).where(eq(motoresIA.proyectoId, proyectoId)) as Promise<MotorIA[]>,
+    getMotoresGlobales(),
+  ]);
+  return [...propios, ...globales];
+}
+
+/** Todos los Motores (para /motores, la pantalla global de organización) —
+ * más usados primero. */
+export async function getTodosLosMotores(): Promise<MotorIA[]> {
+  return db.select().from(motoresIA).orderBy(desc(motoresIA.vecesUsado), desc(motoresIA.createdAt)) as Promise<
+    MotorIA[]
+  >;
+}
+
+export async function getMotor(motorId: string): Promise<MotorIA | undefined> {
+  const rows = (await db.select().from(motoresIA).where(eq(motoresIA.id, motorId))) as MotorIA[];
+  return rows[0];
+}
+
+function leerCamposMotor(formData: FormData): MotorIAInput {
+  const valores = Object.fromEntries(
+    CAMPOS_EDITABLES_MOTOR.map((campo) => [
+      campo,
+      campo === "prioridad"
+        ? Number(formData.get(campo) ?? 3) || 3
+        : String(formData.get(campo) ?? "").trim(),
+    ]),
+  ) as unknown as MotorIAInput;
+  if (!valores.nombre) throw new Error("El Motor necesita un nombre.");
+  return { ...valores, estado: valores.estado || "activo" };
+}
+
+/** "Crear Motor Nuevo" — el formulario solo pide Nombre/Objetivo/
+ * Descripción/Categoría; el resto arranca vacío y editable después (el
+ * "Motor Base"). Siempre `origen: "usuario"`. */
+export async function crearMotorNuevo(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  if (!nombre) throw new Error("El Motor necesita un nombre.");
+  const id = randomUUID();
+
+  await db.insert(motoresIA).values({
+    id,
+    proyectoId,
+    nombre,
+    descripcion: String(formData.get("descripcion") ?? "").trim(),
+    objetivo: String(formData.get("objetivo") ?? "").trim(),
+    categoria: String(formData.get("categoria") ?? "").trim(),
+    origen: "usuario",
+    motorOriginalId: null,
+  });
+
+  revalidarRutasMotor(proyectoId);
+  return { id };
+}
+
+/** Guarda cambios en un Motor. Si es de Sistema (`origen === "sistema"`),
+ * el original NUNCA se modifica: se crea automáticamente una copia de
+ * usuario con los valores editados, vinculada por `motorOriginalId` —
+ * reemplaza la necesidad de un botón "restaurar", porque el original
+ * nunca se pierde. */
+export async function actualizarMotorIA(
+  motorId: string,
+  formData: FormData,
+): Promise<{ id: string; copiaCreada: boolean }> {
+  const valores = leerCamposMotor(formData);
+  const existente = await getMotor(motorId);
+  if (!existente) throw new Error("Motor no encontrado.");
+
+  if (existente.origen === "sistema") {
+    const id = randomUUID();
+    await db.insert(motoresIA).values({
+      id,
+      proyectoId: existente.proyectoId,
+      ...valores,
+      origen: "usuario",
+      motorOriginalId: existente.id,
+    });
+    revalidarRutasMotor(existente.proyectoId);
+    return { id, copiaCreada: true };
+  }
+
+  await db
+    .update(motoresIA)
+    .set({ ...valores, version: sql`${motoresIA.version} + 1`, updatedAt: sql`now()` })
+    .where(eq(motoresIA.id, motorId));
+
+  revalidarRutasMotor(existente.proyectoId);
+  return { id: motorId, copiaCreada: false };
+}
+
+/** Botón "Duplicar Motor" explícito — mismo mecanismo de copia que editar
+ * un Motor de Sistema, pero sin necesidad de cambiar nada primero. Duplicar
+ * una copia de usuario mantiene el `motorOriginalId` original (si lo tenía). */
+export async function duplicarMotorIA(motorId: string): Promise<{ id: string }> {
+  const existente = await getMotor(motorId);
+  if (!existente) throw new Error("Motor no encontrado.");
+  const id = randomUUID();
+
+  await db.insert(motoresIA).values({
+    id,
+    proyectoId: existente.proyectoId,
+    nombre: `${existente.nombre} (copia)`,
+    descripcion: existente.descripcion,
+    objetivo: existente.objetivo,
+    cuandoUsar: existente.cuandoUsar,
+    cuandoNoUsar: existente.cuandoNoUsar,
+    tipoContenidoRecomendado: existente.tipoContenidoRecomendado,
+    palabrasClave: existente.palabrasClave,
+    prioridad: existente.prioridad,
+    estructuraNarrativa: existente.estructuraNarrativa,
+    variablesUtilizadas: existente.variablesUtilizadas,
+    promptMaestro: existente.promptMaestro,
+    ejemplo: existente.ejemplo,
+    notasInternas: "",
+    estado: existente.estado,
+    origen: "usuario",
+    motorOriginalId: existente.origen === "sistema" ? existente.id : existente.motorOriginalId,
+  });
+
+  revalidarRutasMotor(existente.proyectoId);
+  return { id };
+}
+
+/** Los Motores de Sistema no se pueden eliminar — solo duplicarlos y
+ * eliminar la copia. */
+export async function eliminarMotorIA(motorId: string): Promise<void> {
+  const existente = await getMotor(motorId);
+  if (!existente) return;
+  if (existente.origen === "sistema") {
+    throw new Error("Los Motores de Sistema no se pueden eliminar — duplícalo y elimina la copia.");
+  }
+
+  await db.delete(motoresIA).where(eq(motoresIA.id, motorId));
+  revalidarRutasMotor(existente.proyectoId);
+}
+
+/** Registra el uso de un Motor al exportar contexto con él seleccionado —
+ * estadísticas puras (veces usado, en qué proyectos, última vez), no
+ * bloquea ni afecta el contenido exportado en sí. */
+export async function registrarUsoMotor(motorId: string, proyectoId: string): Promise<void> {
+  const existente = await getMotor(motorId);
+  if (!existente) return;
+  const proyectosUsados = parseProyectosUsadosMotor(existente.proyectosUsadosJson);
+  const nuevosProyectos = proyectosUsados.includes(proyectoId) ? proyectosUsados : [...proyectosUsados, proyectoId];
+
+  await db
+    .update(motoresIA)
+    .set({
+      vecesUsado: sql`${motoresIA.vecesUsado} + 1`,
+      ultimoUsoAt: sql`now()`,
+      proyectosUsadosJson: nuevosProyectos,
+    })
+    .where(eq(motoresIA.id, motorId));
 }
 
 // ---------------------------------------------------------------------
