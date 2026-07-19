@@ -70,7 +70,7 @@ export default async function RootPage() {
           <p className="mt-3 text-[15px] text-text-muted">{subtitulo}</p>
         </div>
 
-        <div className="relative z-[1] mt-8 grid gap-3.5 sm:mt-[130px] sm:grid-cols-3">
+        <div className="relative z-[1] mt-8 grid gap-3.5 sm:mt-[130px] sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={crearHref}
             className="hover-lift block rounded-[18px] bg-surface p-5 shadow-[var(--shadow-card)]"
@@ -113,6 +113,21 @@ export default async function RootPage() {
             </span>
             <p className="font-display text-[16px] text-text">Segundo Cerebro</p>
             <p className="mt-1 text-[13px] text-text-muted">{cerebroDescripcion}</p>
+          </Link>
+          <Link
+            href="/motores"
+            className="hover-lift block rounded-[18px] bg-surface p-5 shadow-[var(--shadow-card)]"
+          >
+            <span
+              className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-success/15 text-xl"
+              aria-hidden
+            >
+              ⚙️
+            </span>
+            <p className="font-display text-[16px] text-text">Motores IA</p>
+            <p className="mt-1 text-[13px] text-text-muted">
+              Estrategias narrativas reutilizables para tu contenido.
+            </p>
           </Link>
         </div>
       </header>
