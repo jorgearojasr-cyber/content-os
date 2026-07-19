@@ -608,6 +608,9 @@ export function CrearModos({
         numeroEscenas: config.numeroEscenas || undefined,
         numeroPaginas: config.numeroPaginas || undefined,
         estiloImagen: config.estiloImagen || undefined,
+        aspectRatio: TIPOS_PUBLICACION_POR_PLATAFORMA[config.plataforma]?.find(
+          (t) => t.value === config.tipoPublicacion,
+        )?.aspectRatio,
         conocimientoRelevante: formatearConocimientoRelevante(documentos, config.tema),
       })
     : "";

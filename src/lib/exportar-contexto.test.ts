@@ -121,9 +121,81 @@ describe("construirPlantillaExportacion", () => {
     expect(texto).toContain("## Marca");
     expect(texto).toContain("Carrusel");
     expect(texto).toContain("5 errores comunes al construir");
-    expect(texto).toContain("Número de páginas del carrusel: exactamente 5.");
+    expect(texto).toContain("Número de láminas del carrusel: exactamente 5.");
     expect(texto).toContain("## Formato de salida requerido");
-    expect(texto).toContain("## Escenas");
+    expect(texto).toContain("## Láminas");
+  });
+
+  it("empieza SIEMPRE con las instrucciones de destino (IA de texto, no generador de imágenes)", () => {
+    for (const tipoContenido of ["Video Corto", "Carrusel", "Imagen", "Historia", "Video Largo"]) {
+      const texto = construirPlantillaExportacion({
+        identidadCompilada: "## Marca\nVoz: Directa",
+        tipoContenido,
+        tipoProduccion: "IA decide automáticamente",
+        tema: "Una idea",
+      });
+      expect(texto.startsWith("## Instrucciones de uso")).toBe(true);
+      expect(texto).toContain("IA de TEXTO");
+      expect(texto).toContain("NO lo pegues en un generador de imágenes");
+    }
+  });
+
+  it("Imagen: pide UN prompt de imagen con copy — sin escenas, sin miniatura, con aspect ratio", () => {
+    const texto = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Imagen",
+      tipoProduccion: "Solo imágenes",
+      tema: "Aislación de techos",
+      aspectRatio: "4:5",
+    });
+    expect(texto).toContain("## Prompt imagen");
+    expect(texto).toContain("UN solo prompt");
+    expect(texto).toContain("en formato 4:5");
+    expect(texto).not.toContain("Escena 1");
+    expect(texto).not.toContain("Lámina 1");
+    expect(texto).not.toContain("## Miniatura");
+  });
+
+  it("Video Corto: declara explícitamente el número de escenas y la duración solicitados", () => {
+    const texto = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Video Corto",
+      tipoProduccion: "Video con IA",
+      tema: "Recorrido por la obra",
+      duracion: "30 segundos",
+      numeroEscenas: "6",
+    });
+    expect(texto).toContain("Duración objetivo: 30 segundos.");
+    expect(texto).toContain("Número de escenas: exactamente 6.");
+    expect(texto).toContain("Escena 1");
+    expect(texto).toContain("Prompt video");
+  });
+
+  it("Carrusel: estructura de láminas SIN prompt video, con el aspect ratio elegido", () => {
+    const texto = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Carrusel",
+      tipoProduccion: "Solo imágenes",
+      tema: "5 errores comunes",
+      aspectRatio: "4:5",
+    });
+    expect(texto).toContain("## Láminas");
+    expect(texto).toContain("Lámina 1");
+    expect(texto).toContain("en formato 4:5");
+    expect(texto).not.toContain("Prompt video");
+    expect(texto).not.toContain("Escena 1");
+  });
+
+  it("Historia: vertical 9:16, máximo 3 escenas, sin miniatura", () => {
+    const texto = construirPlantillaExportacion({
+      identidadCompilada: "## Marca\nVoz: Directa",
+      tipoContenido: "Historia",
+      tipoProduccion: "IA decide automáticamente",
+      tema: "Avance del día",
+    });
+    expect(texto).toContain("9:16");
+    expect(texto).toContain("MÁXIMO 3 escenas");
+    expect(texto).not.toContain("## Miniatura");
   });
 
   it("incluye la sección de Conocimiento relevante solo cuando llega contenido", () => {
@@ -150,8 +222,8 @@ describe("construirPlantillaExportacion", () => {
   it("produce una plantilla cuyo formato de salida el propio parser reconoce como válido si se completa", () => {
     const plantilla = construirPlantillaExportacion({
       identidadCompilada: "",
-      tipoContenido: "Imagen",
-      tipoProduccion: "Solo imágenes",
+      tipoContenido: "Video Corto",
+      tipoProduccion: "Video con IA",
       tema: "Una idea de prueba",
     });
     // La plantilla en sí misma es una instrucción, no una respuesta — pero
@@ -161,5 +233,114 @@ describe("construirPlantillaExportacion", () => {
     for (const encabezado of ["## Copy", "## Escenas", "## Hashtags", "## CTA", "## Miniatura"]) {
       expect(plantilla).toContain(encabezado);
     }
+  });
+});
+
+describe("parsearRespuestaIA — respuestas por formato", () => {
+  it("Carrusel: reconoce láminas con sus campos y sin prompt video", () => {
+    const respuesta = `## Copy
+Copy del carrusel.
+
+## Láminas
+Lámina 1
+Descripción: Portada con el título del carrusel.
+Texto en pantalla: 5 errores comunes
+Prompt imagen: Diseño gráfico limpio con tipografía grande, formato 4:5.
+
+Lámina 2
+Descripción: Primer error explicado.
+Texto en pantalla: Error 1: no impermeabilizar
+Prompt imagen: Fotografía de un muro con humedad, formato 4:5.
+
+## Hashtags
+#construccion
+
+## CTA
+Guarda este carrusel.
+
+## Miniatura
+La Lámina 1 sirve de portada.`;
+
+    const { contenido, reconocido } = parsearRespuestaIA(respuesta);
+    expect(reconocido).toBe(true);
+    expect(contenido.copy).toBe("Copy del carrusel.");
+    expect(contenido.escenas).toHaveLength(2);
+    expect(contenido.escenas[0]).toMatchObject({
+      numero: 1,
+      duracionSegundos: 0,
+      descripcion: "Portada con el título del carrusel.",
+      textoEnPantalla: "5 errores comunes",
+      promptVisual: "Diseño gráfico limpio con tipografía grande, formato 4:5.",
+      promptVideo: "",
+    });
+    expect(contenido.escenas[1].numero).toBe(2);
+    expect(contenido.escenas[1].promptVideo).toBe("");
+  });
+
+  it("Imagen: convierte el Prompt imagen único en una sola escena", () => {
+    const respuesta = `## Copy
+Copy de la publicación de imagen.
+
+## Prompt imagen
+Fotografía documental de una casa recién terminada al atardecer, formato 4:5,
+luz cálida, sin texto sobreimpreso.
+
+## Hashtags
+#casa #construccion
+
+## CTA
+Escríbenos para cotizar.`;
+
+    const { contenido, reconocido } = parsearRespuestaIA(respuesta);
+    expect(reconocido).toBe(true);
+    expect(contenido.copy).toBe("Copy de la publicación de imagen.");
+    expect(contenido.escenas).toHaveLength(1);
+    expect(contenido.escenas[0].promptVisual).toContain("Fotografía documental de una casa");
+    expect(contenido.escenas[0].promptVideo).toBe("");
+    expect(contenido.escenas[0].duracionSegundos).toBe(0);
+    expect(contenido.miniatura).toBe("");
+  });
+
+  it("Historia: estructura corta de 2 escenas 9:16 sin miniatura", () => {
+    const respuesta = `## Copy
+Texto breve de la historia.
+
+## Escenas
+Escena 1
+Duración (s): 5
+Descripción: Selfie en la obra saludando.
+Guión hablado: ¡Hoy les muestro el avance!
+Texto en pantalla: Avance de hoy
+Prompt imagen: Selfie vertical 9:16 en obra, luz natural.
+Prompt video: Movimiento leve de cámara en mano, vertical 9:16.
+
+Escena 2
+Duración (s): 7
+Descripción: Paneo del muro terminado.
+Guión hablado:
+Texto en pantalla: ¡Muro listo!
+Prompt imagen: Muro de ladrillo terminado, vertical 9:16.
+Prompt video: Paneo lento de izquierda a derecha, vertical 9:16.
+
+## Hashtags
+
+
+## CTA
+Desliza hacia arriba.`;
+
+    const { contenido, reconocido } = parsearRespuestaIA(respuesta);
+    expect(reconocido).toBe(true);
+    expect(contenido.escenas).toHaveLength(2);
+    expect(contenido.escenas[0].duracionSegundos).toBe(5);
+    expect(contenido.escenas[1].textoEnPantalla).toBe("¡Muro listo!");
+    expect(contenido.miniatura).toBe("");
+  });
+
+  it("Video: la respuesta clásica de escenas sigue parseando igual (regresión)", () => {
+    const { contenido, reconocido } = parsearRespuestaIA(RESPUESTA_VALIDA);
+    expect(reconocido).toBe(true);
+    expect(contenido.escenas).toHaveLength(2);
+    expect(contenido.escenas[0].promptVideo).toBe("Plano fijo con leve movimiento de cámara hacia adelante.");
+    expect(contenido.miniatura).toBe("Fotografía de portada mostrando la obra terminada.");
   });
 });
