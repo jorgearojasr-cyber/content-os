@@ -90,6 +90,56 @@ describe("construirVariablesMotor y reemplazarVariablesMotor", () => {
     expect(variables.FORMATO).toBe("Video Corto");
   });
 
+  it("AUDIENCIA toma solo el primer público y recorta el 'dirigido a' inicial, en vez del bloque crudo completo", () => {
+    const identidad = {
+      audiencia:
+        "ObraBien está dirigido a propietarios que desean construir, remodelar o mantener su vivienda; " +
+        "personas que no tienen experiencia en construcción pero quieren aprender antes de invertir; " +
+        "maestros y contratistas que buscan mejorar sus conocimientos y reputación.",
+    } as Identidad;
+    const variables = construirVariablesMotor({
+      idea: "",
+      identidad,
+      identidadCompilada: "",
+      formato: "Video Corto",
+    });
+    expect(variables.AUDIENCIA).toBe("propietarios que desean construir, remodelar o mantener su vivienda");
+  });
+
+  it("CTA toma solo el primer ejemplo separado por línea en blanco, en vez de la lista completa", () => {
+    const identidad = {
+      ctaHabituales:
+        "Guarda esta publicación para cuando la necesites.\r\n\r\n" +
+        "Compártela con alguien que esté construyendo.\r\n\r\n" +
+        "Síguenos para aprender más sobre construcción.",
+    } as Identidad;
+    const variables = construirVariablesMotor({
+      idea: "",
+      identidad,
+      identidadCompilada: "",
+      formato: "Video Corto",
+    });
+    expect(variables.CTA).toBe("Guarda esta publicación para cuando la necesites");
+  });
+
+  it("OBJETIVO toma solo el primer ítem separado por ';', en vez del bloque crudo completo", () => {
+    const identidad = {
+      objetivo:
+        "Educar a propietarios, maestros, contratistas y empresas mediante contenido práctico y confiable; " +
+        "construir una comunidad referente de la construcción; " +
+        "posicionar a ObraBien como la fuente más confiable de conocimiento del rubro.",
+    } as Identidad;
+    const variables = construirVariablesMotor({
+      idea: "",
+      identidad,
+      identidadCompilada: "",
+      formato: "Video Corto",
+    });
+    expect(variables.OBJETIVO).toBe(
+      "Educar a propietarios, maestros, contratistas y empresas mediante contenido práctico y confiable",
+    );
+  });
+
   it("reemplaza {{VARIABLES}} conocidas y deja vacías las no resueltas", () => {
     const texto = reemplazarVariablesMotor(
       "Habla sobre {{IDEA}} para {{AUDIENCIA}}, usando {{DESCONOCIDA}}.",

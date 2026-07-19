@@ -57,6 +57,24 @@ export type ContextoVariablesMotor = {
   proyectoNombre?: string;
 };
 
+/** Campos de Identidad como Audiencia u Objetivo suelen juntar varios
+ * públicos/metas en un solo texto libre, separados por ";" o por saltos de
+ * línea (p. ej. "Dirigido a propietarios...; también a maestros...;...").
+ * Los Motores usan {{AUDIENCIA}}/{{CTA}}/{{OBJETIVO}} como una frase corta
+ * DENTRO de una oración ("que comete {{AUDIENCIA}}:", "algo como {{CTA}}."),
+ * así que insertar el campo crudo completo produce texto corrido y mal
+ * formado. Determinista, sin IA: toma solo el primer ítem/línea, y si ese
+ * ítem arranca con un "está/son dirigidos a " (frase típica de Audiencia),
+ * lo recorta para dejar solo la frase nominal que sigue. Sin punto final —
+ * las plantillas de Motor ya cierran la oración con su propia puntuación. */
+function primerItemDeCampoLargo(texto: string): string {
+  const primerSegmento = texto.split(/\r?\n\s*\r?\n|\r?\n|;/)[0] ?? "";
+  return primerSegmento
+    .replace(/^.*?\bdirigid[oa]s?\s+a\s+/i, "")
+    .trim()
+    .replace(/\.$/, "");
+}
+
 /** Resuelve las 14 {{VARIABLES}} soportadas a partir de datos ya
  * disponibles al momento de exportar — nunca llama a compileIdentity de
  * nuevo, reutiliza lo que Crear ya calculó (identidadCompilada) más los
@@ -68,14 +86,14 @@ export function construirVariablesMotor(ctx: ContextoVariablesMotor): Record<str
     MARCA: ctx.proyectoNombre ?? "",
     IDENTIDAD: ctx.identidadCompilada,
     PERSONAJE: ctx.personaje?.nombre ?? "",
-    AUDIENCIA: id?.audiencia ?? "",
+    AUDIENCIA: primerItemDeCampoLargo(id?.audiencia ?? ""),
     ESTILO: id?.look ?? "",
     VOZ: id?.voz ?? "",
-    CTA: id?.ctaHabituales ?? "",
+    CTA: primerItemDeCampoLargo(id?.ctaHabituales ?? ""),
     HASHTAGS: id?.hashtagsFrecuentes ?? "",
     CONOCIMIENTO: ctx.conocimientoRelevante ?? "",
     ACTIVOS: ctx.activosTexto ?? "",
-    OBJETIVO: id?.objetivo ?? "",
+    OBJETIVO: primerItemDeCampoLargo(id?.objetivo ?? ""),
     FORMATO: ctx.formato,
     PLATAFORMA: ctx.plataforma ?? "",
   };
