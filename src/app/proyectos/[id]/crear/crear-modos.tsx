@@ -58,10 +58,9 @@ const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[] = [
   { value: "inferior-derecha", etiqueta: "Esquina inferior derecha" },
 ];
 
-type Modo = "rapido" | "guiado" | "profesional";
+type Modo = "guiado" | "profesional";
 
 const MODOS: { id: Modo; icono: string; etiqueta: string; descripcion: string }[] = [
-  { id: "rapido", icono: "🚀", etiqueta: "Crear rápido", descripcion: "Solo la idea, el resto queda automático" },
   { id: "guiado", icono: "🎨", etiqueta: "Crear guiado", descripcion: "Tú decides el formato y estilo" },
   { id: "profesional", icono: "⚙️", etiqueta: "Modo profesional", descripcion: "Control total de cada detalle" },
 ];
@@ -521,7 +520,7 @@ export function CrearModos({
   // estudio — porque ambos funcionan igual al generar.
   const hayPersonajeDisponible = personajes.length > 0 || personajesEstudio.length > 0;
 
-  const [modo, setModo] = useState<Modo>("rapido");
+  const [modo, setModo] = useState<Modo>("guiado");
   const [config, setConfig] = useState<ConfigCreacion>({ ...CONFIG_VACIA, tema: temaInicial });
   const [resultado, setResultado] = useState<ContenidoGenerado | null>(null);
   const [respuestaPegada, setRespuestaPegada] = useState("");
@@ -798,7 +797,7 @@ export function CrearModos({
   return (
     <>
     <Card>
-      <div className="mb-5 grid grid-cols-1 gap-2 border-b border-border pb-5 sm:grid-cols-3">
+      <div className="mb-5 grid grid-cols-1 gap-2 border-b border-border pb-5 sm:grid-cols-2">
         {MODOS.map((m) => (
           <button
             key={m.id}
@@ -818,7 +817,7 @@ export function CrearModos({
         ))}
       </div>
 
-      {modo === "rapido" || modo === "guiado" ? (
+      {modo === "guiado" ? (
         <div>
           <CamposCreacion
             config={config}
