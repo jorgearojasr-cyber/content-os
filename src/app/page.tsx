@@ -111,7 +111,7 @@ export default async function RootPage() {
             >
               🧠
             </span>
-            <p className="font-display text-[16px] text-text">Segundo Cerebro</p>
+            <p className="font-display text-[16px] text-text">Ideas</p>
             <p className="mt-1 text-[13px] text-text-muted">{cerebroDescripcion}</p>
           </Link>
           <Link

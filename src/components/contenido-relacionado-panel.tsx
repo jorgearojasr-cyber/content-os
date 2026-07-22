@@ -114,7 +114,7 @@ function SeccionSegundoCerebro({ proyectoId, notas }: { proyectoId: string; nota
   return (
     <div className="space-y-1.5">
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-        En tu Segundo Cerebro
+        En tus Ideas
       </p>
       <ul className="space-y-1.5">
         {trabajadas.map((n) => (

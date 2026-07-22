@@ -14,7 +14,7 @@ export default async function SegundoCerebroPage() {
         <div className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent">
           Estudio Creativo JR
         </div>
-        <h1 className="font-display text-2xl font-normal tracking-wide">Segundo Cerebro</h1>
+        <h1 className="font-display text-2xl font-normal tracking-wide">Ideas</h1>
         <p className="mt-1 text-sm text-text-muted">
           Anota ideas sueltas sin fricción — vincúlalas a un proyecto cuando quieras, o déjalas
           sueltas hasta entonces.

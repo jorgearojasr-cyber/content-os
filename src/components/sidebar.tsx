@@ -11,7 +11,7 @@ const ITEMS = [
   { href: "/", label: "Inicio", icono: "🏠" },
   { href: "/areas", label: "Áreas", icono: "🏛" },
   { href: "/proyectos", label: "Proyectos", icono: "📁" },
-  { href: "/segundo-cerebro", label: "Segundo Cerebro", icono: "🧠" },
+  { href: "/segundo-cerebro", label: "Ideas", icono: "🧠" },
   { href: "/calendario", label: "Calendario", icono: "📅" },
   { href: "/prompts", label: "Prompts", icono: "📝" },
   { href: "/motores", label: "Motores IA", icono: "⚙️" },
