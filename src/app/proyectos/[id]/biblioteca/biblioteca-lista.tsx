@@ -516,6 +516,104 @@ function GuiaProduccionEscena({
   );
 }
 
+/** Explicador visual ÚNICO por pieza (nunca por escena) del flujo
+ * imagen→animar→ensamblar que usan las piezas de video — se muestra solo
+ * cuando la pieza es de video Y al menos una escena tiene tanto
+ * `promptVisual` como `promptVideo` (esa combinación es la señal de que esa
+ * escena se arma generando una imagen y animándola, a diferencia de una
+ * pieza grabada directamente, donde ese patrón no aplica). Colapsado por
+ * defecto para no estorbar a quien ya conoce el flujo — es solo
+ * informativo, no interactivo. */
+function ExplicadorFlujoImagenAnimar() {
+  const [abierto, setAbierto] = useState(false);
+
+  return (
+    <div className="mb-3 rounded-lg border border-border bg-surface px-3 py-2">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left text-[12.5px] font-medium text-text"
+      >
+        <span>¿Cómo funciona este flujo?</span>
+        <span className="text-text-muted">{abierto ? "▲" : "▼"}</span>
+      </button>
+
+      {abierto ? (
+        <div className="mt-2.5">
+          <svg
+            viewBox="0 0 320 190"
+            className="w-full max-w-[360px]"
+            role="img"
+            aria-label="Diagrama: para Imagen o Carrusel, generas la imagen y publicas directo. Para Video, generas una imagen base, la animas, y luego ensamblas y publicas."
+          >
+            {/* Columna izquierda: Imagen o Carrusel */}
+            <text x="75" y="14" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--text-muted)">
+              Imagen o Carrusel
+            </text>
+            <rect x="15" y="24" width="120" height="36" rx="6" fill="var(--surface-2)" stroke="var(--border)" />
+            <text x="75" y="40" textAnchor="middle" fontSize="10" fill="var(--text)">
+              Generar imagen
+            </text>
+            <text x="75" y="52" textAnchor="middle" fontSize="8" fill="var(--text-muted)">
+              Gemini / GPT Image
+            </text>
+            <line x1="75" y1="62" x2="75" y2="74" stroke="var(--text-muted)" strokeWidth="1.4" />
+            <polygon points="70,74 80,74 75,80" fill="var(--text-muted)" />
+            <rect x="15" y="82" width="120" height="30" rx="6" fill="var(--surface-2)" stroke="var(--border)" />
+            <text x="75" y="101" textAnchor="middle" fontSize="10.5" fontWeight="600" fill="var(--text)">
+              Publicar
+            </text>
+
+            {/* Columna derecha: Video (resaltada) */}
+            <rect
+              x="158"
+              y="4"
+              width="152"
+              height="176"
+              rx="10"
+              fill="var(--accent-soft)"
+              stroke="var(--accent)"
+              strokeWidth="1.3"
+            />
+            <text x="237" y="18" textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--accent)">
+              Video
+            </text>
+            <rect x="173" y="28" width="122" height="36" rx="6" fill="var(--surface)" stroke="var(--border)" />
+            <text x="234" y="44" textAnchor="middle" fontSize="9" fill="var(--text)">
+              Generar imagen base
+            </text>
+            <text x="234" y="56" textAnchor="middle" fontSize="8" fill="var(--text-muted)">
+              Gemini
+            </text>
+            <line x1="234" y1="66" x2="234" y2="76" stroke="var(--text-muted)" strokeWidth="1.4" />
+            <polygon points="229,76 239,76 234,82" fill="var(--text-muted)" />
+            <rect x="173" y="84" width="122" height="36" rx="6" fill="var(--surface)" stroke="var(--border)" />
+            <text x="234" y="100" textAnchor="middle" fontSize="9" fill="var(--text)">
+              Animar la imagen
+            </text>
+            <text x="234" y="112" textAnchor="middle" fontSize="8" fill="var(--text-muted)">
+              Kling / Runway / Veo
+            </text>
+            <line x1="234" y1="122" x2="234" y2="132" stroke="var(--text-muted)" strokeWidth="1.4" />
+            <polygon points="229,132 239,132 234,138" fill="var(--text-muted)" />
+            <rect x="173" y="140" width="122" height="36" rx="6" fill="var(--surface)" stroke="var(--border)" />
+            <text x="234" y="156" textAnchor="middle" fontSize="9" fill="var(--text)">
+              Ensamblar y publicar
+            </text>
+            <text x="234" y="168" textAnchor="middle" fontSize="8" fill="var(--text-muted)">
+              Unir clips en CapCut
+            </text>
+          </svg>
+          <p className="mt-2 text-[11.5px] text-text-muted">
+            La imagen que generes para una escena de video{" "}
+            <strong className="text-text">NO se publica directamente</strong> — se usa como base para animarla.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Sección "Guía de producción": una guía por escena, solo para las que
  * tienen `promptVisual` (imagen base). Agrega un paso final de armado a
  * nivel de pieza completa, después de todas las escenas — nunca por
@@ -549,9 +647,13 @@ function GuiaProduccion({
   // Personaje/Activo — por eso se resuelve una sola vez acá y se pasa igual
   // a todas las escenas de esta pieza.
   const logoDeLaPieza = calcularIncluyeLogo(bloque) ? logoUrl : "";
+  // Señal de que esta pieza usa el flujo imagen→animar (a diferencia de
+  // video grabado directamente): al menos una escena con AMBOS prompts.
+  const usaFlujoImagenAnimar = esVideoFinal && escenas.some((e) => e.promptVideo?.trim());
 
   return (
     <div className="mt-3 border-t border-border pt-3">
+      {usaFlujoImagenAnimar ? <ExplicadorFlujoImagenAnimar /> : null}
       <p className="mb-2 text-[12.5px] font-medium text-text-muted">Guía de producción</p>
       <div className="space-y-1.5">
         {escenas.map((e) => (
