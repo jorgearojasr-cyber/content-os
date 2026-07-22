@@ -273,7 +273,16 @@ export function EscenasEditor({
               }}
             />
           ) : null}
-          <Label>Prompt imagen</Label>
+          <div className="mb-1.5 mt-3.5 flex items-center justify-between">
+            <span className="text-[12.5px] text-text-muted">Prompt imagen</span>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(e.promptVisual ?? "")}
+              className="text-[12px] text-accent hover:underline"
+            >
+              Copiar
+            </button>
+          </div>
           <Textarea
             value={e.promptVisual ?? ""}
             onChange={(ev) => updateEscena(i, "promptVisual", ev.target.value)}
@@ -288,7 +297,16 @@ export function EscenasEditor({
           ) : null}
           {mostrarPromptVideo ? (
             <>
-              <Label>Prompt video</Label>
+              <div className="mb-1.5 mt-3.5 flex items-center justify-between">
+                <span className="text-[12.5px] text-text-muted">Prompt video</span>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(e.promptVideo)}
+                  className="text-[12px] text-accent hover:underline"
+                >
+                  Copiar
+                </button>
+              </div>
               <Textarea
                 value={e.promptVideo}
                 onChange={(ev) => updateEscena(i, "promptVideo", ev.target.value)}

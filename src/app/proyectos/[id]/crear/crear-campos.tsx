@@ -47,7 +47,7 @@ export const CONFIG_VACIA: ConfigCreacion = {
   motorId: "",
 };
 
-function TarjetaSeleccion({
+export function TarjetaSeleccion({
   seleccionado,
   onClick,
   children,

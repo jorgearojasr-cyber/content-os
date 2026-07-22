@@ -2,22 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Input, Label, Textarea } from "@/components/ui";
+import { Button, Card, Input, Label, SectionTitle, Textarea } from "@/components/ui";
 import { EscenasEditor } from "@/components/escenas-editor";
 import { explicarError } from "@/lib/errores";
+import {
+  descargarArchivoTexto,
+  formatearKitMarkdown,
+  formatearKitTexto,
+  nombreArchivoDesdeTitulo,
+  type KitContenido,
+} from "@/lib/exportar-kit";
+import { descargarKitPdf } from "@/lib/exportar-pdf";
 import { formatearEscenas, type Escena } from "@/lib/types";
 import type { ContenidoGenerado, EscenaRevisada } from "@/lib/ai";
-
-type PestanaId =
-  | "guion"
-  | "escenas"
-  | "promptsImagen"
-  | "promptsVideo"
-  | "narracion"
-  | "copy"
-  | "hashtags"
-  | "cta"
-  | "miniatura";
 
 function construirTextoPlano(resultado: {
   copy: string;
@@ -50,42 +47,15 @@ function BotonCopiar({ texto }: { texto: string }) {
   );
 }
 
-function ListaPorEscena({
-  escenas,
-  campo,
-  onChange,
-}: {
-  escenas: Escena[];
-  campo: "guionHablado" | "promptVisual" | "promptVideo";
-  onChange: (index: number, valor: string) => void;
-}) {
-  const conContenido = escenas
-    .map((e, i) => ({ e, i }))
-    .filter(({ e }) => (e[campo] ?? "").trim().length > 0);
-
-  if (conContenido.length === 0) {
-    return <p className="text-[13px] text-text-muted">Sin contenido para esta pestaña.</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {conContenido.map(({ e, i }) => (
-        <div key={e.numero}>
-          <div className="mb-1 flex items-center justify-between">
-            <Label>Escena {e.numero}</Label>
-            <BotonCopiar texto={e[campo] ?? ""} />
-          </div>
-          <Textarea
-            value={e[campo] ?? ""}
-            onChange={(ev) => onChange(i, ev.target.value)}
-            className="min-h-[70px]"
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * KIT DE PRODUCCIÓN — pantalla de revisión final (Paso 5 del asistente).
+ * Antes era una vista por pestañas (Guión/Escenas/Prompts imagen/Prompts
+ * video/Narración/Copy/Hashtags/CTA/Miniatura, cada una por separado); acá
+ * es la MISMA información y los MISMOS campos editables, pero apilados en
+ * tarjetas (cada escena con todos sus campos juntos, vía EscenasEditor) en
+ * vez de repartidos entre pestañas — nada de contenido ni de lógica de
+ * guardado cambia, solo la jerarquía visual.
+ */
 export function ResultadoTabs({
   proyectoId,
   resultado,
@@ -161,10 +131,7 @@ export function ResultadoTabs({
   const [escenas, setEscenas] = useState<Escena[]>(resultado.escenas);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
-
-  function updateEscena<K extends keyof Escena>(index: number, campo: K, valor: Escena[K]) {
-    setEscenas((prev) => prev.map((e, i) => (i === index ? { ...e, [campo]: valor } : e)));
-  }
+  const [exportandoPdf, setExportandoPdf] = useState(false);
 
   function revisarEscena(escena: Escena, otrasEscenas: Escena[]) {
     return onRevisarEscena(
@@ -184,78 +151,6 @@ export function ResultadoTabs({
       },
     );
   }
-
-  const promptsImagenCount = escenas.filter((e) => (e.promptVisual ?? "").trim()).length;
-  const promptsVideoCount = escenas.filter((e) => e.promptVideo.trim()).length;
-  const guionCount = escenas.filter((e) => e.guionHablado.trim()).length;
-
-  const pestañas: { id: PestanaId; icono: string; etiqueta: string; ayuda: string; visible: boolean }[] = [
-    {
-      id: "guion",
-      icono: "📜",
-      etiqueta: "Guión",
-      ayuda: "El texto hablado completo de la pieza.",
-      visible: guionCount > 0,
-    },
-    {
-      id: "escenas",
-      icono: "🎬",
-      etiqueta: "Escenas",
-      ayuda: "Desglose visual escena por escena, con sus prompts de imagen/video.",
-      visible: escenas.length > 0,
-    },
-    {
-      id: "promptsImagen",
-      icono: "🖼",
-      etiqueta: "Prompts de imágenes",
-      ayuda: "Los prompts listos para copiar en herramientas de imagen (Gemini).",
-      visible: promptsImagenCount > 0,
-    },
-    {
-      id: "promptsVideo",
-      icono: "🎥",
-      etiqueta: "Prompts para video IA",
-      ayuda: "Los prompts listos para copiar en herramientas de video (Kling/Runway/Veo).",
-      visible: promptsVideoCount > 0,
-    },
-    {
-      id: "narracion",
-      icono: "🎙",
-      etiqueta: "Narración",
-      ayuda: "La voz en off general de la pieza, aparte del diálogo de cada escena.",
-      visible: narracion.trim().length > 0,
-    },
-    {
-      id: "copy",
-      icono: "✍",
-      etiqueta: "Copy",
-      ayuda: "El texto que acompaña la publicación.",
-      visible: copy.trim().length > 0,
-    },
-    {
-      id: "hashtags",
-      icono: "🏷",
-      etiqueta: "Hashtags",
-      ayuda: "Los hashtags recomendados para la publicación.",
-      visible: hashtags.trim().length > 0,
-    },
-    {
-      id: "cta",
-      icono: "📌",
-      etiqueta: "CTA",
-      ayuda: "El llamado a la acción de cierre.",
-      visible: cta.trim().length > 0,
-    },
-    {
-      id: "miniatura",
-      icono: "🖼",
-      etiqueta: "Miniatura",
-      ayuda: "La imagen de portada/preview de la pieza.",
-      visible: miniatura.trim().length > 0,
-    },
-  ];
-  const visibles = pestañas.filter((p) => p.visible);
-  const [tabActiva, setTabActiva] = useState<PestanaId>(visibles[0]?.id ?? "copy");
 
   async function guardar() {
     setGuardando(true);
@@ -280,139 +175,93 @@ export function ResultadoTabs({
     }
   }
 
+  const kit: KitContenido = { titulo, copy, hashtags, cta, miniatura, narracion, escenas };
+
+  function exportarTxt() {
+    descargarArchivoTexto(nombreArchivoDesdeTitulo(titulo, "txt"), formatearKitTexto(kit), "text/plain;charset=utf-8");
+  }
+
+  function exportarMarkdown() {
+    descargarArchivoTexto(nombreArchivoDesdeTitulo(titulo, "md"), formatearKitMarkdown(kit), "text/markdown;charset=utf-8");
+  }
+
+  async function exportarPdf() {
+    setExportandoPdf(true);
+    try {
+      await descargarKitPdf(kit);
+    } finally {
+      setExportandoPdf(false);
+    }
+  }
+
   return (
     <Card>
       {resumenFormato ? (
         <p className="mb-2 text-[12px] font-medium text-text-muted">{resumenFormato}</p>
       ) : null}
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13.5px] text-text-muted">
-          Revisa y ajusta cada pestaña — nada se guarda hasta que confirmes abajo.
-        </p>
+      <div className="mb-4 flex items-center justify-between">
+        <SectionTitle subtitle="Revisa y ajusta cada tarjeta — nada se guarda hasta que confirmes abajo.">
+          Kit de Producción
+        </SectionTitle>
         <button
           type="button"
           onClick={onEmpezarDeNuevo}
-          className="text-[12.5px] text-text-muted underline hover:text-accent"
+          className="shrink-0 text-[12.5px] text-text-muted underline hover:text-accent"
         >
           Empezar de nuevo
         </button>
       </div>
 
-      {visibles.length > 0 ? (
-        <>
-          <div className="flex flex-wrap gap-1.5 border-b border-border pb-3">
-            {visibles.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setTabActiva(p.id)}
-                className={`rounded-full px-3 py-1.5 text-[12.5px] transition-colors ${
-                  tabActiva === p.id
-                    ? "bg-accent font-semibold text-white"
-                    : "border border-border bg-surface-2 text-text-muted hover:text-text"
-                }`}
-              >
-                {p.icono} {p.etiqueta}
-              </button>
-            ))}
+      {escenas.length > 0 ? (
+        <div className="mb-5">
+          <p className="mb-2 font-display text-[14.5px]">🎬 Escenas</p>
+          <EscenasEditor escenas={escenas} onChange={setEscenas} onRevisarEscena={revisarEscena} />
+        </div>
+      ) : null}
+
+      {narracion.trim() ? (
+        <div className="mb-5 border-t border-border pt-4">
+          <div className="mb-1 flex items-center justify-between">
+            <Label>🎙 Narración</Label>
+            <BotonCopiar texto={narracion} />
           </div>
+          <Textarea value={narracion} onChange={(e) => setNarracion(e.target.value)} className="min-h-[100px]" />
+        </div>
+      ) : null}
 
-          {visibles.find((p) => p.id === tabActiva) ? (
-            <p className="mt-2 text-[12px] text-text-muted">
-              {visibles.find((p) => p.id === tabActiva)?.ayuda}
-            </p>
-          ) : null}
+      <div className="mb-5 border-t border-border pt-4">
+        <div className="mb-1 flex items-center justify-between">
+          <Label>✍ Copy</Label>
+          <BotonCopiar texto={copy} />
+        </div>
+        <Textarea value={copy} onChange={(e) => setCopy(e.target.value)} className="min-h-[100px]" />
+      </div>
 
-          <div className="mt-3">
-            {tabActiva === "guion" ? (
-              <ListaPorEscena
-                escenas={escenas}
-                campo="guionHablado"
-                onChange={(i, v) => updateEscena(i, "guionHablado", v)}
-              />
-            ) : null}
+      <div className="mb-5">
+        <div className="mb-1 flex items-center justify-between">
+          <Label>🏷 Hashtags</Label>
+          <BotonCopiar texto={hashtags} />
+        </div>
+        <Textarea value={hashtags} onChange={(e) => setHashtags(e.target.value)} />
+      </div>
 
-            {tabActiva === "promptsImagen" ? (
-              <ListaPorEscena
-                escenas={escenas}
-                campo="promptVisual"
-                onChange={(i, v) => updateEscena(i, "promptVisual", v)}
-              />
-            ) : null}
+      <div className="mb-5">
+        <div className="mb-1 flex items-center justify-between">
+          <Label>📌 CTA</Label>
+          <BotonCopiar texto={cta} />
+        </div>
+        <Textarea value={cta} onChange={(e) => setCta(e.target.value)} />
+      </div>
 
-            {tabActiva === "promptsVideo" ? (
-              <ListaPorEscena
-                escenas={escenas}
-                campo="promptVideo"
-                onChange={(i, v) => updateEscena(i, "promptVideo", v)}
-              />
-            ) : null}
-
-            {tabActiva === "escenas" ? (
-              <EscenasEditor escenas={escenas} onChange={setEscenas} onRevisarEscena={revisarEscena} />
-            ) : null}
-
-            {tabActiva === "narracion" ? (
-              <>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label>Narración</Label>
-                  <BotonCopiar texto={narracion} />
-                </div>
-                <Textarea
-                  value={narracion}
-                  onChange={(e) => setNarracion(e.target.value)}
-                  className="min-h-[160px]"
-                />
-              </>
-            ) : null}
-
-            {tabActiva === "copy" ? (
-              <>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label>Copy</Label>
-                  <BotonCopiar texto={copy} />
-                </div>
-                <Textarea value={copy} onChange={(e) => setCopy(e.target.value)} className="min-h-[160px]" />
-              </>
-            ) : null}
-
-            {tabActiva === "hashtags" ? (
-              <>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label>Hashtags</Label>
-                  <BotonCopiar texto={hashtags} />
-                </div>
-                <Textarea value={hashtags} onChange={(e) => setHashtags(e.target.value)} />
-              </>
-            ) : null}
-
-            {tabActiva === "cta" ? (
-              <>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label>CTA</Label>
-                  <BotonCopiar texto={cta} />
-                </div>
-                <Textarea value={cta} onChange={(e) => setCta(e.target.value)} />
-              </>
-            ) : null}
-
-            {tabActiva === "miniatura" ? (
-              <>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label>Miniatura</Label>
-                  <BotonCopiar texto={miniatura} />
-                </div>
-                <Textarea value={miniatura} onChange={(e) => setMiniatura(e.target.value)} />
-              </>
-            ) : null}
+      {miniatura.trim() ? (
+        <div className="mb-5">
+          <div className="mb-1 flex items-center justify-between">
+            <Label>🖼 Miniatura</Label>
+            <BotonCopiar texto={miniatura} />
           </div>
-        </>
-      ) : (
-        <p className="rounded-xl border border-dashed border-border p-4 text-center text-[13px] text-text-muted">
-          Todo vacío — escribe directamente en el título cuando guardes, o usa &ldquo;Empezar de
-          nuevo&rdquo; para pedirle ayuda a la IA.
-        </p>
-      )}
+          <Textarea value={miniatura} onChange={(e) => setMiniatura(e.target.value)} />
+        </div>
+      ) : null}
 
       <div className="mt-4 border-t border-border pt-4">
         <Label htmlFor="tituloFinal">Título</Label>
@@ -422,6 +271,20 @@ export function ResultadoTabs({
           onChange={(e) => setTitulo(e.target.value)}
           placeholder="Título de esta pieza"
         />
+
+        <p className="mb-1.5 mt-3.5 text-[12.5px] text-text-muted">Exportar Kit completo</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={exportarTxt}>
+            ⬇ TXT
+          </Button>
+          <Button type="button" variant="secondary" onClick={exportarMarkdown}>
+            ⬇ Markdown
+          </Button>
+          <Button type="button" variant="secondary" disabled={exportandoPdf} onClick={exportarPdf}>
+            {exportandoPdf ? "Generando…" : "⬇ PDF"}
+          </Button>
+        </div>
+
         {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
         <Button type="button" className="mt-3" disabled={guardando} onClick={guardar}>
           {guardando ? "Guardando…" : "Guardar en Biblioteca"}
