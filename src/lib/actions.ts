@@ -100,14 +100,18 @@ export async function getProyecto(id: string) {
 export async function createProyecto(formData: FormData) {
   const nombre = String(formData.get("nombre") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim();
+  // Opcional: mismo resultado que asignarla después desde Configuración,
+  // solo que en un paso — "" (Sin Área) es el default del selector.
+  const areaId = String(formData.get("areaId") ?? "").trim() || null;
   if (!nombre) throw new Error("El proyecto necesita un nombre.");
 
   const proyectoId = randomUUID();
 
-  await db.insert(proyectos).values({ id: proyectoId, nombre, descripcion });
+  await db.insert(proyectos).values({ id: proyectoId, nombre, descripcion, areaId });
   await db.insert(identidades).values({ id: randomUUID(), proyectoId });
 
   revalidatePath("/proyectos");
+  revalidatePath("/areas");
   redirect(`/proyectos/${proyectoId}/crear`);
 }
 

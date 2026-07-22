@@ -38,6 +38,7 @@ export default async function ProyectosPage() {
         <SectionTitle>Nuevo proyecto</SectionTitle>
         <NuevoProyectoForm
           nombresExistentes={proyectos.map((p) => p.nombre)}
+          areas={areas}
           onCreate={createProyecto}
         />
       </Card>
