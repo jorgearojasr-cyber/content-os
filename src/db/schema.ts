@@ -2,13 +2,29 @@ import { sql } from "drizzle-orm";
 import { boolean, integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 
 /**
+ * Área de Conocimiento: nivel intermedio entre el Centro Personal (global)
+ * y los Proyectos — agrupa proyectos que comparten conocimiento de fondo
+ * (ej. "Construcción" para OBRABIEN y futuras herramientas del rubro).
+ */
+export const area = pgTable("area", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  descripcion: text("descripcion").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
  * Un Proyecto es el contenedor superior (OBRABIEN, INJAR, futuros).
  * Todo lo demás cuelga de un proyecto y nunca se mezcla entre proyectos.
+ * `areaId` es opcional — un proyecto puede quedar "suelto", sin Área.
  */
 export const proyectos = pgTable("proyectos", {
   id: text("id").primaryKey(),
   nombre: text("nombre").notNull(),
   descripcion: text("descripcion").notNull().default(""),
+  areaId: text("area_id").references(() => area.id, { onDelete: "set null" }),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),
@@ -413,14 +429,19 @@ export const conocimiento = pgTable("conocimiento", {
  * Cerebro (apuntes rapidos de ideas) y de la tabla `conocimiento` vieja
  * (deprecada, migrada a notas en una ronda anterior — se deja intacta).
  * `proyectoId` nullable: null = documento GLOBAL del estudio, mismo
- * patron que personajes/prompts. `personajeId` opcional para vincular un
- * documento a un Personaje (ej. su biografia extendida). El resto de las
- * relaciones (activos/ideas/contenido) se resuelven por palabras clave
- * en la capa de Relaciones Inteligentes, no con FKs por cada par.
+ * patron que personajes/prompts. `areaId` opcional: documento a nivel de
+ * Área de Conocimiento (ej. normativa de construcción), disponible para
+ * todos los proyectos de esa Área sin subirlo por proyecto — independiente
+ * de `proyectoId` (un documento puede tener uno, otro, ambos o ninguno).
+ * `personajeId` opcional para vincular un documento a un Personaje (ej. su
+ * biografia extendida). El resto de las relaciones (activos/ideas/
+ * contenido) se resuelven por palabras clave en la capa de Relaciones
+ * Inteligentes, no con FKs por cada par.
  */
 export const documentos = pgTable("documentos", {
   id: text("id").primaryKey(),
   proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
+  areaId: text("area_id").references(() => area.id, { onDelete: "cascade" }),
   personajeId: text("personaje_id").references(() => personajes.id, { onDelete: "set null" }),
   titulo: text("titulo").notNull(),
   // Una de TIPOS_DOCUMENTO (types.ts): archivo | link | texto.

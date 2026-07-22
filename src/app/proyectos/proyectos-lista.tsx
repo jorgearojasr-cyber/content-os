@@ -4,14 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card, Chip } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import type { Proyecto } from "@/lib/types";
+import type { Area, Proyecto } from "@/lib/types";
 
 export function ProyectosLista({
   proyectos,
+  areas,
   onDelete,
   conteoContenido,
 }: {
   proyectos: Proyecto[];
+  areas: Area[];
   onDelete: (id: string) => Promise<void>;
   /** Piezas activas guardadas en la Biblioteca de cada proyecto — un
    * proyecto en 0 muestra el badge "Sin contenido aún" en su tarjeta. */
@@ -24,6 +26,24 @@ export function ProyectosLista({
   const filtrados = termino
     ? proyectos.filter((p) => p.nombre.toLowerCase().includes(termino.toLowerCase()))
     : proyectos;
+
+  // Agrupado por Área (nivel intermedio entre Centro Personal y Proyectos)
+  // — mismas Áreas de /areas, en el mismo orden, más "Sin Área" al final.
+  // Mientras hay búsqueda activa, se ocultan los grupos sin coincidencias.
+  const proyectosPorArea = new Map<string, Proyecto[]>();
+  const sinArea: Proyecto[] = [];
+  for (const p of filtrados) {
+    if (p.areaId) {
+      const lista = proyectosPorArea.get(p.areaId) ?? [];
+      lista.push(p);
+      proyectosPorArea.set(p.areaId, lista);
+    } else {
+      sinArea.push(p);
+    }
+  }
+  const gruposArea = areas
+    .map((a) => ({ area: a, proyectos: proyectosPorArea.get(a.id) ?? [] }))
+    .filter((g) => !termino || g.proyectos.length > 0);
 
   return (
     <div>
@@ -39,15 +59,46 @@ export function ProyectosLista({
           Sin resultados para &ldquo;{termino}&rdquo;.
         </p>
       ) : (
-        <div className="space-y-3">
-          {filtrados.map((p) => (
-            <ProyectoCard
-              key={p.id}
-              proyecto={p}
-              onDelete={onDelete}
-              sinContenido={(conteoContenido[p.id] ?? 0) === 0}
-            />
+        <div className="space-y-5">
+          {gruposArea.map(({ area, proyectos: proyectosDeArea }) => (
+            <div key={area.id}>
+              <p className="mb-2 font-mono text-[11px] uppercase tracking-[1px] text-text-muted">
+                🏛 {area.nombre}
+              </p>
+              {proyectosDeArea.length === 0 ? (
+                <p className="text-[12.5px] text-text-muted">Sin proyectos todavía.</p>
+              ) : (
+                <div className="space-y-3">
+                  {proyectosDeArea.map((p) => (
+                    <ProyectoCard
+                      key={p.id}
+                      proyecto={p}
+                      onDelete={onDelete}
+                      sinContenido={(conteoContenido[p.id] ?? 0) === 0}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
+
+          {sinArea.length > 0 ? (
+            <div>
+              <p className="mb-2 font-mono text-[11px] uppercase tracking-[1px] text-text-muted">
+                Sin Área
+              </p>
+              <div className="space-y-3">
+                {sinArea.map((p) => (
+                  <ProyectoCard
+                    key={p.id}
+                    proyecto={p}
+                    onDelete={onDelete}
+                    sinContenido={(conteoContenido[p.id] ?? 0) === 0}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

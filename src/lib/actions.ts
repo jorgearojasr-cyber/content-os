@@ -7,6 +7,7 @@ import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activos,
+  area,
   avatares,
   bloques,
   documentos,
@@ -42,6 +43,7 @@ import {
   TIPOS_FOTO_PERSONAJE,
 } from "./types";
 import type {
+  Area,
   Avatar,
   AvatarInput,
   CalidadImagen,
@@ -56,6 +58,7 @@ import type {
   Personaje,
   PersonajeInput,
   PromptGuardado,
+  Proyecto,
   TipoFotoPersonaje,
 } from "./types";
 
@@ -123,6 +126,64 @@ export async function deleteProyecto(id: string) {
   await db.delete(proyectos).where(eq(proyectos.id, id));
   revalidatePath("/proyectos");
   redirect("/proyectos");
+}
+
+/** Asigna o quita (areaId null) el Área de un proyecto existente. */
+export async function asignarAreaProyecto(proyectoId: string, areaId: string | null) {
+  await db.update(proyectos).set({ areaId }).where(eq(proyectos.id, proyectoId));
+  revalidatePath("/proyectos");
+  revalidatePath("/areas");
+  if (areaId) revalidatePath(`/areas/${areaId}`);
+}
+
+// ---------------------------------------------------------------------
+// Áreas de Conocimiento
+// ---------------------------------------------------------------------
+
+export async function getAreas(): Promise<Area[]> {
+  return db.select().from(area).orderBy(area.createdAt);
+}
+
+export async function getArea(id: string): Promise<Area | null> {
+  const rows = await db.select().from(area).where(eq(area.id, id));
+  return rows[0] ?? null;
+}
+
+export async function getProyectosDeArea(areaId: string): Promise<Proyecto[]> {
+  return db.select().from(proyectos).where(eq(proyectos.areaId, areaId)).orderBy(proyectos.createdAt);
+}
+
+export async function createArea(formData: FormData) {
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const descripcion = String(formData.get("descripcion") ?? "").trim();
+  if (!nombre) throw new Error("El Área necesita un nombre.");
+
+  const id = randomUUID();
+  await db.insert(area).values({ id, nombre, descripcion });
+
+  revalidatePath("/areas");
+  revalidatePath("/proyectos");
+  redirect(`/areas/${id}`);
+}
+
+export async function updateArea(id: string, formData: FormData) {
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const descripcion = String(formData.get("descripcion") ?? "").trim();
+  if (!nombre) throw new Error("El Área necesita un nombre.");
+
+  await db.update(area).set({ nombre, descripcion }).where(eq(area.id, id));
+
+  revalidatePath("/areas");
+  revalidatePath(`/areas/${id}`);
+}
+
+/** Borra el Área — sus proyectos quedan "sin Área" (areaId set null por
+ * la FK), sus documentos propios de Área se borran en cascada. */
+export async function deleteArea(id: string) {
+  await db.delete(area).where(eq(area.id, id));
+  revalidatePath("/areas");
+  revalidatePath("/proyectos");
+  redirect("/areas");
 }
 
 // ---------------------------------------------------------------------
@@ -1977,25 +2038,44 @@ export async function registrarUsoMotor(motorId: string, proyectoId: string): Pr
 // Biblioteca de Conocimiento (documentos)
 // ---------------------------------------------------------------------
 
-function revalidarRutasDocumento(proyectoId: string | null) {
+function revalidarRutasDocumento(proyectoId: string | null, areaId: string | null = null) {
   revalidatePath("/conocimiento");
   if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/conocimiento`);
+  if (areaId) revalidatePath(`/areas/${areaId}`);
 }
 
-/** Documentos GLOBALES (`proyectoId` null) — visibles en /conocimiento y,
- * con el chip "Global", dentro de cualquier proyecto. */
+/** Documentos GLOBALES (`proyectoId` null Y `areaId` null) — visibles en
+ * /conocimiento y, con el chip "Global", dentro de cualquier proyecto. Los
+ * documentos de Área también tienen `proyectoId` null pero NO son
+ * globales — se excluyen explícitamente para no duplicarlos. */
 export async function getDocumentosGlobales(): Promise<Documento[]> {
-  return db.select().from(documentos).where(isNull(documentos.proyectoId)).orderBy(desc(documentos.createdAt));
+  return db
+    .select()
+    .from(documentos)
+    .where(and(isNull(documentos.proyectoId), isNull(documentos.areaId)))
+    .orderBy(desc(documentos.createdAt));
 }
 
-/** Documentos de UN proyecto (los suyos + los globales combinados) —
- * mismo patrón que getPromptsDeProyecto. */
+/** Documentos propios de UN Área de Conocimiento (ej. normativa de
+ * construcción en el Área "Construcción") — visibles en /areas/[id] y
+ * heredados automáticamente por cada proyecto de esa Área. */
+export async function getDocumentosDeArea(areaId: string): Promise<Documento[]> {
+  return db.select().from(documentos).where(eq(documentos.areaId, areaId)).orderBy(desc(documentos.createdAt));
+}
+
+/** Documentos de UN proyecto: los suyos propios + los de su Área (si tiene
+ * una asignada) + los globales, combinados. Un proyecto sin Área (areaId
+ * null) se comporta exactamente igual que antes de que existieran las
+ * Áreas — solo sus propios documentos + los globales. */
 export async function getDocumentosDeProyecto(proyectoId: string): Promise<Documento[]> {
-  const [propios, globales] = await Promise.all([
+  const [proyectoRows, propios, globales] = await Promise.all([
+    db.select({ areaId: proyectos.areaId }).from(proyectos).where(eq(proyectos.id, proyectoId)),
     db.select().from(documentos).where(eq(documentos.proyectoId, proyectoId)),
     getDocumentosGlobales(),
   ]);
-  return [...propios, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const areaId = proyectoRows[0]?.areaId ?? null;
+  const deArea = areaId ? await getDocumentosDeArea(areaId) : [];
+  return [...propios, ...deArea, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 function leerCamposDocumento(formData: FormData) {
@@ -2008,11 +2088,10 @@ function leerCamposDocumento(formData: FormData) {
   return { titulo, tipo, contenido, etiquetas, personajeId };
 }
 
-/** Crea un documento. Para tipo "archivo" lee el `<input name="archivo">`
- * y lo sube a Blob; para "link" lee el campo de texto `link`; para
- * "texto" solo usa `contenido`. `proyectoId: null` desde /conocimiento
- * (global), pre-aplicado con `.bind()` desde la pestaña del proyecto. */
-export async function createDocumento(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+async function crearDocumentoConDestino(
+  destino: { proyectoId: string | null; areaId: string | null },
+  formData: FormData,
+): Promise<{ id: string }> {
   const campos = leerCamposDocumento(formData);
 
   let valor = "";
@@ -2028,10 +2107,25 @@ export async function createDocumento(proyectoId: string | null, formData: FormD
   }
 
   const id = randomUUID();
-  await db.insert(documentos).values({ id, proyectoId, valor, ...campos });
+  await db.insert(documentos).values({ id, ...destino, valor, ...campos });
 
-  revalidarRutasDocumento(proyectoId);
+  revalidarRutasDocumento(destino.proyectoId, destino.areaId);
   return { id };
+}
+
+/** Crea un documento de proyecto o global. Para tipo "archivo" lee el
+ * `<input name="archivo">` y lo sube a Blob; para "link" lee el campo de
+ * texto `link`; para "texto" solo usa `contenido`. `proyectoId: null`
+ * desde /conocimiento (global), pre-aplicado con `.bind()` desde la
+ * pestaña del proyecto. */
+export async function createDocumento(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+  return crearDocumentoConDestino({ proyectoId, areaId: null }, formData);
+}
+
+/** Crea un documento a nivel de Área de Conocimiento — mismas reglas de
+ * tipo que createDocumento, pre-aplicado con `.bind()` desde /areas/[id]. */
+export async function createDocumentoDeArea(areaId: string, formData: FormData): Promise<{ id: string }> {
+  return crearDocumentoConDestino({ proyectoId: null, areaId }, formData);
 }
 
 /** Edita los metadatos de un documento (título/contenido/etiquetas/
@@ -2052,20 +2146,25 @@ export async function updateDocumento(documentoId: string, formData: FormData) {
       ...(link ? { valor: link } : {}),
     })
     .where(eq(documentos.id, documentoId))
-    .returning({ proyectoId: documentos.proyectoId });
+    .returning({ proyectoId: documentos.proyectoId, areaId: documentos.areaId });
 
-  revalidarRutasDocumento(actualizado?.proyectoId ?? null);
+  revalidarRutasDocumento(actualizado?.proyectoId ?? null, actualizado?.areaId ?? null);
 }
 
 export async function deleteDocumento(documentoId: string) {
   const [eliminado] = await db
     .delete(documentos)
     .where(eq(documentos.id, documentoId))
-    .returning({ proyectoId: documentos.proyectoId, tipo: documentos.tipo, valor: documentos.valor });
+    .returning({
+      proyectoId: documentos.proyectoId,
+      areaId: documentos.areaId,
+      tipo: documentos.tipo,
+      valor: documentos.valor,
+    });
 
   if (eliminado?.tipo === "archivo" && eliminado.valor) {
     await eliminarArchivoSubido(eliminado.valor).catch(() => {});
   }
 
-  revalidarRutasDocumento(eliminado?.proyectoId ?? null);
+  revalidarRutasDocumento(eliminado?.proyectoId ?? null, eliminado?.areaId ?? null);
 }

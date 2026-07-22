@@ -31,6 +31,7 @@ export type PersonajeAsociableDoc = { id: string; nombre: string };
 export function DocumentosLista({
   documentos,
   mostrarChipGlobal,
+  nombreArea,
   personajes,
   onCreate,
   onUpdate,
@@ -38,6 +39,11 @@ export function DocumentosLista({
 }: {
   documentos: Documento[];
   mostrarChipGlobal: boolean;
+  /** Nombre del Área asignada al proyecto (si tiene una) — para etiquetar
+   * con "🏛 {nombreArea}" los documentos heredados (`areaId` no nulo) en
+   * vez de mostrarlos como "Global". Omitido en /areas/[id] (ahí todos los
+   * documentos listados YA son de esa Área, no hace falta repetirlo). */
+  nombreArea?: string;
   personajes: PersonajeAsociableDoc[];
   onCreate: (formData: FormData) => Promise<{ id: string }>;
   onUpdate: (documentoId: string, formData: FormData) => Promise<void>;
@@ -109,6 +115,7 @@ export function DocumentosLista({
               key={d.id}
               documento={d}
               mostrarChipGlobal={mostrarChipGlobal}
+              nombreArea={nombreArea}
               personajes={personajes}
               onUpdate={onUpdate}
               onDelete={onDelete}
@@ -260,19 +267,22 @@ function DocumentoForm({
 function DocumentoCard({
   documento,
   mostrarChipGlobal,
+  nombreArea,
   personajes,
   onUpdate,
   onDelete,
 }: {
   documento: Documento;
   mostrarChipGlobal: boolean;
+  nombreArea?: string;
   personajes: PersonajeAsociableDoc[];
   onUpdate: (documentoId: string, formData: FormData) => Promise<void>;
   onDelete: (documentoId: string) => Promise<void>;
 }) {
   const [editando, setEditando] = useState(false);
   const [confirmEliminar, setConfirmEliminar] = useState(false);
-  const esGlobal = documento.proyectoId === null;
+  const esDeArea = documento.areaId !== null;
+  const esGlobal = documento.proyectoId === null && !esDeArea;
   const personajeAsociado = documento.personajeId
     ? personajes.find((p) => p.id === documento.personajeId)
     : null;
@@ -310,6 +320,11 @@ function DocumentoCard({
         {mostrarChipGlobal && esGlobal ? (
           <span className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-[10.5px] text-accent">
             Global
+          </span>
+        ) : null}
+        {esDeArea && nombreArea ? (
+          <span className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-[10.5px] text-accent">
+            🏛 {nombreArea}
           </span>
         ) : null}
       </div>

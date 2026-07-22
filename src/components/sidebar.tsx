@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
  * (Dashboard.dc.html). */
 const ITEMS = [
   { href: "/", label: "Inicio", icono: "🏠" },
+  { href: "/areas", label: "Áreas", icono: "🏛" },
   { href: "/proyectos", label: "Proyectos", icono: "📁" },
   { href: "/segundo-cerebro", label: "Segundo Cerebro", icono: "🧠" },
   { href: "/calendario", label: "Calendario", icono: "📅" },

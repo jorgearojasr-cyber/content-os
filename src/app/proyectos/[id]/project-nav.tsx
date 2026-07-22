@@ -11,6 +11,7 @@ const TABS = [
   { slug: "prompts", label: "Prompts" },
   { slug: "motores", label: "Motores IA" },
   { slug: "conocimiento", label: "Conocimiento" },
+  { slug: "configuracion", label: "Configuración" },
 ] as const;
 
 export function ProjectNav({ proyectoId }: { proyectoId: string }) {

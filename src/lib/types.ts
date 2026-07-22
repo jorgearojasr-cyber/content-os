@@ -4,6 +4,16 @@ export type Proyecto = {
   id: string;
   nombre: string;
   descripcion: string;
+  areaId: string | null;
+  createdAt: string;
+};
+
+/** Área de Conocimiento — nivel intermedio entre el Centro Personal
+ * (global) y los Proyectos. Ver `area` en schema.ts. */
+export type Area = {
+  id: string;
+  nombre: string;
+  descripcion: string;
   createdAt: string;
 };
 
@@ -792,6 +802,7 @@ export const TIPOS_DOCUMENTO = [
 export type Documento = {
   id: string;
   proyectoId: string | null;
+  areaId: string | null;
   personajeId: string | null;
   titulo: string;
   /** Una de TIPOS_DOCUMENTO: archivo | link | texto. */

@@ -1,4 +1,10 @@
-import { createProyecto, deleteProyecto, getConteoContenidoPorProyecto, getProyectos } from "@/lib/actions";
+import {
+  createProyecto,
+  deleteProyecto,
+  getAreas,
+  getConteoContenidoPorProyecto,
+  getProyectos,
+} from "@/lib/actions";
 
 // Esta pantalla lee proyectos reales de la base de datos en cada visita.
 // Nunca debe quedar congelada como HTML estático del momento del build.
@@ -8,9 +14,10 @@ import { NuevoProyectoForm } from "./nuevo-proyecto-form";
 import { ProyectosLista } from "./proyectos-lista";
 
 export default async function ProyectosPage() {
-  const [proyectos, conteoContenido] = await Promise.all([
+  const [proyectos, conteoContenido, areas] = await Promise.all([
     getProyectos(),
     getConteoContenidoPorProyecto(),
+    getAreas(),
   ]);
 
   return (
@@ -41,7 +48,12 @@ export default async function ProyectosPage() {
           dentro de él.
         </Empty>
       ) : (
-        <ProyectosLista proyectos={proyectos} onDelete={deleteProyecto} conteoContenido={conteoContenido} />
+        <ProyectosLista
+          proyectos={proyectos}
+          areas={areas}
+          onDelete={deleteProyecto}
+          conteoContenido={conteoContenido}
+        />
       )}
     </main>
   );
