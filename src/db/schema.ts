@@ -489,3 +489,109 @@ export const promptsGuardados = pgTable("prompts_guardados", {
     .default(sql`now()`),
 });
 
+// ---------------------------------------------------------------------
+// Producción (Fase 2) — Planos + Storyboard de Escenas
+// ---------------------------------------------------------------------
+//
+// A partir de acá el sistema deja de organizar solo piezas (Bloques) y
+// empieza a organizar PRODUCCIONES: la planificación vive en
+// `storyboardEscenas`, a nivel de Proyecto, independiente de si ya existe
+// una pieza armada en Biblioteca. Ver `Escena`/`bloques.escenasJson` en
+// otra sección de este archivo — es un concepto DISTINTO (artefacto de
+// contenido dentro de un Bloque ya guardado), no lo toques al tocar esto.
+//
+// Diseñado pensando en el futuro Importador de Creative Blueprint: cada
+// escena es una fila propia con id estable (no un jsonb embebido), lista
+// para poblarse en lote desde un Blueprint sin rediseñar el modelo.
+
+/**
+ * Biblioteca mínima de tipos de plano de cámara (Primer plano, Plano
+ * detalle, etc.) — catálogo de referencia para el selector de
+ * `storyboardEscenas.planoId`. Sin UI de administración todavía (Fase 2);
+ * solo lectura desde selectores futuros.
+ */
+export const planos = pgTable("planos", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  descripcion: text("descripcion").notNull().default(""),
+  cuandoUsarlo: text("cuando_usarlo").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
+ * StoryboardEscena: la entidad PRINCIPAL del futuro módulo de Producción
+ * — el Proyecto solo las agrupa. Una fila = una escena planificada, con
+ * o sin pieza (Bloque) armada todavía a partir de ella.
+ *
+ * `numero` es la posición narrativa original (con la que se creó la
+ * escena); `orden` es la posición actual, editable al reordenar tarjetas
+ * (drag/flechas, Fase 3) — normalmente iguales, se separan el día que el
+ * usuario reordena sin renumerar. NO se guarda "tiempo": se calcula sumando
+ * `duracionSegundos` de las escenas anteriores según `orden`, nunca un
+ * valor persistido que pueda desincronizarse.
+ *
+ * `tipoEscena` y `estadoProduccion` son "enum" de texto plano (una de
+ * TIPOS_ESCENA_STORYBOARD / ESTADOS_PRODUCCION_ESCENA en types.ts) — mismo
+ * patrón que el resto de este schema (ver `documentos.tipo`,
+ * `promptsGuardados.estado`, etc.): agregar un valor nuevo es un cambio de
+ * código, nunca una migración de tipo Postgres.
+ *
+ * Fuera de alcance a propósito en esta fase (documentado, no tabla propia
+ * todavía — crecerán como entidades independientes más adelante si hace
+ * falta, no antes):
+ * - Personajes de la escena: podría ser relación N a N (una escena, varios
+ *   Personajes) — necesitaría tabla puente propia; no se agrega hasta que
+ *   el modelo de Producción la necesite de verdad.
+ * - `recursosNecesarios`: texto libre por ahora; candidato a lista
+ *   estructurada / tabla de Recursos independiente en una fase futura.
+ * - `promptIa`/`promptVideoIa`: texto plano por ahora; candidatos a vivir
+ *   en una futura Biblioteca de Recursos IA reutilizable entre escenas.
+ * - Checklist de producción: no existe todavía en ningún campo — feature
+ *   completa de una fase futura, no una columna acá.
+ */
+export const storyboardEscenas = pgTable("storyboard_escenas", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  numero: integer("numero").notNull().default(0),
+  orden: integer("orden").notNull().default(0),
+  duracionSegundos: integer("duracion_segundos").notNull().default(0),
+  // Una de TIPOS_ESCENA_STORYBOARD (types.ts): GANCHO | PROBLEMA |
+  // DESCUBRIMIENTO | SOLUCION | CTA | BROLL | TRANSICION | OTRA.
+  tipoEscena: text("tipo_escena").notNull().default(""),
+  objetivoNarrativo: text("objetivo_narrativo").notNull().default(""),
+  emocion: text("emocion").notNull().default(""),
+  valorEspectador: text("valor_espectador").notNull().default(""),
+  // Activo (tipo="foto") usado como referencia visual del lugar — mismo
+  // patrón de FK opcional que `promptsGuardados.personajeId`: si el Activo
+  // se borra, la escena no se pierde, solo queda sin locación asignada.
+  locacionId: text("locacion_id").references(() => activos.id, { onDelete: "set null" }),
+  planoId: text("plano_id").references(() => planos.id, { onDelete: "set null" }),
+  movimientoCamara: text("movimiento_camara").notNull().default(""),
+  accion: text("accion").notNull().default(""),
+  textoHablado: text("texto_hablado").notNull().default(""),
+  textoPantalla: text("texto_pantalla").notNull().default(""),
+  // Temporalmente texto libre — ver nota de "fuera de alcance" arriba.
+  recursosNecesarios: text("recursos_necesarios").notNull().default(""),
+  promptIa: text("prompt_ia").notNull().default(""),
+  promptVideoIa: text("prompt_video_ia").notNull().default(""),
+  musica: text("musica").notNull().default(""),
+  transicion: text("transicion").notNull().default(""),
+  // Una de ESTADOS_PRODUCCION_ESCENA (types.ts): BORRADOR | GRABADA |
+  // EDITADA | PUBLICADA. Nace en BORRADOR siempre.
+  estadoProduccion: text("estado_produccion").notNull().default("BORRADOR"),
+  notas: text("notas").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`now()`),
+});
+

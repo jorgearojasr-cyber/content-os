@@ -994,3 +994,86 @@ export const TIPOS_ACTIVO = [
   { value: "recurso_grafico", label: "Recurso gráfico", archivo: true },
   { value: "otro", label: "Otro", archivo: false },
 ] as const;
+
+// ---------------------------------------------------------------------
+// Producción (Fase 2) — Planos + Storyboard de Escenas
+// ---------------------------------------------------------------------
+//
+// Distinto de `Escena` (arriba en este archivo) — esa es el artefacto de
+// contenido dentro de un Bloque ya guardado en Biblioteca; esto es la
+// planificación de PRE-producción a nivel de Proyecto. Ver comentario
+// largo en schema.ts junto a `storyboardEscenas` para el detalle completo
+// de la separación entre ambos conceptos.
+
+/** Tipo de plano de cámara — catálogo de referencia (Primer plano, Plano
+ * detalle, etc.), ver seed en scripts/. Sin UI de administración todavía
+ * (Fase 2) — solo se lee desde selectores futuros. */
+export type Plano = {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  cuandoUsarlo: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** El rol narrativo de una escena dentro de la producción — determina
+ * dónde encaja en el arco de la pieza, no su duración ni su formato. */
+export const TIPOS_ESCENA_STORYBOARD = [
+  "GANCHO",
+  "PROBLEMA",
+  "DESCUBRIMIENTO",
+  "SOLUCION",
+  "CTA",
+  "BROLL",
+  "TRANSICION",
+  "OTRA",
+] as const;
+export type TipoEscenaStoryboard = (typeof TIPOS_ESCENA_STORYBOARD)[number];
+
+/** Progreso de producción de una escena — BORRADOR es el estado inicial
+ * siempre; el resto lo actualiza el usuario a mano según avanza. */
+export const ESTADOS_PRODUCCION_ESCENA = ["BORRADOR", "GRABADA", "EDITADA", "PUBLICADA"] as const;
+export type EstadoProduccionEscena = (typeof ESTADOS_PRODUCCION_ESCENA)[number];
+
+/**
+ * StoryboardEscena: unidad de planificación de una producción, propia de
+ * un Proyecto — existe con o sin una pieza (Bloque) ya armada a partir de
+ * ella. `numero` = posición narrativa original; `orden` = posición actual
+ * (editable al reordenar). El "tiempo" de cada escena NUNCA se guarda acá
+ * — se calcula sumando `duracionSegundos` de las escenas anteriores según
+ * `orden`.
+ */
+export type StoryboardEscena = {
+  id: string;
+  proyectoId: string;
+  numero: number;
+  orden: number;
+  duracionSegundos: number;
+  /** Una de TIPOS_ESCENA_STORYBOARD. */
+  tipoEscena: string;
+  objetivoNarrativo: string;
+  emocion: string;
+  valorEspectador: string;
+  /** Activo (tipo="foto") usado como referencia visual del lugar; `null`
+   * = sin locación asignada todavía. */
+  locacionId: string | null;
+  /** `null` = sin plano de cámara asignado todavía. */
+  planoId: string | null;
+  movimientoCamara: string;
+  accion: string;
+  textoHablado: string;
+  textoPantalla: string;
+  /** Texto libre por ahora — candidato a lista estructurada en una fase
+   * futura, no hoy. */
+  recursosNecesarios: string;
+  promptIa: string;
+  promptVideoIa: string;
+  musica: string;
+  transicion: string;
+  /** Una de ESTADOS_PRODUCCION_ESCENA. */
+  estadoProduccion: string;
+  notas: string;
+  createdAt: string;
+  updatedAt: string;
+};
