@@ -130,9 +130,8 @@ export function EditarBloqueConEscenas({
   }
 
   // "✨ Automático" (selección vacía con "Usar Personaje" marcado) toma el
-  // primero disponible del proyecto/estudio — mismo criterio que
-  // `personajesParaExportar` en Crear (crear-modos.tsx), para que el
-  // comportamiento sea idéntico al de la pieza cuando se creó.
+  // primero disponible del proyecto/estudio, para que el comportamiento
+  // sea idéntico al de la pieza cuando se creó.
   const todosLosPersonajes = [...personajes, ...personajesEstudio];
   const personajeIdsParaRevisar = !incluirPersonaje
     ? []

@@ -172,27 +172,6 @@ const EscenaSchema = z.object({
   ),
 });
 
-const ContenidoGeneradoSchema = z.object({
-  titulo: z.string().describe("Título o hook inicial de la pieza"),
-  copy: z.string().describe("Texto/copy de la publicación; cadena vacía si no aplica"),
-  hashtags: z.string().describe("Hashtags recomendados separados por espacio; cadena vacía si no aplica"),
-  cta: z.string().describe("Llamado a la acción de cierre; cadena vacía si no aplica"),
-  narracion: z.string().describe(
-    "Narración/voz en off general de la pieza, distinta del diálogo de cada escena; " +
-      "cadena vacía si el tipo de producción no la requiere (ej. persona hablando a cámara)",
-  ),
-  miniatura: z.string().describe("Descripción de la miniatura/thumbnail; cadena vacía si no aplica"),
-  escenas: z
-    .array(EscenaSchema)
-    .describe(
-      "Unidad estructural universal: para Video Corto/Largo son escenas reales con duración; " +
-        "para Carrusel es una escena por página (duracionSegundos: 0, promptVideo vacío); " +
-        "para Imagen es un arreglo de un solo elemento; para Historia normalmente 1-2 elementos.",
-    ),
-});
-
-export type ContenidoGenerado = z.infer<typeof ContenidoGeneradoSchema>;
-
 // Reutiliza las mismas definiciones/instrucciones de EscenaSchema — así
 // "Revisar cambios" y la generación inicial nunca pueden desalinearse.
 const EscenaRevisadaSchema = EscenaSchema.pick({

@@ -17,11 +17,10 @@ function bloqueUsaPersonaje(bloque: Bloque, personajeId: string): boolean {
  * VALIDADOR DE CONSISTENCIA — alcance limitado a propósito: solo
  * verificaciones ESTRUCTURALES deterministas, sin IA de visión.
  * (1) ¿la pieza usó este Personaje?
- * (2) ¿se exportó el contexto con este Personaje incluido? — mismo dato
+ * (2) ¿se guardó una pieza con este Personaje incluido? — mismo dato
  *     que (1): `bloque.personajeId`/`personajeIdsJson` solo se graban
- *     cuando el Personaje formaba parte de la selección al "Estructurar"
- *     el contexto exportado (ver `crear-modos.tsx`), así que ambas
- *     preguntas comparten la misma señal en el modelo de datos actual.
+ *     cuando el Personaje formaba parte de la pieza guardada, así que
+ *     ambas preguntas comparten la misma señal en el modelo de datos.
  * (3) ¿la guía de producción de esta pieza incluye sus fotos de
  *     referencia? — solo aplica si la pieza usó el Personaje.
  *

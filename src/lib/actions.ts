@@ -12,7 +12,6 @@ import {
   bloques,
   documentos,
   identidades,
-  motoresIA,
   notas,
   personajes,
   promptsGuardados,
@@ -23,11 +22,9 @@ import type { PosicionLogo } from "./identity-compiler";
 import { completarProyecto, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
 import type { EscenaRevisada, IdentidadCompletaSugerida, PersonajeSugerido, PlanEdicion } from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
-import type { ResultadoRelacionado } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
-  CAMPOS_EDITABLES_MOTOR,
   CAMPOS_VERSION_PERSONAJE,
   esConversionAVideo,
   fotoPrincipal,
@@ -37,7 +34,6 @@ import {
   parseFotosPersonaje,
   parsePersonajeIds,
   parsePlanEdicion,
-  parseProyectosUsadosMotor,
   parseVersionesPersonaje,
   TIPOS_ACTIVO,
   TIPOS_FOTO_PERSONAJE,
@@ -53,8 +49,6 @@ import type {
   FotoPersonaje,
   Identidad,
   IdentidadInput,
-  MotorIA,
-  MotorIAInput,
   Personaje,
   PersonajeInput,
   PromptGuardado,
@@ -781,23 +775,20 @@ export async function getBloque(proyectoId: string, bloqueId: string) {
  */
 /**
  * "Revisar cambios" — cuando el usuario edita a mano Descripción o Texto
- * en pantalla de una escena (en la revisión de Crear, todavía sin
- * guardar, o al editar un bloque ya guardado en Biblioteca), esto vuelve
- * a generar SOLO los prompts/referencias de esa escena (ver `revisarEscena`
- * en ai.ts), con el resto de las escenas como contexto de coherencia — sin
- * reiniciar toda la pieza. Recompila la identidad con los mismos
- * Personajes/Activos que ya tenía la pieza, para que la revisión use las
- * mismas instrucciones (fotos de referencia, etc.) que el contexto original.
+ * en pantalla de una escena, al editar un bloque ya guardado en
+ * Biblioteca, esto vuelve a generar SOLO los prompts/referencias de esa
+ * escena (ver `revisarEscena` en ai.ts), con el resto de las escenas como
+ * contexto de coherencia — sin reiniciar toda la pieza. Recompila la
+ * identidad con los mismos Personajes/Activos que ya tenía la pieza, para
+ * que la revisión use las mismas instrucciones (fotos de referencia,
+ * etc.) que el contexto original.
  *
  * `contexto` (tema/tipoContenido/tipoProduccion/personajeIds) va como
- * parámetro SEPARADO de `input` (escena/otrasEscenas) a propósito: en la
- * pantalla de editar un bloque ya guardado, `contexto` se conoce en el
- * servidor y se deja pre-aplicado con `.bind()` (ver editar/page.tsx); en
- * Crear, todavía sin guardar, `contexto` solo existe en el estado del
- * cliente y se pasa en cada llamada (ver resultado-tabs.tsx). Nunca
- * envuelvas esta función en un arrow function para "fusionar" contexto —
- * eso rompe la serialización de Server Actions al pasarla a un Client
- * Component (ver hallazgo de esta misma ronda).
+ * parámetro SEPARADO de `input` (escena/otrasEscenas): se conoce en el
+ * servidor y se deja pre-aplicado con `.bind()` (ver editar/page.tsx).
+ * Nunca envuelvas esta función en un arrow function para "fusionar"
+ * contexto — eso rompe la serialización de Server Actions al pasarla a
+ * un Client Component.
  */
 export async function revisarEscenaAction(
   proyectoId: string,
@@ -1403,137 +1394,6 @@ export async function deleteNota(notaId: string) {
 }
 
 // ---------------------------------------------------------------------
-// Reutilización Inteligente
-// ---------------------------------------------------------------------
-
-const MAX_RESULTADOS_POR_FUENTE = 5;
-
-/** Una nota que hizo match, con su estado — el panel de Crear la trata
- * distinto según esto: 'pendiente' es solo informativa; 'trabajada' avisa
- * explícitamente que ya existe una pieza creada a partir de ella. */
-export type NotaRelacionada = ResultadoRelacionado & {
-  estado: string;
-  bloqueId: string | null;
-  bloqueTitulo: string;
-  bloqueFormato: string;
-};
-
-export type ContenidoRelacionado = {
-  biblioteca: ResultadoRelacionado[];
-  segundoCerebro: NotaRelacionada[];
-  /** Prompts guardados (del proyecto + globales) que coinciden con la idea
-   * por palabras clave — para reutilizarlos al generar en la IA externa. */
-  prompts: ResultadoRelacionado[];
-};
-
-/**
- * Busca coincidencias simples por palabras clave (sin embeddings, sin
- * búsqueda semántica, sin IA) entre `tema` y tres fuentes: Biblioteca
- * (bloques activos del proyecto), notas del Segundo Cerebro vinculadas al
- * proyecto, y prompts guardados (del proyecto + globales — sin archivados).
- * Máximo 5 resultados por fuente; ninguno si el tema no tiene palabras
- * clave reales o no hay coincidencias razonables.
- */
-export async function buscarContenidoRelacionado(
-  proyectoId: string,
-  tema: string,
-): Promise<ContenidoRelacionado> {
-  const palabrasClave = extraerPalabrasClave(tema);
-  if (palabrasClave.length === 0) {
-    return { biblioteca: [], segundoCerebro: [], prompts: [] };
-  }
-
-  // Antes, una sola palabra clave compartida (score >= 1) alcanzaba para
-  // disparar el panel — bastaba para que temas apenas relacionados (ej.
-  // "5 cosas al recibir una casa nueva" vs. "7 cosas indispensables que
-  // toda casa debe tener", que solo comparten "cosas"/"casa") aparecieran
-  // como si fueran el mismo tema. Ahora exige compartir al menos la mitad
-  // de las palabras clave del tema, para que solo dispare con coincidencias
-  // genuinamente cercanas (mismo tema específico, no solo la misma
-  // categoría general).
-  const umbralCoincidencia = Math.max(1, Math.ceil(palabrasClave.length * 0.5));
-
-  const [bloquesProyecto, notasProyecto, promptsDisponibles] = await Promise.all([
-    db.select().from(bloques).where(and(eq(bloques.proyectoId, proyectoId), eq(bloques.estado, "activo"))),
-    db.select().from(notas).where(eq(notas.proyectoId, proyectoId)),
-    db
-      .select()
-      .from(promptsGuardados)
-      .where(or(eq(promptsGuardados.proyectoId, proyectoId), isNull(promptsGuardados.proyectoId))),
-  ]);
-
-  const biblioteca = rankearResultados(
-    bloquesProyecto,
-    (b) => `${b.titulo} ${b.texto}`,
-    (b) => ({ id: b.id, titulo: b.titulo, fragmento: extraerFragmento(b.texto) }),
-    palabrasClave,
-    MAX_RESULTADOS_POR_FUENTE,
-    umbralCoincidencia,
-  );
-
-  const segundoCerebroBase = rankearResultados(
-    notasProyecto,
-    (n) => n.texto,
-    (n) => ({ id: n.id, titulo: extraerFragmento(n.texto, 40), fragmento: extraerFragmento(n.texto) }),
-    palabrasClave,
-    MAX_RESULTADOS_POR_FUENTE,
-    umbralCoincidencia,
-  );
-
-  // Prompts: además del texto, matchea por título y etiquetas — es la vía
-  // principal por la que un prompt "aparece solo" al escribir una idea
-  // relacionada. Los archivados no se sugieren. Umbral 1 a propósito (más
-  // permisivo que Biblioteca): sugerir un prompt reutilizable de más no
-  // confunde ("¿ya hice esto?") como sí lo hace sugerir contenido de más.
-  const prompts = rankearResultados(
-    promptsDisponibles.filter((p) => p.estado !== "archivado"),
-    (p) => `${p.titulo} ${p.texto} ${p.etiquetas}`,
-    (p) => ({ id: p.id, titulo: p.titulo, fragmento: extraerFragmento(p.texto) }),
-    palabrasClave,
-    MAX_RESULTADOS_POR_FUENTE,
-    1,
-  );
-
-  // Para notas 'trabajada' hace falta el título/formato del bloque
-  // vinculado — se resuelve aparte porque ese bloque puede no estar entre
-  // los `bloquesProyecto` activos ya traídos (pudo archivarse desde).
-  const notaPorId = new Map(notasProyecto.map((n) => [n.id, n]));
-  const idsBloquesAResolver = [
-    ...new Set(
-      segundoCerebroBase
-        .map((r) => notaPorId.get(r.id))
-        .filter((n) => n?.estado === "trabajada" && n.bloqueId)
-        .map((n) => n!.bloqueId as string),
-    ),
-  ];
-  const infoPorBloque =
-    idsBloquesAResolver.length > 0
-      ? new Map(
-          (
-            await db
-              .select({ id: bloques.id, titulo: bloques.titulo, formato: bloques.formato })
-              .from(bloques)
-              .where(inArray(bloques.id, idsBloquesAResolver))
-          ).map((b) => [b.id, b]),
-        )
-      : new Map<string, { id: string; titulo: string; formato: string }>();
-
-  const segundoCerebro: NotaRelacionada[] = segundoCerebroBase.map((r) => {
-    const nota = notaPorId.get(r.id)!;
-    const infoBloque = nota.bloqueId ? infoPorBloque.get(nota.bloqueId) : undefined;
-    return {
-      ...r,
-      estado: nota.estado,
-      bloqueId: nota.bloqueId,
-      bloqueTitulo: infoBloque?.titulo ?? "",
-      bloqueFormato: infoBloque?.formato ?? "",
-    };
-  });
-
-  return { biblioteca, segundoCerebro, prompts };
-}
-
-// ---------------------------------------------------------------------
 // Relaciones inteligentes (grafo de conocimiento, sin IA)
 // ---------------------------------------------------------------------
 //
@@ -1859,183 +1719,6 @@ export async function deletePromptGuardado(promptId: string) {
     .returning({ proyectoId: promptsGuardados.proyectoId });
 
   revalidarRutasPrompt(eliminado?.proyectoId ?? null);
-}
-
-// ---------------------------------------------------------------------
-// Motores IA
-// ---------------------------------------------------------------------
-
-function revalidarRutasMotor(proyectoId: string | null) {
-  revalidatePath("/motores");
-  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/motores`);
-}
-
-/** Motores GLOBALES (`proyectoId` null) — mismo patrón que Prompts
- * globales/Personajes del estudio. */
-export async function getMotoresGlobales(): Promise<MotorIA[]> {
-  return db.select().from(motoresIA).where(isNull(motoresIA.proyectoId)).orderBy(desc(motoresIA.createdAt)) as Promise<
-    MotorIA[]
-  >;
-}
-
-/** Motores de UN proyecto (los suyos + los globales combinados) — usado
- * por la pestaña "Motores" del proyecto y por Crear (detección por
- * palabras clave). */
-export async function getMotoresDeProyecto(proyectoId: string): Promise<MotorIA[]> {
-  const [propios, globales] = await Promise.all([
-    db.select().from(motoresIA).where(eq(motoresIA.proyectoId, proyectoId)) as Promise<MotorIA[]>,
-    getMotoresGlobales(),
-  ]);
-  return [...propios, ...globales];
-}
-
-/** Todos los Motores (para /motores, la pantalla global de organización) —
- * más usados primero. */
-export async function getTodosLosMotores(): Promise<MotorIA[]> {
-  return db.select().from(motoresIA).orderBy(desc(motoresIA.vecesUsado), desc(motoresIA.createdAt)) as Promise<
-    MotorIA[]
-  >;
-}
-
-export async function getMotor(motorId: string): Promise<MotorIA | undefined> {
-  const rows = (await db.select().from(motoresIA).where(eq(motoresIA.id, motorId))) as MotorIA[];
-  return rows[0];
-}
-
-function leerCamposMotor(formData: FormData): MotorIAInput {
-  const valores = Object.fromEntries(
-    CAMPOS_EDITABLES_MOTOR.map((campo) => [
-      campo,
-      campo === "prioridad"
-        ? Number(formData.get(campo) ?? 3) || 3
-        : String(formData.get(campo) ?? "").trim(),
-    ]),
-  ) as unknown as MotorIAInput;
-  if (!valores.nombre) throw new Error("El Motor necesita un nombre.");
-  return { ...valores, estado: valores.estado || "activo" };
-}
-
-/** "Crear Motor Nuevo" — el formulario solo pide Nombre/Objetivo/
- * Descripción/Categoría; el resto arranca vacío y editable después (el
- * "Motor Base"). Siempre `origen: "usuario"`. */
-export async function crearMotorNuevo(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
-  const nombre = String(formData.get("nombre") ?? "").trim();
-  if (!nombre) throw new Error("El Motor necesita un nombre.");
-  const id = randomUUID();
-
-  await db.insert(motoresIA).values({
-    id,
-    proyectoId,
-    nombre,
-    descripcion: String(formData.get("descripcion") ?? "").trim(),
-    objetivo: String(formData.get("objetivo") ?? "").trim(),
-    categoria: String(formData.get("categoria") ?? "").trim(),
-    origen: "usuario",
-    motorOriginalId: null,
-  });
-
-  revalidarRutasMotor(proyectoId);
-  return { id };
-}
-
-/** Guarda cambios en un Motor. Si es de Sistema (`origen === "sistema"`),
- * el original NUNCA se modifica: se crea automáticamente una copia de
- * usuario con los valores editados, vinculada por `motorOriginalId` —
- * reemplaza la necesidad de un botón "restaurar", porque el original
- * nunca se pierde. */
-export async function actualizarMotorIA(
-  motorId: string,
-  formData: FormData,
-): Promise<{ id: string; copiaCreada: boolean }> {
-  const valores = leerCamposMotor(formData);
-  const existente = await getMotor(motorId);
-  if (!existente) throw new Error("Motor no encontrado.");
-
-  if (existente.origen === "sistema") {
-    const id = randomUUID();
-    await db.insert(motoresIA).values({
-      id,
-      proyectoId: existente.proyectoId,
-      ...valores,
-      origen: "usuario",
-      motorOriginalId: existente.id,
-    });
-    revalidarRutasMotor(existente.proyectoId);
-    return { id, copiaCreada: true };
-  }
-
-  await db
-    .update(motoresIA)
-    .set({ ...valores, version: sql`${motoresIA.version} + 1`, updatedAt: sql`now()` })
-    .where(eq(motoresIA.id, motorId));
-
-  revalidarRutasMotor(existente.proyectoId);
-  return { id: motorId, copiaCreada: false };
-}
-
-/** Botón "Duplicar Motor" explícito — mismo mecanismo de copia que editar
- * un Motor de Sistema, pero sin necesidad de cambiar nada primero. Duplicar
- * una copia de usuario mantiene el `motorOriginalId` original (si lo tenía). */
-export async function duplicarMotorIA(motorId: string): Promise<{ id: string }> {
-  const existente = await getMotor(motorId);
-  if (!existente) throw new Error("Motor no encontrado.");
-  const id = randomUUID();
-
-  await db.insert(motoresIA).values({
-    id,
-    proyectoId: existente.proyectoId,
-    nombre: `${existente.nombre} (copia)`,
-    descripcion: existente.descripcion,
-    objetivo: existente.objetivo,
-    cuandoUsar: existente.cuandoUsar,
-    cuandoNoUsar: existente.cuandoNoUsar,
-    tipoContenidoRecomendado: existente.tipoContenidoRecomendado,
-    palabrasClave: existente.palabrasClave,
-    prioridad: existente.prioridad,
-    estructuraNarrativa: existente.estructuraNarrativa,
-    variablesUtilizadas: existente.variablesUtilizadas,
-    promptMaestro: existente.promptMaestro,
-    ejemplo: existente.ejemplo,
-    notasInternas: "",
-    estado: existente.estado,
-    origen: "usuario",
-    motorOriginalId: existente.origen === "sistema" ? existente.id : existente.motorOriginalId,
-  });
-
-  revalidarRutasMotor(existente.proyectoId);
-  return { id };
-}
-
-/** Los Motores de Sistema no se pueden eliminar — solo duplicarlos y
- * eliminar la copia. */
-export async function eliminarMotorIA(motorId: string): Promise<void> {
-  const existente = await getMotor(motorId);
-  if (!existente) return;
-  if (existente.origen === "sistema") {
-    throw new Error("Los Motores de Sistema no se pueden eliminar — duplícalo y elimina la copia.");
-  }
-
-  await db.delete(motoresIA).where(eq(motoresIA.id, motorId));
-  revalidarRutasMotor(existente.proyectoId);
-}
-
-/** Registra el uso de un Motor al exportar contexto con él seleccionado —
- * estadísticas puras (veces usado, en qué proyectos, última vez), no
- * bloquea ni afecta el contenido exportado en sí. */
-export async function registrarUsoMotor(motorId: string, proyectoId: string): Promise<void> {
-  const existente = await getMotor(motorId);
-  if (!existente) return;
-  const proyectosUsados = parseProyectosUsadosMotor(existente.proyectosUsadosJson);
-  const nuevosProyectos = proyectosUsados.includes(proyectoId) ? proyectosUsados : [...proyectosUsados, proyectoId];
-
-  await db
-    .update(motoresIA)
-    .set({
-      vecesUsado: sql`${motoresIA.vecesUsado} + 1`,
-      ultimoUsoAt: sql`now()`,
-      proyectosUsadosJson: nuevosProyectos,
-    })
-    .where(eq(motoresIA.id, motorId));
 }
 
 // ---------------------------------------------------------------------

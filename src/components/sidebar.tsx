@@ -14,7 +14,6 @@ const ITEMS = [
   { href: "/segundo-cerebro", label: "Ideas", icono: "🧠" },
   { href: "/calendario", label: "Calendario", icono: "📅" },
   { href: "/prompts", label: "Prompts", icono: "📝" },
-  { href: "/motores", label: "Motores IA", icono: "⚙️" },
   { href: "/conocimiento", label: "Conocimiento", icono: "📚" },
   { href: "/personajes", label: "Personajes", icono: "👤" },
   { href: "/biblioteca", label: "Biblioteca", icono: "📖" },

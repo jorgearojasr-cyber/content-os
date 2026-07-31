@@ -30,7 +30,7 @@ export default async function RootPage() {
   const subtitulo = proyectoReciente
     ? `Puedes continuar con ${proyectoReciente.nombre}.`
     : proyectosRecientes.length > 0
-      ? "Sigue creando contenido para tus proyectos."
+      ? "Sigue produciendo piezas para tus proyectos."
       : "Crea tu primer proyecto para empezar.";
 
   // Con exactamente 1 proyecto no hay ambigüedad posible — directo a Crear.
@@ -70,7 +70,7 @@ export default async function RootPage() {
           <p className="mt-3 text-[15px] text-text-muted">{subtitulo}</p>
         </div>
 
-        <div className="relative z-[1] mt-8 grid gap-3.5 sm:mt-[130px] sm:grid-cols-2 lg:grid-cols-4">
+        <div className="relative z-[1] mt-8 grid gap-3.5 sm:mt-[130px] sm:grid-cols-3">
           <Link
             href={crearHref}
             className="hover-lift block rounded-[18px] bg-surface p-5 shadow-[var(--shadow-card)]"
@@ -81,9 +81,9 @@ export default async function RootPage() {
             >
               ✨
             </span>
-            <p className="font-display text-[16px] text-text">Crear contenido</p>
+            <p className="font-display text-[16px] text-text">Nueva pieza</p>
             <p className="mt-1 text-[13px] text-text-muted">
-              Genera tu próxima pieza con ayuda de IA, lista en minutos.
+              Guarda una pieza nueva en tu Biblioteca.
             </p>
           </Link>
           <Link
@@ -113,21 +113,6 @@ export default async function RootPage() {
             </span>
             <p className="font-display text-[16px] text-text">Ideas</p>
             <p className="mt-1 text-[13px] text-text-muted">{cerebroDescripcion}</p>
-          </Link>
-          <Link
-            href="/motores"
-            className="hover-lift block rounded-[18px] bg-surface p-5 shadow-[var(--shadow-card)]"
-          >
-            <span
-              className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-success/15 text-xl"
-              aria-hidden
-            >
-              ⚙️
-            </span>
-            <p className="font-display text-[16px] text-text">Motores IA</p>
-            <p className="mt-1 text-[13px] text-text-muted">
-              Estrategias narrativas reutilizables para tu contenido.
-            </p>
           </Link>
         </div>
       </header>
@@ -185,7 +170,7 @@ export default async function RootPage() {
                       ) : null}
                       <p className="mt-1.5 text-[11.5px] text-text-muted">
                         {formatearFechaChile(p.ultimaActividad)} · {p.totalContenidos}{" "}
-                        contenido{p.totalContenidos === 1 ? "" : "s"}
+                        pieza{p.totalContenidos === 1 ? "" : "s"}
                       </p>
                     </div>
                   </div>
@@ -196,13 +181,13 @@ export default async function RootPage() {
 
           <section className="animate-fade-in">
             <h2 className="font-display text-lg font-normal tracking-wide sm:text-xl">
-              Contenidos recientes
+              Últimas piezas
             </h2>
             <p className="mb-4 mt-1 text-sm text-text-muted">
               Lo último que guardaste, en cualquier proyecto.
             </p>
             {bloquesRecientes.length === 0 ? (
-              <Empty title="Todavía no hay contenido guardado">
+              <Empty title="Todavía no hay piezas guardadas">
                 Crea tu primera pieza desde cualquier proyecto.
               </Empty>
             ) : (
