@@ -307,13 +307,31 @@ const RESULTADO_VACIO: Omit<ResultadoParseoCBD, "version" | "errores"> = {
   advertencias: [],
 };
 
+const PATRON_ENCABEZADO_VERSION = /^# Creative Blueprint v(\d+)(?:\.\d+)?$/;
+
+/** Señal aislada de "este texto tiene indicio de estructura de Blueprint" —
+ * la misma condición exacta que `parsearBlueprint` usa como primer chequeo
+ * bloqueante (el encabezado de versión), expuesta sola para poder bifurcar
+ * ANTES de correr el resto del parser. No valida nada más: un texto con el
+ * encabezado correcto pero roto más abajo (sin Título, sin escenas, Tipos
+ * inválidos) igual cuenta como "tiene estructura" acá — ese texto se trata
+ * como guion en desarrollo (con sus errores mostrados en la revisión), no
+ * como idea cruda. La presencia de estructura, aunque sea parcial, siempre
+ * gana sobre la ausencia de estructura (UX Migration 1). */
+export function tieneEstructuraDeBlueprint(textoCrudo: string): boolean {
+  const lineas = textoCrudo.split(/\r?\n/);
+  const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");
+  const primeraLinea = indicePrimeraLinea === -1 ? "" : lineas[indicePrimeraLinea].trim();
+  return PATRON_ENCABEZADO_VERSION.test(primeraLinea);
+}
+
 export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConocida): ResultadoParseoCBD {
   const errores: string[] = [];
   const lineas = textoCrudo.split(/\r?\n/);
 
   const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");
   const primeraLinea = indicePrimeraLinea === -1 ? "" : lineas[indicePrimeraLinea].trim();
-  const matchVersion = primeraLinea.match(/^# Creative Blueprint v(\d+)(?:\.\d+)?$/);
+  const matchVersion = primeraLinea.match(PATRON_ENCABEZADO_VERSION);
 
   if (!matchVersion) {
     errores.push('Falta el encabezado de versión — la primera línea debe ser "# Creative Blueprint v1".');

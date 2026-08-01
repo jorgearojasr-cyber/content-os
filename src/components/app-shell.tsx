@@ -11,7 +11,6 @@ const RUTAS_CON_SIDEBAR = new Set([
   "/segundo-cerebro",
   "/calendario",
   "/prompts",
-  "/motores",
   "/conocimiento",
   "/personajes",
   "/biblioteca",

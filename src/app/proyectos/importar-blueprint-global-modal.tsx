@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
+import { ResolucionMarca } from "@/components/resolucion-marca";
 import { explicarError } from "@/lib/errores";
 import type {
   AnalisisBlueprint,
@@ -24,16 +25,24 @@ import {
 /** Entrada al importador de Blueprint SIN un Proyecto ya elegido de
  * antemano (a diferencia de `ImportarBlueprintModal`, que vive dentro de
  * un Proyecto y da por hecho cuál es). Acá "Proyecto" es una referencia
- * más a resolver, con el mismo criterio que Personaje/Locación/Plano: si
- * el nombre declarado coincide exacto con uno solo, se resuelve solo; si
- * no coincide con ninguno o coincide con más de uno, el usuario decide —
- * vincularlo a un Proyecto existente o crear uno nuevo — nunca una
- * sustitución automática a otro Proyecto. */
+ * más a resolver (ver `ResolucionMarca`) — nunca una sustitución automática
+ * a otro Proyecto.
+ *
+ * Dos modos de uso (UX Migration 1):
+ * - Standalone (sin `textoInicial`): muestra su propio botón "Importar
+ *   Blueprint" y arranca cerrado — comportamiento histórico, sin cambios.
+ * - Controlado (con `textoInicial`): arranca abierto, con el texto ya
+ *   cargado, y analiza automáticamente al montar — así "Hoy" puede abrir
+ *   este mismo flujo ya probado sin que el usuario tenga que pegar el
+ *   texto una segunda vez ni tocar "Analizar" de nuevo. `onCerrarControlado`
+ *   avisa al padre cuando se cierra, para que pueda desmontarlo. */
 export function ImportarBlueprintGlobalModal({
   onAnalizarProyecto,
   onCrearProyecto,
   onAnalizarBiblioteca,
   onConfirmar,
+  textoInicial,
+  onCerrarControlado,
 }: {
   onAnalizarProyecto: (textoCrudo: string) => Promise<AnalisisProyectoBlueprint>;
   onCrearProyecto: (nombre: string) => Promise<{ proyectoId: string }>;
@@ -43,17 +52,17 @@ export function ImportarBlueprintGlobalModal({
     textoCrudo: string,
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
+  textoInicial?: string;
+  onCerrarControlado?: () => void;
 }) {
   const router = useRouter();
-  const [abierto, setAbierto] = useState(false);
-  const [texto, setTexto] = useState("");
+  const [abierto, setAbierto] = useState(Boolean(textoInicial));
+  const [texto, setTexto] = useState(textoInicial ?? "");
   const [analizando, setAnalizando] = useState(false);
-  const [creandoProyecto, setCreandoProyecto] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState("");
 
   const [analisisProyecto, setAnalisisProyecto] = useState<AnalisisProyectoBlueprint | null>(null);
-  const [nombreNuevoProyecto, setNombreNuevoProyecto] = useState("");
 
   const [proyectoElegidoId, setProyectoElegidoId] = useState<string | null>(null);
   const [proyectoElegidoNombre, setProyectoElegidoNombre] = useState("");
@@ -65,13 +74,13 @@ export function ImportarBlueprintGlobalModal({
     setAbierto(false);
     setTexto("");
     setAnalisisProyecto(null);
-    setNombreNuevoProyecto("");
     setProyectoElegidoId(null);
     setProyectoElegidoNombre("");
     setAnalisisBiblioteca(null);
     setEscenasRevision([]);
     setAceptarDuplicado(false);
     setError("");
+    onCerrarControlado?.();
   }
 
   function volverAPegar() {
@@ -96,7 +105,7 @@ export function ImportarBlueprintGlobalModal({
     }
   }
 
-  async function handleAnalizar() {
+  async function handleAnalizar(textoAAnalizar: string) {
     setAnalizando(true);
     setError("");
     setProyectoElegidoId(null);
@@ -104,9 +113,8 @@ export function ImportarBlueprintGlobalModal({
     setEscenasRevision([]);
     setAceptarDuplicado(false);
     try {
-      const resultado = await onAnalizarProyecto(texto);
+      const resultado = await onAnalizarProyecto(textoAAnalizar);
       setAnalisisProyecto(resultado);
-      setNombreNuevoProyecto(resultado.nombreDeclarado);
       if (resultado.resultado.errores.length === 0 && resultado.proyectoResuelto) {
         await resolverProyecto(resultado.proyectoResuelto.id, resultado.proyectoResuelto.nombre);
       }
@@ -117,19 +125,16 @@ export function ImportarBlueprintGlobalModal({
     }
   }
 
-  async function handleCrearProyecto() {
-    if (!nombreNuevoProyecto.trim()) return;
-    setCreandoProyecto(true);
-    setError("");
-    try {
-      const { proyectoId } = await onCrearProyecto(nombreNuevoProyecto);
-      await resolverProyecto(proyectoId, nombreNuevoProyecto.trim());
-    } catch (e) {
-      setError(explicarError(e));
-    } finally {
-      setCreandoProyecto(false);
-    }
-  }
+  // Modo controlado (textoInicial presente): analiza automáticamente al
+  // montar, una sola vez — el usuario ya "confirmó" al pegar/escribir en
+  // Hoy, no debería tener que tocar "Analizar" de nuevo. Diferido a un
+  // microtask para no disparar setState de forma síncrona dentro del
+  // cuerpo del efecto (react-hooks/set-state-in-effect).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!textoInicial) return;
+    queueMicrotask(() => handleAnalizar(textoInicial));
+  }, []);
 
   function decidirPersonaje(escenaIndex: number, personajeIndex: number, valor: string) {
     setEscenasRevision((prev) =>
@@ -202,6 +207,7 @@ export function ImportarBlueprintGlobalModal({
   }
 
   if (!abierto) {
+    if (textoInicial) return null;
     return (
       <Button type="button" variant="secondary" onClick={() => setAbierto(true)}>
         Importar Blueprint
@@ -261,58 +267,18 @@ export function ImportarBlueprintGlobalModal({
               </div>
             ) : null}
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
-            <Button type="button" onClick={handleAnalizar} disabled={analizando || !texto.trim()}>
+            <Button type="button" onClick={() => handleAnalizar(texto)} disabled={analizando || !texto.trim()}>
               {analizando ? "Analizando…" : "Analizar"}
             </Button>
           </div>
         ) : proyectoPendiente ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
-              <p className="text-[12.5px] font-medium text-danger">
-                {analisisProyecto.nombreDeclarado
-                  ? `“${analisisProyecto.nombreDeclarado}” no coincide con ningún Proyecto existente — elegí qué hacer.`
-                  : "Este Blueprint no declara ningún Proyecto — elegí a cuál pertenece."}
-              </p>
-
-              {analisisProyecto.proyectosDisponibles.length > 0 ? (
-                <>
-                  <label className="mt-3 block text-[12px] text-text-muted">Vincular a un Proyecto existente</label>
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      const p = analisisProyecto.proyectosDisponibles.find((x) => x.id === e.target.value);
-                      if (p) resolverProyecto(p.id, p.nombre);
-                    }}
-                    className="mt-1 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
-                  >
-                    <option value="">— Elegí un Proyecto —</option>
-                    {analisisProyecto.proyectosDisponibles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              ) : null}
-
-              <label className="mt-3 block text-[12px] text-text-muted">O crear un Proyecto nuevo</label>
-              <div className="mt-1 flex gap-2">
-                <input
-                  type="text"
-                  value={nombreNuevoProyecto}
-                  onChange={(e) => setNombreNuevoProyecto(e.target.value)}
-                  placeholder="Nombre del Proyecto"
-                  className="w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
-                />
-                <Button
-                  type="button"
-                  onClick={handleCrearProyecto}
-                  disabled={creandoProyecto || !nombreNuevoProyecto.trim()}
-                >
-                  {creandoProyecto ? "Creando…" : "Crear y continuar"}
-                </Button>
-              </div>
-            </div>
+            <ResolucionMarca
+              nombreDeclarado={analisisProyecto.nombreDeclarado}
+              proyectosDisponibles={analisisProyecto.proyectosDisponibles}
+              onCrearProyecto={onCrearProyecto}
+              onResuelto={resolverProyecto}
+            />
 
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 

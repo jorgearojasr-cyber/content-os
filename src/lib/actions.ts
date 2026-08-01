@@ -1906,6 +1906,51 @@ export async function getProducciones(proyectoId: string): Promise<ProduccionCon
   });
 }
 
+export type ProduccionEnCurso = ProduccionConMetricas & { proyectoNombre: string };
+
+/** Producciones de CUALQUIER Marca que todavía no terminaron — tienen al
+ * menos una escena y no todas están en PUBLICADA. Para las 2-3 tarjetas de
+ * "en curso" de la pantalla Hoy (UX Migration 1) — a diferencia de
+ * `getProducciones`, no está scoped a un proyecto. No es la vista completa
+ * de "Mis videos" (UX Migration 5), solo lo mínimo para retomar trabajo. */
+export async function getProduccionesEnCurso(limite = 3): Promise<ProduccionEnCurso[]> {
+  const todasProducciones = await db.select().from(producciones);
+  if (todasProducciones.length === 0) return [];
+
+  const todasEscenas = await db
+    .select({
+      produccionId: storyboardEscenas.produccionId,
+      duracionSegundos: storyboardEscenas.duracionSegundos,
+      estadoProduccion: storyboardEscenas.estadoProduccion,
+    })
+    .from(storyboardEscenas)
+    .where(
+      inArray(
+        storyboardEscenas.produccionId,
+        todasProducciones.map((p) => p.id),
+      ),
+    );
+
+  const nombrePorProyecto = new Map((await db.select().from(proyectos)).map((p) => [p.id, p.nombre]));
+
+  return todasProducciones
+    .map((p) => {
+      const propias = todasEscenas.filter((e) => e.produccionId === p.id);
+      const terminada = propias.length > 0 && propias.every((e) => e.estadoProduccion === "PUBLICADA");
+      return {
+        ...p,
+        totalEscenas: propias.length,
+        duracionCalculadaSegundos: propias.reduce((acc, e) => acc + e.duracionSegundos, 0),
+        proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "",
+        terminada,
+      };
+    })
+    .filter((p) => p.totalEscenas > 0 && !p.terminada)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .slice(0, limite)
+    .map(({ terminada: _terminada, ...resto }) => resto);
+}
+
 /** Una Producción puntual — para el header de su pantalla de detalle. */
 export async function getProduccion(produccionId: string): Promise<Produccion | null> {
   const rows = await db.select().from(producciones).where(eq(producciones.id, produccionId));
@@ -1928,6 +1973,31 @@ export async function crearProduccion(proyectoId: string, formData: FormData) {
  * importador para ofrecer un dropdown de resolución; el parser (Fase 5)
  * solo recibe los nombres, nunca los ids. */
 export type EntidadBiblioteca = { id: string; nombre: string };
+
+/** Compila el contexto de una Marca listo para copiar y desarrollar en
+ * ChatGPT (UX Migration 1, pantalla "Contexto para ChatGPT") — reutiliza
+ * `compileIdentity()` exactamente como existe hoy, invocada de forma
+ * aislada: recolecta Identidad + Personajes (proyecto y estudio) + Activos
+ * visuales (fotos) de la Marca y se los pasa directo como parámetros,
+ * igual que ya hace `analizarBlueprint` para construir la Biblioteca del
+ * importador. No genera nada con IA — es el mismo compilador determinístico,
+ * sin destino a un Bloque. `""` si la Marca no tiene Identidad todavía. */
+export async function generarContextoParaChatGPT(proyectoId: string): Promise<string> {
+  const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
+    getIdentidad(proyectoId),
+    getPersonajes(proyectoId),
+    getPersonajesDelEstudio(),
+    getActivos(proyectoId),
+  ]);
+  if (!identidad) return "";
+
+  const personajes = [...personajesProyecto, ...personajesEstudio];
+  const activosVisuales = activosProyecto
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
+
+  return compileIdentity(identidad, { personajes, activosVisuales });
+}
 
 export type AnalisisBlueprint = {
   resultado: ResultadoParseoCBD;

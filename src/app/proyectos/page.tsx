@@ -1,20 +1,9 @@
-import {
-  analizarBlueprint,
-  analizarBlueprintSinProyecto,
-  confirmarImportacionBlueprint,
-  createProyecto,
-  crearProyectoDesdeImportador,
-  deleteProyecto,
-  getAreas,
-  getConteoContenidoPorProyecto,
-  getProyectos,
-} from "@/lib/actions";
+import { createProyecto, deleteProyecto, getAreas, getConteoContenidoPorProyecto, getProyectos } from "@/lib/actions";
 
 // Esta pantalla lee proyectos reales de la base de datos en cada visita.
 // Nunca debe quedar congelada como HTML estático del momento del build.
 export const dynamic = "force-dynamic";
 import { Card, Empty, SectionTitle } from "@/components/ui";
-import { ImportarBlueprintGlobalModal } from "./importar-blueprint-global-modal";
 import { NuevoProyectoForm } from "./nuevo-proyecto-form";
 import { ProyectosLista } from "./proyectos-lista";
 
@@ -46,14 +35,6 @@ export default async function ProyectosPage() {
           areas={areas}
           onCreate={createProyecto}
         />
-        <div className="mt-3">
-          <ImportarBlueprintGlobalModal
-            onAnalizarProyecto={analizarBlueprintSinProyecto}
-            onCrearProyecto={crearProyectoDesdeImportador}
-            onAnalizarBiblioteca={analizarBlueprint}
-            onConfirmar={confirmarImportacionBlueprint}
-          />
-        </div>
       </Card>
 
       {proyectos.length === 0 ? (
