@@ -40,6 +40,7 @@ import {
   parsePlanEdicion,
   parseVersionesPersonaje,
   TIPOS_ACTIVO,
+  TIPOS_ESCENA_STORYBOARD,
   TIPOS_FOTO_PERSONAJE,
 } from "./types";
 import type {
@@ -61,8 +62,11 @@ import type {
   PromptGuardado,
   Proyecto,
   StoryboardEscenaConPersonajes,
+  TipoEscenaStoryboard,
   TipoFotoPersonaje,
 } from "./types";
+import { parsearBlueprint } from "./blueprint-parser";
+import type { BibliotecaConocida, ProduccionCBD, RecursosGlobalesCBD, ResultadoParseoCBD } from "./blueprint-parser";
 
 const PAPELERA_RETENCION_DIAS = 7;
 
@@ -1918,6 +1922,169 @@ export async function crearProduccion(proyectoId: string, formData: FormData) {
 
   await db.insert(producciones).values({ id: randomUUID(), proyectoId, titulo });
   revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Entidad real de la Biblioteca (id + nombre) — lo que necesita la UI del
+ * importador para ofrecer un dropdown de resolución; el parser (Fase 5)
+ * solo recibe los nombres, nunca los ids. */
+export type EntidadBiblioteca = { id: string; nombre: string };
+
+export type AnalisisBlueprint = {
+  resultado: ResultadoParseoCBD;
+  personajesDisponibles: EntidadBiblioteca[];
+  locacionesDisponibles: EntidadBiblioteca[];
+  planosDisponibles: EntidadBiblioteca[];
+};
+
+/** Analiza un CBD pegado por el usuario contra la Biblioteca real del
+ * Proyecto — no crea nada todavía (Fase 6.1). Personajes incluye los del
+ * Proyecto y los del estudio, igual que el resto de selectores de
+ * Personajes de la app. */
+export async function analizarBlueprint(proyectoId: string, textoCrudo: string): Promise<AnalisisBlueprint> {
+  const [proyecto, personajesProyecto, personajesEstudio, activosProyecto, listaPlanos] = await Promise.all([
+    getProyecto(proyectoId),
+    getPersonajes(proyectoId),
+    getPersonajesDelEstudio(),
+    getActivos(proyectoId),
+    getPlanos(),
+  ]);
+
+  const personajesDisponibles = [...personajesProyecto, ...personajesEstudio].map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+  }));
+  const locacionesDisponibles = activosProyecto
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ id: a.id, nombre: a.nombre }));
+  const planosDisponibles = listaPlanos.map((p) => ({ id: p.id, nombre: p.nombre }));
+
+  const biblioteca: BibliotecaConocida = {
+    proyectos: proyecto ? [proyecto.nombre] : [],
+    personajes: personajesDisponibles.map((p) => p.nombre),
+    locaciones: locacionesDisponibles.map((l) => l.nombre),
+    planos: planosDisponibles.map((p) => p.nombre),
+  };
+
+  const resultado = parsearBlueprint(textoCrudo, biblioteca);
+
+  return { resultado, personajesDisponibles, locacionesDisponibles, planosDisponibles };
+}
+
+/** Una escena del CBD ya con sus referencias resueltas a ids reales (o
+ * `null`/vacío si el usuario decidió dejarlas sin vincular) — lo que la UI
+ * de Fase 6.2 construye a partir de `EscenaCBD` más las elecciones del
+ * usuario en los dropdowns de resolución. */
+export type EscenaResuelta = {
+  tipo: string;
+  objetivoNarrativo: string;
+  duracionEstimada: number | null;
+  emocion: string;
+  resultadoEsperado: string;
+  personajeIds: string[];
+  locacionId: string | null;
+  planoId: string | null;
+  movimientoCamara: string;
+  textoHablado: string;
+  textoPantalla: string;
+  recursosNecesarios: string;
+  promptImagen: string;
+  promptVideo: string;
+  musica: string;
+  transicion: string;
+  notas: string;
+};
+
+/** Payload de `confirmarImportacionBlueprint` — el análisis de Fase 6.1
+ * (`ResultadoParseoCBD`) más las decisiones de resolución que tomó el
+ * usuario en la UI de Fase 6.2, ya aplicadas a cada escena. */
+export type DatosImportacionBlueprint = {
+  produccion: ProduccionCBD;
+  contexto: string | null;
+  recursosGlobales: RecursosGlobalesCBD | null;
+  escenas: EscenaResuelta[];
+};
+
+/** Crea la Producción + todas sus escenas (con Personajes vía tabla
+ * puente) a partir de un CBD ya analizado y resuelto — Fase 6.2. Sin
+ * `db.transaction()`: el adaptador neon-http no lo soporta (confirmado en
+ * `src/db/index.ts`), así que son inserts secuenciales, mismo patrón que
+ * el resto de creaciones multi-fila de este archivo (ej.
+ * `duplicarEscenaStoryboard`). Revalida las reglas bloqueantes del parser
+ * server-side también — nunca confiar solo en que el botón de confirmar
+ * estaba deshabilitado en el cliente. */
+export async function confirmarImportacionBlueprint(
+  proyectoId: string,
+  textoCrudo: string,
+  datos: DatosImportacionBlueprint,
+): Promise<{ produccionId: string }> {
+  const { produccion, contexto, recursosGlobales, escenas } = datos;
+
+  if (!produccion.titulo.trim()) throw new Error("El Blueprint no tiene Título de Producción.");
+  if (escenas.length === 0) throw new Error("El Blueprint no tiene escenas para importar.");
+  for (const e of escenas) {
+    if (!TIPOS_ESCENA_STORYBOARD.includes(e.tipo as TipoEscenaStoryboard)) {
+      throw new Error(`Una escena tiene un Tipo inválido o vacío: "${e.tipo}".`);
+    }
+    if (!e.objetivoNarrativo.trim()) {
+      throw new Error("Una escena no tiene Objetivo narrativo.");
+    }
+  }
+
+  const produccionId = randomUUID();
+  await db.insert(producciones).values({
+    id: produccionId,
+    proyectoId,
+    titulo: produccion.titulo,
+    formato: produccion.formato,
+    ideaCentral: produccion.ideaCentral,
+    objetivoGeneral: produccion.objetivoGeneral,
+    objetivoEspectador: produccion.objetivoEspectador.join("\n"),
+    publicoObjetivo: produccion.publicoObjetivo,
+    duracionEstimadaSegundos: produccion.duracionEstimada,
+    contexto: contexto ?? "",
+    musicaPrincipal: recursosGlobales?.musicaPrincipal ?? "",
+    intro: recursosGlobales?.intro ?? "",
+    outro: recursosGlobales?.outro ?? "",
+    notas: produccion.notas,
+    cbdOriginal: textoCrudo,
+  });
+
+  for (let i = 0; i < escenas.length; i++) {
+    const e = escenas[i];
+    const escenaId = randomUUID();
+    await db.insert(storyboardEscenas).values({
+      id: escenaId,
+      proyectoId,
+      produccionId,
+      numero: i + 1,
+      orden: i + 1,
+      duracionSegundos: e.duracionEstimada ?? 0,
+      tipoEscena: e.tipo,
+      objetivoNarrativo: e.objetivoNarrativo,
+      emocion: e.emocion,
+      valorEspectador: e.resultadoEsperado,
+      locacionId: e.locacionId,
+      planoId: e.planoId,
+      movimientoCamara: e.movimientoCamara,
+      textoHablado: e.textoHablado,
+      textoPantalla: e.textoPantalla,
+      recursosNecesarios: e.recursosNecesarios,
+      promptIa: e.promptImagen,
+      promptVideoIa: e.promptVideo,
+      musica: e.musica,
+      transicion: e.transicion,
+      notas: e.notas,
+    });
+
+    if (e.personajeIds.length > 0) {
+      await db
+        .insert(storyboardEscenasPersonajes)
+        .values(e.personajeIds.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
+    }
+  }
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  return { produccionId };
 }
 
 /** Todas las escenas del storyboard de una Producción, en orden, hidratadas

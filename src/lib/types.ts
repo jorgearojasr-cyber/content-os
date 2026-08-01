@@ -1059,6 +1059,8 @@ export type Produccion = {
   intro: string;
   outro: string;
   notas: string;
+  /** `null` = creada a mano, sin pasar por el importador de Blueprint. */
+  cbdOriginal: string | null;
   createdAt: string;
   updatedAt: string;
 };

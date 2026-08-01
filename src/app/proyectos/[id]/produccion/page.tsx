@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { crearProduccion, getProducciones } from "@/lib/actions";
+import { analizarBlueprint, confirmarImportacionBlueprint, crearProduccion, getProducciones } from "@/lib/actions";
 import { Card, Empty, SectionTitle } from "@/components/ui";
 import { CrearProduccionForm } from "./crear-produccion-form";
+import { ImportarBlueprintModal } from "./importar-blueprint-modal";
 
 function formatoDuracion(segundosTotales: number) {
   const m = Math.floor(segundosTotales / 60);
@@ -13,6 +14,8 @@ export default async function ProduccionesPage({ params }: { params: Promise<{ i
   const { id: proyectoId } = await params;
   const producciones = await getProducciones(proyectoId);
   const boundCrear = crearProduccion.bind(null, proyectoId);
+  const boundAnalizar = analizarBlueprint.bind(null, proyectoId);
+  const boundConfirmar = confirmarImportacionBlueprint.bind(null, proyectoId);
 
   return (
     <div className="space-y-4">
@@ -20,7 +23,10 @@ export default async function ProduccionesPage({ params }: { params: Promise<{ i
         <SectionTitle subtitle="Cada Producción es un video independiente, con su propio storyboard — un Proyecto puede tener varias a lo largo del tiempo.">
           Producciones
         </SectionTitle>
-        <CrearProduccionForm onCrear={boundCrear} />
+        <div className="flex flex-wrap items-start gap-3">
+          <CrearProduccionForm onCrear={boundCrear} />
+          <ImportarBlueprintModal proyectoId={proyectoId} onAnalizar={boundAnalizar} onConfirmar={boundConfirmar} />
+        </div>
       </Card>
 
       {producciones.length === 0 ? (

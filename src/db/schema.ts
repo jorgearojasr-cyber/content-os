@@ -562,6 +562,11 @@ export const producciones = pgTable("producciones", {
   // técnico del CBD (sección 2.3 del diseño conceptual la contemplaba
   // desde el inicio, este campo cierra esa brecha).
   notas: text("notas").notNull().default(""),
+  // El texto crudo del CBD tal cual se pegó, sin modificar (Fase 6) — solo
+  // para Producciones creadas vía importador. `null` = creada a mano,
+  // distinto de "" (que significaría un CBD vacío, algo que no puede
+  // pasar: el parser exige Título y al menos 1 escena para ser válido).
+  cbdOriginal: text("cbd_original"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),
