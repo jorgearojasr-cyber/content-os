@@ -23,37 +23,44 @@ import {
   type EscenaEnRevision,
 } from "@/lib/blueprint-import-shared";
 
-/** Entrada al importador de Blueprint SIN un Proyecto ya elegido de
- * antemano (a diferencia de `ImportarBlueprintModal`, que vive dentro de
- * un Proyecto y da por hecho cuál es). Acá "Proyecto" es una referencia
- * más a resolver (ver `ResolucionMarca`) — nunca una sustitución automática
- * a otro Proyecto.
+function contarUnicos(valores: string[]): number {
+  return new Set(valores.map((v) => v.trim().toLowerCase()).filter(Boolean)).size;
+}
+
+function plural(n: number, singular: string, pluralForm: string): string {
+  return n === 1 ? singular : pluralForm;
+}
+
+/**
+ * Pantalla de revisión de un Creative Blueprint — página completa, no un
+ * panel lateral (UX Migration 2). Único componente para los dos flujos
+ * que antes eran `ImportarBlueprintModal` (proyecto ya elegido) e
+ * `ImportarBlueprintGlobalModal` (proyecto por resolver): esa diferencia
+ * pasa a ser solo el estado inicial (`proyectoPreResuelto` presente o
+ * no), no dos árboles de componentes separados. Toda la lógica
+ * compartida (`Campo`, `resolverCampo`, `SelectorResolucion`,
+ * `construirRevision`, `faltanDecisiones`) y las tres server actions
+ * (`onAnalizarProyecto`/`onAnalizarBiblioteca`/`onConfirmar`) quedan
+ * intactas — esta migración solo cambia cómo se presenta.
  *
- * Dos modos de uso (UX Migration 1):
- * - Standalone (sin `textoInicial`): muestra su propio botón "Importar
- *   Blueprint" y arranca cerrado — comportamiento histórico, sin cambios.
- * - Controlado (con `textoInicial`): arranca abierto, con el texto ya
- *   cargado, y analiza automáticamente al montar — así "Hoy" puede abrir
- *   este mismo flujo ya probado sin que el usuario tenga que pegar el
- *   texto una segunda vez ni tocar "Analizar" de nuevo. `onCerrarControlado`
- *   avisa al padre cuando se cierra, para que pueda desmontarlo.
- *
- * `proyectoPreResuelto` (UX Migration 1.2, Paso 3): cuando "Hoy" ya sabe
- * a qué Marca pertenece esto (el usuario la eligió en Paso 1, antes de ir
- * a ChatGPT), se lo pasamos acá para saltar la pantalla de
- * `ResolucionMarca` — no es una sustitución automática, es la misma
- * elección explícita que el usuario ya hizo unos pasos antes, no una
- * nueva. Sin este prop, el comportamiento es idéntico al de siempre. */
-export function ImportarBlueprintGlobalModal({
+ * Recorrido: paste (solo si hay errores bloqueantes que corregir) →
+ * resolución de Marca (si no hay `proyectoPreResuelto` ni coincidencia
+ * exacta) → resumen ("Encontré...") → revisión completa del guion, con
+ * cada Personaje/Locación/Plano resuelto en el lugar donde aparece,
+ * nunca en un panel de advertencias separado → confirmar.
+ */
+export function RevisionBlueprint({
+  textoInicial,
+  proyectoPreResuelto,
   onAnalizarProyecto,
   onCrearProyecto,
   onAnalizarBiblioteca,
   onConfirmar,
   onCrearPersonaje,
-  textoInicial,
-  proyectoPreResuelto,
-  onCerrarControlado,
+  onCerrar,
 }: {
+  textoInicial: string;
+  proyectoPreResuelto?: { id: string; nombre: string };
   onAnalizarProyecto: (textoCrudo: string) => Promise<AnalisisProyectoBlueprint>;
   onCrearProyecto: (nombre: string) => Promise<{ proyectoId: string }>;
   onAnalizarBiblioteca: (proyectoId: string, textoCrudo: string) => Promise<AnalisisBlueprint>;
@@ -63,13 +70,10 @@ export function ImportarBlueprintGlobalModal({
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
   onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
-  textoInicial?: string;
-  proyectoPreResuelto?: { id: string; nombre: string };
-  onCerrarControlado?: () => void;
+  onCerrar: () => void;
 }) {
   const router = useRouter();
-  const [abierto, setAbierto] = useState(Boolean(textoInicial));
-  const [texto, setTexto] = useState(textoInicial ?? "");
+  const [texto, setTexto] = useState(textoInicial);
   const [analizando, setAnalizando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState("");
@@ -82,20 +86,7 @@ export function ImportarBlueprintGlobalModal({
   const [escenasRevision, setEscenasRevision] = useState<EscenaEnRevision[]>([]);
   const [aceptarDuplicado, setAceptarDuplicado] = useState(false);
   const [formatoElegido, setFormatoElegido] = useState("");
-
-  function cerrar() {
-    setAbierto(false);
-    setTexto("");
-    setAnalisisProyecto(null);
-    setProyectoElegidoId(null);
-    setProyectoElegidoNombre("");
-    setAnalisisBiblioteca(null);
-    setEscenasRevision([]);
-    setAceptarDuplicado(false);
-    setFormatoElegido("");
-    setError("");
-    onCerrarControlado?.();
-  }
+  const [resumenVisto, setResumenVisto] = useState(false);
 
   function volverAPegar() {
     setAnalisisProyecto(null);
@@ -105,10 +96,12 @@ export function ImportarBlueprintGlobalModal({
     setEscenasRevision([]);
     setAceptarDuplicado(false);
     setFormatoElegido("");
+    setResumenVisto(false);
   }
 
   async function resolverProyecto(proyectoId: string, nombre: string) {
     setError("");
+    setResumenVisto(false);
     try {
       const analisis = await onAnalizarBiblioteca(proyectoId, texto);
       setAnalisisBiblioteca(analisis);
@@ -154,14 +147,13 @@ export function ImportarBlueprintGlobalModal({
     }
   }
 
-  // Modo controlado (textoInicial presente): analiza automáticamente al
-  // montar, una sola vez — el usuario ya "confirmó" al pegar/escribir en
-  // Hoy, no debería tener que tocar "Analizar" de nuevo. Diferido a un
-  // microtask para no disparar setState de forma síncrona dentro del
-  // cuerpo del efecto (react-hooks/set-state-in-effect).
+  // Analiza automáticamente al montar, una sola vez — el usuario ya
+  // "confirmó" al pegar/escribir en Hoy, no debería tener que tocar
+  // "Analizar" de nuevo. Diferido a un microtask para no disparar
+  // setState de forma síncrona dentro del cuerpo del efecto
+  // (react-hooks/set-state-in-effect).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!textoInicial) return;
     queueMicrotask(() => handleAnalizar(textoInicial));
   }, []);
 
@@ -227,21 +219,12 @@ export function ImportarBlueprintGlobalModal({
       });
 
       const proyectoDestino = proyectoElegidoId;
-      cerrar();
+      onCerrar();
       router.push(`/proyectos/${proyectoDestino}/producciones/${produccionId}`);
     } catch (e) {
       setError(explicarError(e));
       setConfirmando(false);
     }
-  }
-
-  if (!abierto) {
-    if (textoInicial) return null;
-    return (
-      <Button type="button" variant="secondary" onClick={() => setAbierto(true)}>
-        Importar Blueprint
-      </Button>
-    );
   }
 
   const resultadoProyecto = analisisProyecto?.resultado ?? null;
@@ -253,29 +236,53 @@ export function ImportarBlueprintGlobalModal({
   const confirmarDeshabilitado =
     !listo || faltanDecisiones(escenasRevision) || (esDuplicado && !aceptarDuplicado) || confirmando;
 
+  // Los mismatches de Personaje/Locación/Plano por escena ya se resuelven
+  // en el lugar (SelectorResolucion, dentro de cada escena) — mostrarlos
+  // otra vez en un panel de advertencias sería el panel separado que esta
+  // migración pide eliminar. Solo quedan acá las advertencias generales
+  // (Proyecto/Duración de un CBD pegado a mano), que no son "campo por
+  // resolver" sino información de contexto.
+  const advertenciasGenerales = resultado?.advertencias.filter((a) => !a.startsWith("Escena en posición")) ?? [];
+
+  const etapa: "paste" | "proyecto" | "resumen" | "revision" =
+    !analisisProyecto || bloqueanteProyecto
+      ? "paste"
+      : proyectoPendiente
+        ? "proyecto"
+        : resultado && analisisBiblioteca
+          ? resumenVisto
+            ? "revision"
+            : "resumen"
+          : "paste";
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={cerrar}>
-      <div
-        className="flex h-full w-full max-w-[560px] flex-col overflow-y-auto bg-bg p-5 shadow-[var(--shadow-card)] sm:p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <span className="font-display text-lg font-normal tracking-wide">Importar Blueprint</span>
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg">
+      <div className="sticky top-0 z-10 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
+        <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">
+          <div>
+            <span className="font-display text-base font-normal tracking-wide text-text">
+              Revisión del Blueprint
+            </span>
+            {proyectoElegidoNombre ? (
+              <span className="ml-2 text-[12px] text-text-muted">→ {proyectoElegidoNombre}</span>
+            ) : null}
+          </div>
           <button
             type="button"
-            onClick={cerrar}
-            aria-label="Cerrar"
+            onClick={onCerrar}
+            aria-label="Cancelar"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-text-muted hover:bg-surface-2 hover:text-text"
           >
             ✕
           </button>
         </div>
+      </div>
 
-        {!analisisProyecto || bloqueanteProyecto ? (
+      <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-6 sm:px-8">
+        {etapa === "paste" ? (
           <div className="space-y-3">
             <p className="text-[13px] text-text-muted">
-              Pegá el Creative Blueprint Document generado por ChatGPT. Todavía no elegiste un Proyecto — se
-              analiza primero a qué Proyecto pertenece, sin crear nada.
+              Pegá el Creative Blueprint Document generado por ChatGPT.
             </p>
             <Textarea
               value={texto}
@@ -285,9 +292,7 @@ export function ImportarBlueprintGlobalModal({
             />
             {resultadoProyecto && resultadoProyecto.errores.length > 0 ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
-                <p className="text-[12.5px] font-medium text-danger">
-                  Este Blueprint no se puede importar todavía:
-                </p>
+                <p className="text-[12.5px] font-medium text-danger">Este Blueprint no se puede importar todavía:</p>
                 <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] text-danger">
                   {resultadoProyecto.errores.map((err, i) => (
                     <li key={i}>{err}</li>
@@ -300,7 +305,7 @@ export function ImportarBlueprintGlobalModal({
               {analizando ? "Analizando…" : "Analizar"}
             </Button>
           </div>
-        ) : proyectoPendiente ? (
+        ) : etapa === "proyecto" && analisisProyecto ? (
           <div className="space-y-4">
             <ResolucionMarca
               nombreDeclarado={analisisProyecto.nombreDeclarado}
@@ -308,30 +313,52 @@ export function ImportarBlueprintGlobalModal({
               onCrearProyecto={onCrearProyecto}
               onResuelto={resolverProyecto}
             />
-
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
-
             <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="secondary" onClick={volverAPegar}>
                 Volver a pegar
               </Button>
             </div>
           </div>
-        ) : resultado && analisisBiblioteca ? (
+        ) : etapa === "resumen" && resultado ? (
           <div className="space-y-4">
-            <p className="text-[12px] text-text-muted">
-              Importando a: <span className="font-medium text-text">{proyectoElegidoNombre}</span>
-            </p>
-
-            {resultado.advertencias.length > 0 ? (
-              <div className="rounded-lg border border-accent/40 bg-accent-soft p-3">
-                <p className="text-[12.5px] font-medium text-accent">Advertencias (no bloquean el import):</p>
-                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] text-text">
-                  {resultado.advertencias.map((adv, i) => (
-                    <li key={i}>{adv}</li>
-                  ))}
-                </ul>
-              </div>
+            <p className="font-display text-xl font-normal tracking-wide text-text">Encontré</p>
+            <ul className="space-y-1.5 text-[14.5px] text-text">
+              <li>
+                ✓ {escenasRevision.length} {plural(escenasRevision.length, "escena", "escenas")}
+              </li>
+              {(() => {
+                const nPersonajes = contarUnicos(resultado.escenas.flatMap((e) => e.personajes));
+                return nPersonajes > 0 ? (
+                  <li>
+                    ✓ {nPersonajes} {plural(nPersonajes, "personaje", "personajes")}
+                  </li>
+                ) : null;
+              })()}
+              {(() => {
+                const nLocaciones = contarUnicos(resultado.escenas.map((e) => e.locacion).filter(Boolean));
+                return nLocaciones > 0 ? (
+                  <li>
+                    ✓ {nLocaciones} {plural(nLocaciones, "locación", "locaciones")}
+                  </li>
+                ) : null;
+              })()}
+              {resultado.produccion?.formato ? <li>✓ Formato {resultado.produccion.formato}</li> : null}
+            </ul>
+            <p className="text-[13px] text-text-muted">Todo listo para revisar.</p>
+            <div className="flex gap-2">
+              <Button type="button" onClick={() => setResumenVisto(true)}>
+                Comenzar revisión
+              </Button>
+              <Button type="button" variant="secondary" onClick={volverAPegar}>
+                Volver a pegar
+              </Button>
+            </div>
+          </div>
+        ) : etapa === "revision" && resultado && analisisBiblioteca ? (
+          <div className="space-y-4">
+            {advertenciasGenerales.length > 0 ? (
+              <p className="text-[12.5px] text-text-muted">{advertenciasGenerales.join(" ")}</p>
             ) : null}
 
             {analisisBiblioteca.produccionDuplicada ? (
@@ -417,7 +444,7 @@ export function ImportarBlueprintGlobalModal({
 
             <div>
               <p className="mb-2 text-[13px] font-medium text-text">
-                {escenasRevision.length} escena{escenasRevision.length === 1 ? "" : "s"}
+                {escenasRevision.length} {plural(escenasRevision.length, "escena", "escenas")}
               </p>
               <div className="space-y-3">
                 {escenasRevision.map((e, i) => (
@@ -461,18 +488,22 @@ export function ImportarBlueprintGlobalModal({
             </div>
 
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" onClick={volverAPegar}>
-                Volver a pegar
-              </Button>
-              <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
-                {confirmando ? "Creando…" : "Confirmar importación"}
-              </Button>
-            </div>
           </div>
         ) : null}
       </div>
+
+      {etapa === "revision" ? (
+        <div className="sticky bottom-0 border-t border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
+          <div className="mx-auto flex max-w-[720px] justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={volverAPegar}>
+              Volver a pegar
+            </Button>
+            <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
+              {confirmando ? "Creando…" : "Confirmar importación"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

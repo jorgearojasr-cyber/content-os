@@ -6,11 +6,10 @@ import type { EscenaCBD } from "@/lib/blueprint-parser";
 import { explicarError } from "@/lib/errores";
 import { similitudTexto, UMBRAL_SUGERENCIA_FUERTE, UMBRAL_SUGERENCIA_MINIMA } from "@/lib/similitud";
 
-/** Piezas compartidas entre `ImportarBlueprintModal` (entrada dentro de un
- * Proyecto ya elegido) e `ImportarBlueprintGlobalModal` (entrada sin
- * Proyecto elegido todavía, que primero resuelve cuál es) — la resolución
- * de Personajes/Locación/Plano dentro de cada escena es idéntica en
- * ambos casos una vez que el Proyecto ya está determinado. */
+/** Piezas puras usadas por `RevisionBlueprint` (UX Migration 2) — la
+ * resolución de Personajes/Locación/Plano dentro de cada escena, igual
+ * sin importar si el Proyecto llegó pre-resuelto o se resolvió recién en
+ * la propia pantalla. */
 
 export const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
   GANCHO: "Gancho",

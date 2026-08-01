@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
 import { ResolucionMarca } from "@/components/resolucion-marca";
 import { ContextoParaChatGPT } from "@/components/contexto-para-chatgpt";
-import { ImportarBlueprintGlobalModal } from "@/app/proyectos/importar-blueprint-global-modal";
+import { RevisionBlueprint } from "@/components/revision-blueprint";
 import { tieneEstructuraDeBlueprint } from "@/lib/blueprint-parser";
 import { explicarError } from "@/lib/errores";
 import type {
@@ -239,10 +239,10 @@ export function HoyScreen({
       ) : null}
 
       {textoParaImportar ? (
-        <ImportarBlueprintGlobalModal
+        <RevisionBlueprint
           textoInicial={textoParaImportar}
           proyectoPreResuelto={proyectoParaImportar ?? undefined}
-          onCerrarControlado={() => {
+          onCerrar={() => {
             setTextoParaImportar(null);
             setProyectoParaImportar(null);
           }}
