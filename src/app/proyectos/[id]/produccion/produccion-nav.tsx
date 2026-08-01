@@ -4,27 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { slug: "crear", label: "Crear" },
-  { slug: "identidad", label: "Identidad" },
-  { slug: "produccion", label: "🎬 Producción" },
-  { slug: "biblioteca", label: "Biblioteca" },
-  { slug: "activos", label: "Activos" },
-  { slug: "prompts", label: "Prompts" },
-  { slug: "conocimiento", label: "Conocimiento" },
-  { slug: "configuracion", label: "Configuración" },
+  { slug: "", label: "Escenas" },
+  { slug: "grabacion", label: "Grabación" },
+  { slug: "edicion", label: "Edición" },
+  { slug: "publicacion", label: "Publicación" },
 ] as const;
 
-export function ProjectNav({ proyectoId }: { proyectoId: string }) {
+export function ProduccionNav({ proyectoId }: { proyectoId: string }) {
   const pathname = usePathname();
+  const base = `/proyectos/${proyectoId}/produccion`;
 
   return (
     <nav className="flex gap-1 overflow-x-auto rounded-[10px] border border-border bg-surface p-1">
       {TABS.map((tab) => {
-        const href = `/proyectos/${proyectoId}/${tab.slug}`;
-        const active = pathname?.startsWith(href);
+        const href = tab.slug ? `${base}/${tab.slug}` : base;
+        const active = tab.slug ? pathname?.startsWith(href) : pathname === base;
         return (
           <Link
-            key={tab.slug}
+            key={tab.slug || "escenas"}
             href={href}
             className={`flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-center text-[13.5px] transition-colors ${
               active

@@ -595,3 +595,22 @@ export const storyboardEscenas = pgTable("storyboard_escenas", {
     .default(sql`now()`),
 });
 
+/**
+ * Tabla puente N a N entre StoryboardEscena y Personaje (Fase 3.1) — el
+ * panel de edición de escena la necesita de verdad (selector de Personajes
+ * de la escena), por eso deja de estar "fuera de alcance" y se crea acá.
+ * Deliberadamente NO usa el patrón `personajeId`/`personajeIdsJson` de
+ * `bloques` — acá la relación es un catálogo real (Producción ya trabaja
+ * con filas propias por escena, no con blobs jsonb), y una tabla puente
+ * simplifica futuras consultas tipo "todas las escenas de este Personaje".
+ */
+export const storyboardEscenasPersonajes = pgTable("storyboard_escenas_personajes", {
+  id: text("id").primaryKey(),
+  escenaId: text("escena_id")
+    .notNull()
+    .references(() => storyboardEscenas.id, { onDelete: "cascade" }),
+  personajeId: text("personaje_id")
+    .notNull()
+    .references(() => personajes.id, { onDelete: "cascade" }),
+});
+

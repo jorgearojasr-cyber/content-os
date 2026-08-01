@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activos,
@@ -14,8 +14,11 @@ import {
   identidades,
   notas,
   personajes,
+  planos,
   promptsGuardados,
   proyectos,
+  storyboardEscenas,
+  storyboardEscenasPersonajes,
 } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
 import type { PosicionLogo } from "./identity-compiler";
@@ -51,8 +54,10 @@ import type {
   IdentidadInput,
   Personaje,
   PersonajeInput,
+  Plano,
   PromptGuardado,
   Proyecto,
+  StoryboardEscenaConPersonajes,
   TipoFotoPersonaje,
 } from "./types";
 
@@ -1854,4 +1859,114 @@ export async function deleteDocumento(documentoId: string) {
   }
 
   revalidarRutasDocumento(eliminado?.proyectoId ?? null, eliminado?.areaId ?? null);
+}
+
+// ---------------------------------------------------------------------
+// Producción (Fase 3.1) — Planos + Storyboard de Escenas
+// ---------------------------------------------------------------------
+
+/** Catálogo de referencia de tipos de plano de cámara — mismo para todos
+ * los proyectos, sin administración todavía (ver seed en scripts/). */
+export async function getPlanos(): Promise<Plano[]> {
+  const rows = await db.select().from(planos);
+  return rows.sort((a, b) => (a.nombre < b.nombre ? -1 : 1));
+}
+
+/** Todas las escenas del storyboard de un Proyecto, en orden, hidratadas
+ * con sus Personajes relacionados (tabla puente). */
+export async function getStoryboardEscenas(proyectoId: string): Promise<StoryboardEscenaConPersonajes[]> {
+  const escenas = await db
+    .select()
+    .from(storyboardEscenas)
+    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+  escenas.sort((a, b) => a.orden - b.orden);
+  if (escenas.length === 0) return [];
+
+  const relaciones = await db
+    .select()
+    .from(storyboardEscenasPersonajes)
+    .where(
+      inArray(
+        storyboardEscenasPersonajes.escenaId,
+        escenas.map((e) => e.id),
+      ),
+    );
+
+  return escenas.map((escena) => ({
+    ...escena,
+    personajeIds: relaciones.filter((r) => r.escenaId === escena.id).map((r) => r.personajeId),
+  }));
+}
+
+/** Crea una escena en blanco al final del storyboard — sin abrir el panel,
+ * el usuario la completa después. `numero`/`orden` se autoasignan al
+ * siguiente lugar disponible. */
+export async function crearEscenaEnBlanco(proyectoId: string) {
+  const existentes = await db
+    .select({ orden: storyboardEscenas.orden })
+    .from(storyboardEscenas)
+    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+  const siguiente = existentes.reduce((max, e) => Math.max(max, e.orden), 0) + 1;
+
+  await db.insert(storyboardEscenas).values({
+    id: randomUUID(),
+    proyectoId,
+    numero: siguiente,
+    orden: siguiente,
+  });
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Guarda todos los campos editables del panel lateral de una escena,
+ * incluyendo sus Personajes relacionados (reemplaza la relación completa
+ * en la tabla puente — simple y suficiente a esta escala). */
+export async function updateStoryboardEscena(proyectoId: string, escenaId: string, formData: FormData) {
+  const duracionSegundos = Number.parseInt(String(formData.get("duracionSegundos") ?? "0"), 10) || 0;
+  const locacionId = String(formData.get("locacionId") ?? "").trim() || null;
+  const planoId = String(formData.get("planoId") ?? "").trim() || null;
+  const personajeIds = formData.getAll("personajeIds").map(String).filter(Boolean);
+
+  await db
+    .update(storyboardEscenas)
+    .set({
+      tipoEscena: String(formData.get("tipoEscena") ?? "").trim(),
+      objetivoNarrativo: String(formData.get("objetivoNarrativo") ?? "").trim(),
+      emocion: String(formData.get("emocion") ?? "").trim(),
+      valorEspectador: String(formData.get("valorEspectador") ?? "").trim(),
+      textoHablado: String(formData.get("textoHablado") ?? "").trim(),
+      textoPantalla: String(formData.get("textoPantalla") ?? "").trim(),
+      locacionId,
+      planoId,
+      movimientoCamara: String(formData.get("movimientoCamara") ?? "").trim(),
+      duracionSegundos,
+      recursosNecesarios: String(formData.get("recursosNecesarios") ?? "").trim(),
+      musica: String(formData.get("musica") ?? "").trim(),
+      transicion: String(formData.get("transicion") ?? "").trim(),
+      promptIa: String(formData.get("promptIa") ?? "").trim(),
+      promptVideoIa: String(formData.get("promptVideoIa") ?? "").trim(),
+      notas: String(formData.get("notas") ?? "").trim(),
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+
+  await db.delete(storyboardEscenasPersonajes).where(eq(storyboardEscenasPersonajes.escenaId, escenaId));
+  if (personajeIds.length > 0) {
+    await db
+      .insert(storyboardEscenasPersonajes)
+      .values(personajeIds.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
+  }
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Cambia solo el estado de producción — usado por el dropdown de estado
+ * en la tarjeta y en el header del panel, con persistencia inmediata. */
+export async function actualizarEstadoProduccionEscena(proyectoId: string, escenaId: string, estado: string) {
+  await db
+    .update(storyboardEscenas)
+    .set({ estadoProduccion: estado, updatedAt: sql`now()` })
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
 }

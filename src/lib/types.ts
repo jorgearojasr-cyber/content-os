@@ -1077,3 +1077,11 @@ export type StoryboardEscena = {
   createdAt: string;
   updatedAt: string;
 };
+
+/** StoryboardEscena hidratada con sus Personajes relacionados (tabla puente
+ * `storyboard_escenas_personajes`, Fase 3.1) — lo que devuelven las
+ * lecturas del módulo de Producción; la tabla en sí no vive en este tipo,
+ * solo los ids resueltos. */
+export type StoryboardEscenaConPersonajes = StoryboardEscena & {
+  personajeIds: string[];
+};
