@@ -495,7 +495,8 @@ export const promptsGuardados = pgTable("prompts_guardados", {
 //
 // A partir de acá el sistema deja de organizar solo piezas (Bloques) y
 // empieza a organizar PRODUCCIONES: la planificación vive en
-// `storyboardEscenas`, a nivel de Proyecto, independiente de si ya existe
+// `storyboardEscenas`, agrupada por `producciones` (un video específico,
+// Fase 3.4) dentro de un Proyecto (marca), independiente de si ya existe
 // una pieza armada en Biblioteca. Ver `Escena`/`bloques.escenasJson` en
 // otra sección de este archivo — es un concepto DISTINTO (artefacto de
 // contenido dentro de un Bloque ya guardado), no lo toques al tocar esto.
@@ -524,9 +525,50 @@ export const planos = pgTable("planos", {
 });
 
 /**
+ * Producción (Fase 3.4): un video/pieza específico dentro de un Proyecto
+ * (marca) — un mismo Proyecto produce muchos videos a lo largo del tiempo,
+ * cada uno con su propio storyboard aislado. Antes de esta fase, todas las
+ * `storyboardEscenas` de un Proyecto caían en una sola lista plana sin
+ * forma de distinguir a qué video pertenecía cada una; esta tabla es la
+ * corrección de esa brecha, detectada al diseñar el Creative Blueprint
+ * Document (CBD) — su sección "Producción" (título, formato, idea
+ * central, objetivos, contexto, recursos globales) vive acá.
+ *
+ * `contexto`, `musicaPrincipal`, `intro`, `outro` son las secciones
+ * "Contexto" y "Recursos globales" del CBD — texto libre, sin sub-campos
+ * fijos, exactamente como se definieron en el documento conceptual.
+ * `duracionEstimadaSegundos` es la intención inicial del Director
+ * Creativo (o de quien planifica a mano) — la duración real se calcula
+ * siempre desde las escenas, nunca se sincroniza con este campo.
+ */
+export const producciones = pgTable("producciones", {
+  id: text("id").primaryKey(),
+  proyectoId: text("proyecto_id")
+    .notNull()
+    .references(() => proyectos.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  formato: text("formato").notNull().default(""),
+  ideaCentral: text("idea_central").notNull().default(""),
+  objetivoGeneral: text("objetivo_general").notNull().default(""),
+  objetivoEspectador: text("objetivo_espectador").notNull().default(""),
+  publicoObjetivo: text("publico_objetivo").notNull().default(""),
+  duracionEstimadaSegundos: integer("duracion_estimada_segundos"),
+  contexto: text("contexto").notNull().default(""),
+  musicaPrincipal: text("musica_principal").notNull().default(""),
+  intro: text("intro").notNull().default(""),
+  outro: text("outro").notNull().default(""),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`now()`),
+});
+
+/**
  * StoryboardEscena: la entidad PRINCIPAL del futuro módulo de Producción
- * — el Proyecto solo las agrupa. Una fila = una escena planificada, con
- * o sin pieza (Bloque) armada todavía a partir de ella.
+ * — una Producción (un video) las agrupa. Una fila = una escena
+ * planificada, con o sin pieza (Bloque) armada todavía a partir de ella.
  *
  * `numero` es la posición narrativa original (con la que se creó la
  * escena); `orden` es la posición actual, editable al reordenar tarjetas
@@ -559,6 +601,13 @@ export const storyboardEscenas = pgTable("storyboard_escenas", {
   proyectoId: text("proyecto_id")
     .notNull()
     .references(() => proyectos.id, { onDelete: "cascade" }),
+  // El dueño real del storyboard desde Fase 3.4 — una escena pertenece a
+  // UN video (Producción), no directamente al Proyecto/marca completo.
+  // `proyectoId` queda por ahora (redundante pero de bajo riesgo, ver nota
+  // de Fase 3.4.B) — se puede derivar siempre vía `producciones.proyectoId`.
+  produccionId: text("produccion_id")
+    .notNull()
+    .references(() => producciones.id, { onDelete: "cascade" }),
   numero: integer("numero").notNull().default(0),
   orden: integer("orden").notNull().default(0),
   duracionSegundos: integer("duracion_segundos").notNull().default(0),

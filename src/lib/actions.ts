@@ -15,6 +15,7 @@ import {
   notas,
   personajes,
   planos,
+  producciones,
   promptsGuardados,
   proyectos,
   storyboardEscenas,
@@ -55,6 +56,8 @@ import type {
   Personaje,
   PersonajeInput,
   Plano,
+  Produccion,
+  ProduccionConMetricas,
   PromptGuardado,
   Proyecto,
   StoryboardEscenaConPersonajes,
@@ -1862,7 +1865,7 @@ export async function deleteDocumento(documentoId: string) {
 }
 
 // ---------------------------------------------------------------------
-// Producción (Fase 3.1) — Planos + Storyboard de Escenas
+// Producción (Fase 3.1-3.4) — Producciones (videos) + Storyboard de Escenas
 // ---------------------------------------------------------------------
 
 /** Catálogo de referencia de tipos de plano de cámara — mismo para todos
@@ -1872,13 +1875,58 @@ export async function getPlanos(): Promise<Plano[]> {
   return rows.sort((a, b) => (a.nombre < b.nombre ? -1 : 1));
 }
 
-/** Todas las escenas del storyboard de un Proyecto, en orden, hidratadas
+/** Todas las Producciones (videos) de un Proyecto, con sus métricas reales
+ * calculadas desde sus escenas — para la pantalla de listado. */
+export async function getProducciones(proyectoId: string): Promise<ProduccionConMetricas[]> {
+  const rows = await db.select().from(producciones).where(eq(producciones.proyectoId, proyectoId));
+  rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  if (rows.length === 0) return [];
+
+  const escenas = await db
+    .select({ produccionId: storyboardEscenas.produccionId, duracionSegundos: storyboardEscenas.duracionSegundos })
+    .from(storyboardEscenas)
+    .where(
+      inArray(
+        storyboardEscenas.produccionId,
+        rows.map((p) => p.id),
+      ),
+    );
+
+  return rows.map((p) => {
+    const propias = escenas.filter((e) => e.produccionId === p.id);
+    return {
+      ...p,
+      totalEscenas: propias.length,
+      duracionCalculadaSegundos: propias.reduce((acc, e) => acc + e.duracionSegundos, 0),
+    };
+  });
+}
+
+/** Una Producción puntual — para el header de su pantalla de detalle. */
+export async function getProduccion(produccionId: string): Promise<Produccion | null> {
+  const rows = await db.select().from(producciones).where(eq(producciones.id, produccionId));
+  return rows[0] ?? null;
+}
+
+/** Crea una Producción nueva con solo el Título — el resto de los campos
+ * del CBD (formato, idea central, objetivos, contexto, recursos globales)
+ * quedan vacíos, editables después. Mismo criterio minimalista que
+ * `crearEscenaEnBlanco`: bocetar primero, completar después. */
+export async function crearProduccion(proyectoId: string, formData: FormData) {
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  if (!titulo) throw new Error("La producción necesita un título.");
+
+  await db.insert(producciones).values({ id: randomUUID(), proyectoId, titulo });
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Todas las escenas del storyboard de una Producción, en orden, hidratadas
  * con sus Personajes relacionados (tabla puente). */
-export async function getStoryboardEscenas(proyectoId: string): Promise<StoryboardEscenaConPersonajes[]> {
+export async function getStoryboardEscenas(produccionId: string): Promise<StoryboardEscenaConPersonajes[]> {
   const escenas = await db
     .select()
     .from(storyboardEscenas)
-    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+    .where(eq(storyboardEscenas.produccionId, produccionId));
   escenas.sort((a, b) => a.orden - b.orden);
   if (escenas.length === 0) return [];
 
@@ -1901,27 +1949,33 @@ export async function getStoryboardEscenas(proyectoId: string): Promise<Storyboa
 /** Crea una escena en blanco al final del storyboard — sin abrir el panel,
  * el usuario la completa después. `numero`/`orden` se autoasignan al
  * siguiente lugar disponible. */
-export async function crearEscenaEnBlanco(proyectoId: string) {
+export async function crearEscenaEnBlanco(proyectoId: string, produccionId: string) {
   const existentes = await db
     .select({ orden: storyboardEscenas.orden })
     .from(storyboardEscenas)
-    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+    .where(eq(storyboardEscenas.produccionId, produccionId));
   const siguiente = existentes.reduce((max, e) => Math.max(max, e.orden), 0) + 1;
 
   await db.insert(storyboardEscenas).values({
     id: randomUUID(),
     proyectoId,
+    produccionId,
     numero: siguiente,
     orden: siguiente,
   });
 
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Guarda todos los campos editables del panel lateral de una escena,
  * incluyendo sus Personajes relacionados (reemplaza la relación completa
  * en la tabla puente — simple y suficiente a esta escala). */
-export async function updateStoryboardEscena(proyectoId: string, escenaId: string, formData: FormData) {
+export async function updateStoryboardEscena(
+  proyectoId: string,
+  produccionId: string,
+  escenaId: string,
+  formData: FormData,
+) {
   const duracionSegundos = Number.parseInt(String(formData.get("duracionSegundos") ?? "0"), 10) || 0;
   const locacionId = String(formData.get("locacionId") ?? "").trim() || null;
   const planoId = String(formData.get("planoId") ?? "").trim() || null;
@@ -1948,7 +2002,7 @@ export async function updateStoryboardEscena(proyectoId: string, escenaId: strin
       notas: String(formData.get("notas") ?? "").trim(),
       updatedAt: sql`now()`,
     })
-    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.produccionId, produccionId)));
 
   await db.delete(storyboardEscenasPersonajes).where(eq(storyboardEscenasPersonajes.escenaId, escenaId));
   if (personajeIds.length > 0) {
@@ -1957,29 +2011,34 @@ export async function updateStoryboardEscena(proyectoId: string, escenaId: strin
       .values(personajeIds.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
   }
 
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Cambia solo el estado de producción — usado por el dropdown de estado
  * en la tarjeta y en el header del panel, con persistencia inmediata. */
-export async function actualizarEstadoProduccionEscena(proyectoId: string, escenaId: string, estado: string) {
+export async function actualizarEstadoProduccionEscena(
+  proyectoId: string,
+  produccionId: string,
+  escenaId: string,
+  estado: string,
+) {
   await db
     .update(storyboardEscenas)
     .set({ estadoProduccion: estado, updatedAt: sql`now()` })
-    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.produccionId, produccionId)));
 
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Recalcula `orden` y `numero` de todo el storyboard según el orden
  * actual — deja la secuencia sin huecos tras insertar (duplicar) o borrar
  * una escena. `mover` NO pasa por acá: ahí `numero` (posición narrativa
  * original) debe mantenerse fijo, solo se intercambia `orden`. */
-async function renumerarStoryboard(proyectoId: string) {
+async function renumerarStoryboard(produccionId: string) {
   const escenas = await db
     .select({ id: storyboardEscenas.id, orden: storyboardEscenas.orden })
     .from(storyboardEscenas)
-    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+    .where(eq(storyboardEscenas.produccionId, produccionId));
   escenas.sort((a, b) => a.orden - b.orden);
 
   for (let i = 0; i < escenas.length; i++) {
@@ -1995,13 +2054,14 @@ async function renumerarStoryboard(proyectoId: string) {
  * deshabilita el botón en los bordes; esto es solo la red de seguridad). */
 export async function moverEscenaStoryboard(
   proyectoId: string,
+  produccionId: string,
   escenaId: string,
   direccion: "arriba" | "abajo",
 ) {
   const escenas = await db
     .select({ id: storyboardEscenas.id, orden: storyboardEscenas.orden })
     .from(storyboardEscenas)
-    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+    .where(eq(storyboardEscenas.produccionId, produccionId));
   escenas.sort((a, b) => a.orden - b.orden);
 
   const index = escenas.findIndex((e) => e.id === escenaId);
@@ -2013,33 +2073,33 @@ export async function moverEscenaStoryboard(
   await db.update(storyboardEscenas).set({ orden: vecina.orden }).where(eq(storyboardEscenas.id, actual.id));
   await db.update(storyboardEscenas).set({ orden: actual.orden }).where(eq(storyboardEscenas.id, vecina.id));
 
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Persiste el nuevo orden completo tras un arrastre (Fase 3.3) — recibe
  * los ids en el orden final exacto y reasigna `orden` por posición. Mismo
  * criterio que `moverEscenaStoryboard`: NO toca `numero` (sigue siendo la
  * posición narrativa original), solo la posición actual. */
-export async function reordenarEscenasStoryboard(proyectoId: string, idsEnOrden: string[]) {
+export async function reordenarEscenasStoryboard(proyectoId: string, produccionId: string, idsEnOrden: string[]) {
   for (let i = 0; i < idsEnOrden.length; i++) {
     await db
       .update(storyboardEscenas)
       .set({ orden: i + 1 })
-      .where(and(eq(storyboardEscenas.id, idsEnOrden[i]), eq(storyboardEscenas.proyectoId, proyectoId)));
+      .where(and(eq(storyboardEscenas.id, idsEnOrden[i]), eq(storyboardEscenas.produccionId, produccionId)));
   }
 
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Duplica una escena completa (incluidos sus Personajes) justo después
  * del original, siempre en BORRADOR sin importar el estado original.
  * Renumera todo el storyboard al final para que `numero`/`orden` queden
  * contiguos con la copia insertada en su lugar. */
-export async function duplicarEscenaStoryboard(proyectoId: string, escenaId: string) {
+export async function duplicarEscenaStoryboard(proyectoId: string, produccionId: string, escenaId: string) {
   const [original] = await db
     .select()
     .from(storyboardEscenas)
-    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.produccionId, produccionId)));
   if (!original) throw new Error("La escena original ya no existe.");
 
   const relacionesOriginal = await db
@@ -2050,12 +2110,15 @@ export async function duplicarEscenaStoryboard(proyectoId: string, escenaId: str
   await db
     .update(storyboardEscenas)
     .set({ orden: sql`${storyboardEscenas.orden} + 1` })
-    .where(and(eq(storyboardEscenas.proyectoId, proyectoId), sql`${storyboardEscenas.orden} > ${original.orden}`));
+    .where(
+      and(eq(storyboardEscenas.produccionId, produccionId), sql`${storyboardEscenas.orden} > ${original.orden}`),
+    );
 
   const nuevaId = randomUUID();
   await db.insert(storyboardEscenas).values({
     id: nuevaId,
     proyectoId: original.proyectoId,
+    produccionId: original.produccionId,
     numero: original.numero,
     orden: original.orden + 1,
     duracionSegundos: original.duracionSegundos,
@@ -2084,17 +2147,17 @@ export async function duplicarEscenaStoryboard(proyectoId: string, escenaId: str
       .values(relacionesOriginal.map((r) => ({ id: randomUUID(), escenaId: nuevaId, personajeId: r.personajeId })));
   }
 
-  await renumerarStoryboard(proyectoId);
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  await renumerarStoryboard(produccionId);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Elimina una escena — la tabla puente se limpia sola por cascade. Deja
  * `orden`/`numero` del resto sin huecos. */
-export async function eliminarEscenaStoryboard(proyectoId: string, escenaId: string) {
+export async function eliminarEscenaStoryboard(proyectoId: string, produccionId: string, escenaId: string) {
   await db
     .delete(storyboardEscenas)
-    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.produccionId, produccionId)));
 
-  await renumerarStoryboard(proyectoId);
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  await renumerarStoryboard(produccionId);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }

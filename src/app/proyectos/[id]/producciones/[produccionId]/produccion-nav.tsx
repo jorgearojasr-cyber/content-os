@@ -10,9 +10,9 @@ const TABS = [
   { slug: "publicacion", label: "Publicación" },
 ] as const;
 
-export function ProduccionNav({ proyectoId }: { proyectoId: string }) {
+export function ProduccionNav({ proyectoId, produccionId }: { proyectoId: string; produccionId: string }) {
   const pathname = usePathname();
-  const base = `/proyectos/${proyectoId}/produccion`;
+  const base = `/proyectos/${proyectoId}/producciones/${produccionId}`;
 
   return (
     <nav className="flex gap-1 overflow-x-auto rounded-[10px] border border-border bg-surface p-1">

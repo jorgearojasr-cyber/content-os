@@ -1037,16 +1037,50 @@ export const ESTADOS_PRODUCCION_ESCENA = ["BORRADOR", "GRABADA", "EDITADA", "PUB
 export type EstadoProduccionEscena = (typeof ESTADOS_PRODUCCION_ESCENA)[number];
 
 /**
+ * Producción (Fase 3.4): un video/pieza específico dentro de un Proyecto
+ * (marca) — dueño de su propio storyboard, aislado del de cualquier otro
+ * video del mismo Proyecto. Los campos de texto libre (`contexto`,
+ * `musicaPrincipal`, `intro`, `outro`) son las secciones "Contexto" y
+ * "Recursos globales" del Creative Blueprint Document.
+ */
+export type Produccion = {
+  id: string;
+  proyectoId: string;
+  titulo: string;
+  formato: string;
+  ideaCentral: string;
+  objetivoGeneral: string;
+  objetivoEspectador: string;
+  publicoObjetivo: string;
+  /** `null` = sin intención de duración declarada todavía. */
+  duracionEstimadaSegundos: number | null;
+  contexto: string;
+  musicaPrincipal: string;
+  intro: string;
+  outro: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Produccion con sus métricas reales calculadas desde sus escenas — lo
+ * que devuelve el listado de Producciones de un Proyecto. */
+export type ProduccionConMetricas = Produccion & {
+  totalEscenas: number;
+  duracionCalculadaSegundos: number;
+};
+
+/**
  * StoryboardEscena: unidad de planificación de una producción, propia de
- * un Proyecto — existe con o sin una pieza (Bloque) ya armada a partir de
- * ella. `numero` = posición narrativa original; `orden` = posición actual
- * (editable al reordenar). El "tiempo" de cada escena NUNCA se guarda acá
- * — se calcula sumando `duracionSegundos` de las escenas anteriores según
- * `orden`.
+ * una Producción (un video, Fase 3.4) — existe con o sin una pieza
+ * (Bloque) ya armada a partir de ella. `numero` = posición narrativa
+ * original; `orden` = posición actual (editable al reordenar). El
+ * "tiempo" de cada escena NUNCA se guarda acá — se calcula sumando
+ * `duracionSegundos` de las escenas anteriores según `orden`.
  */
 export type StoryboardEscena = {
   id: string;
   proyectoId: string;
+  produccionId: string;
   numero: number;
   orden: number;
   duracionSegundos: number;
