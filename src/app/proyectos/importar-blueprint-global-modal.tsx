@@ -7,6 +7,7 @@ import { Button, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { ResolucionMarca } from "@/components/resolucion-marca";
 import { explicarError } from "@/lib/errores";
+import { FORMATOS_CONTENIDO } from "@/lib/types";
 import type {
   AnalisisBlueprint,
   AnalisisProyectoBlueprint,
@@ -35,13 +36,22 @@ import {
  *   cargado, y analiza automáticamente al montar — así "Hoy" puede abrir
  *   este mismo flujo ya probado sin que el usuario tenga que pegar el
  *   texto una segunda vez ni tocar "Analizar" de nuevo. `onCerrarControlado`
- *   avisa al padre cuando se cierra, para que pueda desmontarlo. */
+ *   avisa al padre cuando se cierra, para que pueda desmontarlo.
+ *
+ * `proyectoPreResuelto` (UX Migration 1.2, Paso 3): cuando "Hoy" ya sabe
+ * a qué Marca pertenece esto (el usuario la eligió en Paso 1, antes de ir
+ * a ChatGPT), se lo pasamos acá para saltar la pantalla de
+ * `ResolucionMarca` — no es una sustitución automática, es la misma
+ * elección explícita que el usuario ya hizo unos pasos antes, no una
+ * nueva. Sin este prop, el comportamiento es idéntico al de siempre. */
 export function ImportarBlueprintGlobalModal({
   onAnalizarProyecto,
   onCrearProyecto,
   onAnalizarBiblioteca,
   onConfirmar,
+  onCrearPersonaje,
   textoInicial,
+  proyectoPreResuelto,
   onCerrarControlado,
 }: {
   onAnalizarProyecto: (textoCrudo: string) => Promise<AnalisisProyectoBlueprint>;
@@ -52,7 +62,9 @@ export function ImportarBlueprintGlobalModal({
     textoCrudo: string,
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
+  onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   textoInicial?: string;
+  proyectoPreResuelto?: { id: string; nombre: string };
   onCerrarControlado?: () => void;
 }) {
   const router = useRouter();
@@ -69,6 +81,7 @@ export function ImportarBlueprintGlobalModal({
   const [analisisBiblioteca, setAnalisisBiblioteca] = useState<AnalisisBlueprint | null>(null);
   const [escenasRevision, setEscenasRevision] = useState<EscenaEnRevision[]>([]);
   const [aceptarDuplicado, setAceptarDuplicado] = useState(false);
+  const [formatoElegido, setFormatoElegido] = useState("");
 
   function cerrar() {
     setAbierto(false);
@@ -79,6 +92,7 @@ export function ImportarBlueprintGlobalModal({
     setAnalisisBiblioteca(null);
     setEscenasRevision([]);
     setAceptarDuplicado(false);
+    setFormatoElegido("");
     setError("");
     onCerrarControlado?.();
   }
@@ -90,6 +104,7 @@ export function ImportarBlueprintGlobalModal({
     setAnalisisBiblioteca(null);
     setEscenasRevision([]);
     setAceptarDuplicado(false);
+    setFormatoElegido("");
   }
 
   async function resolverProyecto(proyectoId: string, nombre: string) {
@@ -100,9 +115,19 @@ export function ImportarBlueprintGlobalModal({
       setEscenasRevision(construirRevision(analisis.resultado.escenas, analisis));
       setProyectoElegidoId(proyectoId);
       setProyectoElegidoNombre(nombre);
+      setFormatoElegido(analisis.resultado.produccion?.formato ?? "");
     } catch (e) {
       setError(explicarError(e));
     }
+  }
+
+  async function crearPersonajeYResolver(nombre: string): Promise<{ id: string }> {
+    if (!proyectoElegidoId) throw new Error("Todavía no se eligió un Proyecto.");
+    const { id } = await onCrearPersonaje(proyectoElegidoId, nombre);
+    setAnalisisBiblioteca((prev) =>
+      prev ? { ...prev, personajesDisponibles: [...prev.personajesDisponibles, { id, nombre }] } : prev,
+    );
+    return { id };
   }
 
   async function handleAnalizar(textoAAnalizar: string) {
@@ -115,8 +140,12 @@ export function ImportarBlueprintGlobalModal({
     try {
       const resultado = await onAnalizarProyecto(textoAAnalizar);
       setAnalisisProyecto(resultado);
-      if (resultado.resultado.errores.length === 0 && resultado.proyectoResuelto) {
-        await resolverProyecto(resultado.proyectoResuelto.id, resultado.proyectoResuelto.nombre);
+      if (resultado.resultado.errores.length === 0) {
+        if (proyectoPreResuelto) {
+          await resolverProyecto(proyectoPreResuelto.id, proyectoPreResuelto.nombre);
+        } else if (resultado.proyectoResuelto) {
+          await resolverProyecto(resultado.proyectoResuelto.id, resultado.proyectoResuelto.nombre);
+        }
       }
     } catch (e) {
       setError(explicarError(e));
@@ -191,7 +220,7 @@ export function ImportarBlueprintGlobalModal({
       }));
 
       const { produccionId } = await onConfirmar(proyectoElegidoId, texto, {
-        produccion: analisisBiblioteca.resultado.produccion,
+        produccion: { ...analisisBiblioteca.resultado.produccion, formato: formatoElegido },
         contexto: analisisBiblioteca.resultado.contexto,
         recursosGlobales: analisisBiblioteca.resultado.recursosGlobales,
         escenas: escenasResueltas,
@@ -331,9 +360,21 @@ export function ImportarBlueprintGlobalModal({
 
             <SeccionColapsable titulo="Producción" tieneContenido>
               <p className="text-[14.5px] font-medium text-text">{resultado.produccion?.titulo}</p>
-              {resultado.produccion?.formato ? (
-                <p className="mt-1 text-[12.5px] text-text-muted">Formato: {resultado.produccion.formato}</p>
-              ) : null}
+              <label className="mt-2 block text-[11.5px] text-text-muted">
+                Formato
+                <select
+                  value={formatoElegido}
+                  onChange={(e) => setFormatoElegido(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
+                >
+                  <option value="">— Elegí un formato —</option>
+                  {FORMATOS_CONTENIDO.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </label>
               {resultado.produccion?.ideaCentral ? (
                 <p className="mt-1 text-[12.5px] text-text-muted">Idea central: {resultado.produccion.ideaCentral}</p>
               ) : null}
@@ -392,21 +433,13 @@ export function ImportarBlueprintGlobalModal({
                     {e.plano ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Plano: </span>
-                        <SelectorResolucion
-                          campo={e.plano}
-                          disponibles={analisisBiblioteca.planosDisponibles}
-                          onDecidir={(v) => decidirCampo(i, "plano", v)}
-                        />
+                        <SelectorResolucion campo={e.plano} onDecidir={(v) => decidirCampo(i, "plano", v)} />
                       </div>
                     ) : null}
                     {e.locacion ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Locación: </span>
-                        <SelectorResolucion
-                          campo={e.locacion}
-                          disponibles={analisisBiblioteca.locacionesDisponibles}
-                          onDecidir={(v) => decidirCampo(i, "locacion", v)}
-                        />
+                        <SelectorResolucion campo={e.locacion} onDecidir={(v) => decidirCampo(i, "locacion", v)} />
                       </div>
                     ) : null}
                     {e.personajes.length > 0 ? (
@@ -416,7 +449,7 @@ export function ImportarBlueprintGlobalModal({
                           <SelectorResolucion
                             key={j}
                             campo={c}
-                            disponibles={analisisBiblioteca.personajesDisponibles}
+                            onCrearNuevo={crearPersonajeYResolver}
                             onDecidir={(v) => decidirPersonaje(i, j, v)}
                           />
                         ))}

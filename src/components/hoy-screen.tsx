@@ -16,7 +16,7 @@ import type {
   ProduccionEnCurso,
 } from "@/lib/actions";
 
-type Modo = "campo" | "resolucion-marca" | "contexto-chatgpt";
+type Modo = "campo" | "resolucion-marca" | "contexto-chatgpt" | "pegar-resultado";
 
 /**
  * Pantalla "Hoy" (UX Migration 1) — entrada única a Content OS, reemplaza
@@ -27,6 +27,12 @@ type Modo = "campo" | "resolucion-marca" | "contexto-chatgpt";
  * sobre la Marca activa. Si no hay Marca resuelta todavía (cero o
  * ambigüedad), se resuelve en el lugar con `ResolucionMarca` antes de
  * seguir — nunca una sustitución automática.
+ *
+ * Paso 3 (UX Migration 1.2): el resultado que ChatGPT devuelve se pega
+ * DENTRO de este mismo componente (`modo === "pegar-resultado"`), no
+ * navegando de vuelta a `modo === "campo"` — la Marca ya elegida en Paso 1
+ * viaja como `proyectoPreResuelto` para que el importador no la vuelva a
+ * preguntar.
  */
 export function HoyScreen({
   proyectos,
@@ -35,6 +41,7 @@ export function HoyScreen({
   onCrearProyecto,
   onAnalizarBiblioteca,
   onConfirmar,
+  onCrearPersonaje,
   onGenerarContexto,
 }: {
   proyectos: EntidadBiblioteca[];
@@ -47,6 +54,7 @@ export function HoyScreen({
     textoCrudo: string,
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
+  onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onGenerarContexto: (proyectoId: string) => Promise<string>;
 }) {
   const [texto, setTexto] = useState("");
@@ -55,9 +63,20 @@ export function HoyScreen({
   );
   const [modo, setModo] = useState<Modo>("campo");
   const [textoParaImportar, setTextoParaImportar] = useState<string | null>(null);
+  // Solo se completa viniendo de Paso 3 (`analizarResultadoPegado`) — ese
+  // texto lo generó nuestro propio prompt reducido, que nunca declara un
+  // "Proyecto:" propio, así que no hay nada que ignorar. Si el usuario
+  // pega un CBD completo directo en Paso 1 (`handleContinuar`), puede
+  // traer su propio "Proyecto:" explícito y merece que se respete —
+  // `marcaActivaId` ahí es solo la Marca resaltada en el selector, no una
+  // decisión tomada sobre ESE documento en particular.
+  const [proyectoParaImportar, setProyectoParaImportar] = useState<EntidadBiblioteca | null>(null);
   const [contextoGenerado, setContextoGenerado] = useState("");
+  const [textoPegado, setTextoPegado] = useState("");
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState("");
+
+  const marcaActiva = proyectos.find((p) => p.id === marcaActivaId) ?? null;
 
   async function generarContexto(proyectoId: string) {
     setGenerando(true);
@@ -77,6 +96,7 @@ export function HoyScreen({
     if (!texto.trim()) return;
     setError("");
     if (tieneEstructuraDeBlueprint(texto)) {
+      setProyectoParaImportar(null);
       setTextoParaImportar(texto);
       return;
     }
@@ -96,7 +116,18 @@ export function HoyScreen({
     setModo("campo");
     setTexto("");
     setContextoGenerado("");
+    setTextoPegado("");
     setError("");
+  }
+
+  function irAPegarResultado() {
+    setModo("pegar-resultado");
+  }
+
+  function analizarResultadoPegado() {
+    if (!textoPegado.trim()) return;
+    setProyectoParaImportar(marcaActiva);
+    setTextoParaImportar(textoPegado);
   }
 
   return (
@@ -155,8 +186,36 @@ export function HoyScreen({
             </Button>
           </div>
         </div>
+      ) : modo === "pegar-resultado" ? (
+        <div className="space-y-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent">Paso 3 de 3</p>
+            <p className="mt-1 font-display text-lg font-normal tracking-wide text-text">
+              Pegá aquí la respuesta completa de ChatGPT
+            </p>
+          </div>
+          <Textarea
+            value={textoPegado}
+            onChange={(e) => setTextoPegado(e.target.value)}
+            placeholder="# Creative Blueprint v1..."
+            className="min-h-[220px] font-mono text-[12.5px]"
+          />
+          <div className="flex justify-center gap-2">
+            <Button type="button" variant="secondary" onClick={() => setModo("contexto-chatgpt")}>
+              Volver
+            </Button>
+            <Button type="button" onClick={analizarResultadoPegado} disabled={!textoPegado.trim()}>
+              Analizar Blueprint
+            </Button>
+          </div>
+        </div>
       ) : (
-        <ContextoParaChatGPT idea={texto.trim()} contexto={contextoGenerado} onVolver={volverAlCampo} />
+        <ContextoParaChatGPT
+          idea={texto.trim()}
+          contexto={contextoGenerado}
+          onVolver={volverAlCampo}
+          onContinuar={irAPegarResultado}
+        />
       )}
 
       {modo === "campo" && produccionesEnCurso.length > 0 ? (
@@ -182,11 +241,16 @@ export function HoyScreen({
       {textoParaImportar ? (
         <ImportarBlueprintGlobalModal
           textoInicial={textoParaImportar}
-          onCerrarControlado={() => setTextoParaImportar(null)}
+          proyectoPreResuelto={proyectoParaImportar ?? undefined}
+          onCerrarControlado={() => {
+            setTextoParaImportar(null);
+            setProyectoParaImportar(null);
+          }}
           onAnalizarProyecto={onAnalizarProyecto}
           onCrearProyecto={onCrearProyecto}
           onAnalizarBiblioteca={onAnalizarBiblioteca}
           onConfirmar={onConfirmar}
+          onCrearPersonaje={onCrearPersonaje}
         />
       ) : null}
     </main>

@@ -294,33 +294,20 @@ export function ImportarBlueprintModal({
                     {e.plano ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Plano: </span>
-                        <SelectorResolucion
-                          campo={e.plano}
-                          disponibles={analisis?.planosDisponibles ?? []}
-                          onDecidir={(v) => decidirCampo(i, "plano", v)}
-                        />
+                        <SelectorResolucion campo={e.plano} onDecidir={(v) => decidirCampo(i, "plano", v)} />
                       </div>
                     ) : null}
                     {e.locacion ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Locación: </span>
-                        <SelectorResolucion
-                          campo={e.locacion}
-                          disponibles={analisis?.locacionesDisponibles ?? []}
-                          onDecidir={(v) => decidirCampo(i, "locacion", v)}
-                        />
+                        <SelectorResolucion campo={e.locacion} onDecidir={(v) => decidirCampo(i, "locacion", v)} />
                       </div>
                     ) : null}
                     {e.personajes.length > 0 ? (
                       <div className="mt-2 space-y-1.5">
                         <span className="text-[11.5px] text-text-muted">Personajes:</span>
                         {e.personajes.map((c, j) => (
-                          <SelectorResolucion
-                            key={j}
-                            campo={c}
-                            disponibles={analisis?.personajesDisponibles ?? []}
-                            onDecidir={(v) => decidirPersonaje(i, j, v)}
-                          />
+                          <SelectorResolucion key={j} campo={c} onDecidir={(v) => decidirPersonaje(i, j, v)} />
                         ))}
                       </div>
                     ) : null}

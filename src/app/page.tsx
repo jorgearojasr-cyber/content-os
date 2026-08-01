@@ -2,6 +2,7 @@ import {
   analizarBlueprint,
   analizarBlueprintSinProyecto,
   confirmarImportacionBlueprint,
+  crearPersonajeDesdeImportador,
   crearProyectoDesdeImportador,
   generarContextoParaChatGPT,
   getProduccionesEnCurso,
@@ -25,6 +26,7 @@ export default async function RootPage() {
       onCrearProyecto={crearProyectoDesdeImportador}
       onAnalizarBiblioteca={analizarBlueprint}
       onConfirmar={confirmarImportacionBlueprint}
+      onCrearPersonaje={crearPersonajeDesdeImportador}
       onGenerarContexto={generarContextoParaChatGPT}
     />
   );

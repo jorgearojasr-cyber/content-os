@@ -2122,6 +2122,21 @@ export async function crearProyectoDesdeImportador(nombre: string): Promise<{ pr
   return { proyectoId };
 }
 
+/** Crea un Personaje mínimo (solo nombre) desde la resolución del
+ * importador de Blueprint — "Crear nuevo" en `SelectorResolucion` cuando
+ * ninguna sugerencia por similitud coincide (UX Migration 1.2). Reusa
+ * `createPersonaje` con el resto de campos en blanco; el usuario puede
+ * completarlo después en Personajes. Solo aplica a Personaje: Locación es
+ * un Activo con foto (no se puede crear con solo un nombre) y Plano
+ * todavía no tiene administración propia (ver `getPlanos`). */
+export async function crearPersonajeDesdeImportador(proyectoId: string, nombre: string): Promise<{ id: string }> {
+  const nombreLimpio = nombre.trim();
+  if (!nombreLimpio) throw new Error("El personaje necesita un nombre.");
+  const formData = new FormData();
+  formData.set("nombre", nombreLimpio);
+  return createPersonaje(proyectoId, formData);
+}
+
 /** Una escena del CBD ya con sus referencias resueltas a ids reales (o
  * `null`/vacío si el usuario decidió dejarlas sin vincular) — lo que la UI
  * de Fase 6.2 construye a partir de `EscenaCBD` más las elecciones del
@@ -2182,6 +2197,13 @@ export async function confirmarImportacionBlueprint(
     }
   }
 
+  // El prompt de "Contexto para ChatGPT" ya no pide Público objetivo (UX
+  // Migration 1.2, lo compila `generarContextoParaChatGPT` a partir de la
+  // misma Identidad) — si el CBD no lo trae, se completa solo desde ahí en
+  // vez de dejarlo vacío. Un CBD pegado a mano que sí lo incluya conserva
+  // su propio valor sin cambios.
+  const publicoObjetivo = produccion.publicoObjetivo.trim() || (await getIdentidad(proyectoId))?.audiencia.trim() || "";
+
   const produccionId = randomUUID();
   await db.insert(producciones).values({
     id: produccionId,
@@ -2191,7 +2213,7 @@ export async function confirmarImportacionBlueprint(
     ideaCentral: produccion.ideaCentral,
     objetivoGeneral: produccion.objetivoGeneral,
     objetivoEspectador: produccion.objetivoEspectador.join("\n"),
-    publicoObjetivo: produccion.publicoObjetivo,
+    publicoObjetivo,
     duracionEstimadaSegundos: produccion.duracionEstimada,
     contexto: contexto ?? "",
     musicaPrincipal: recursosGlobales?.musicaPrincipal ?? "",
