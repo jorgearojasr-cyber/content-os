@@ -5,6 +5,7 @@ import {
   crearPersonajeDesdeImportador,
   crearProyectoDesdeImportador,
   generarContextoParaChatGPT,
+  getBibliotecaParaPrompt,
   getProduccionesEnCurso,
   getProyectos,
 } from "@/lib/actions";
@@ -28,6 +29,7 @@ export default async function RootPage() {
       onConfirmar={confirmarImportacionBlueprint}
       onCrearPersonaje={crearPersonajeDesdeImportador}
       onGenerarContexto={generarContextoParaChatGPT}
+      onGenerarBiblioteca={getBibliotecaParaPrompt}
     />
   );
 }

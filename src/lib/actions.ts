@@ -1999,6 +1999,25 @@ export async function generarContextoParaChatGPT(proyectoId: string): Promise<st
   return compileIdentity(identidad, { personajes, activosVisuales });
 }
 
+/** Locaciones y Planos reales del Proyecto — para enriquecer el Prompt
+ * Oficial de "Contexto para ChatGPT" con la Biblioteca disponible
+ * (UX Migration 2.5), sin duplicar Personajes: esos ya vienen incluidos
+ * en `generarContextoParaChatGPT` vía `compileIdentity()` (confirmado en
+ * la auditoría previa de esa migración). Locaciones son Activos de tipo
+ * "foto" (mismo criterio que ya usa el Copiloto/EscenaPanel para el
+ * selector de Locación); Planos son globales del estudio, no por
+ * Proyecto — mismo criterio que `getPlanos()`. Devuelve solo nombres:
+ * el prompt no necesita IDs ni metadata. */
+export async function getBibliotecaParaPrompt(
+  proyectoId: string,
+): Promise<{ locaciones: string[]; planos: string[] }> {
+  const [activosProyecto, planosGlobales] = await Promise.all([getActivos(proyectoId), getPlanos()]);
+  return {
+    locaciones: activosProyecto.filter((a) => a.tipo === "foto").map((a) => a.nombre),
+    planos: planosGlobales.map((p) => p.nombre),
+  };
+}
+
 export type AnalisisBlueprint = {
   resultado: ResultadoParseoCBD;
   personajesDisponibles: EntidadBiblioteca[];

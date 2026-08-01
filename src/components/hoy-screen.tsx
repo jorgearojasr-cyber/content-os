@@ -44,6 +44,7 @@ export function HoyScreen({
   onConfirmar,
   onCrearPersonaje,
   onGenerarContexto,
+  onGenerarBiblioteca,
 }: {
   proyectos: EntidadBiblioteca[];
   produccionesEnCurso: ProduccionEnCurso[];
@@ -57,6 +58,9 @@ export function HoyScreen({
   ) => Promise<{ produccionId: string }>;
   onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onGenerarContexto: (proyectoId: string) => Promise<string>;
+  /** Locaciones/Planos reales de la Marca activa, para la sección
+   * "Biblioteca disponible" del prompt (UX Migration 2.5). */
+  onGenerarBiblioteca: (proyectoId: string) => Promise<{ locaciones: string[]; planos: string[] }>;
 }) {
   const [texto, setTexto] = useState("");
   const [marcaActivaId, setMarcaActivaId] = useState<string | null>(
@@ -73,6 +77,10 @@ export function HoyScreen({
   // decisión tomada sobre ESE documento en particular.
   const [proyectoParaImportar, setProyectoParaImportar] = useState<EntidadBiblioteca | null>(null);
   const [contextoGenerado, setContextoGenerado] = useState("");
+  const [biblioteca, setBiblioteca] = useState<{ locaciones: string[]; planos: string[] }>({
+    locaciones: [],
+    planos: [],
+  });
   const [textoPegado, setTextoPegado] = useState("");
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState("");
@@ -103,8 +111,12 @@ export function HoyScreen({
     setGenerando(true);
     setError("");
     try {
-      const contexto = await onGenerarContexto(proyectoId);
+      const [contexto, bibliotecaProyecto] = await Promise.all([
+        onGenerarContexto(proyectoId),
+        onGenerarBiblioteca(proyectoId),
+      ]);
       setContextoGenerado(contexto);
+      setBiblioteca(bibliotecaProyecto);
       setModo("contexto-chatgpt");
     } catch (e) {
       setError(explicarError(e));
@@ -138,6 +150,7 @@ export function HoyScreen({
     setModo("campo");
     setTexto("");
     setContextoGenerado("");
+    setBiblioteca({ locaciones: [], planos: [] });
     setTextoPegado("");
     setError("");
   }
@@ -254,6 +267,8 @@ export function HoyScreen({
         <ContextoParaChatGPT
           idea={texto.trim()}
           contexto={contextoGenerado}
+          locaciones={biblioteca.locaciones}
+          planos={biblioteca.planos}
           onVolver={volverAlCampo}
           onContinuar={irAPegarResultado}
         />

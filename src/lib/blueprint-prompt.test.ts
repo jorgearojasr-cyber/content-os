@@ -103,3 +103,66 @@ describe("construirPrompt — UX-MIGRATION-2.4 byte-identidad", () => {
     });
   }
 });
+
+describe("construirPrompt — UX-MIGRATION-2.5 Biblioteca disponible", () => {
+  const idea = "Un video mostrando cómo armamos el importador de Blueprint";
+  const contexto = "Marca: OBRABIEN.\nTono: cercano, directo.\nPúblico: dueños de PyMEs de construcción.";
+
+  const IMPORTANTE_BIBLIOTECA =
+    "IMPORTANTE:\n" +
+    "Los Personajes disponibles ya aparecen más arriba dentro del Contexto de Marca.\n" +
+    "Para los campos Personajes, Locación y Plano utilizá preferentemente los nombres existentes en la Biblioteca del proyecto.\n" +
+    "No inventes nuevos nombres cuando alguno existente sirva para la escena.\n" +
+    'Si realmente ninguno aplica, escribí "Sin asignar".';
+
+  it("con locaciones=[] y planos=[] explícitos es idéntico al prompt pre-2.5 (sin argumentos)", () => {
+    expect(construirPrompt(idea, contexto, [], [])).toBe(construirPrompt(idea, contexto));
+    expect(construirPrompt(idea, contexto, [], [])).toBe(construirPromptAntiguo(idea, contexto));
+  });
+
+  it("con Locaciones pero sin Planos, agrega solo la lista de Locaciones", () => {
+    const prompt = construirPrompt(idea, contexto, ["Oficina", "Taller"], []);
+    expect(prompt).toContain("### Biblioteca disponible");
+    expect(prompt).toContain("Locaciones disponibles:\n- Oficina\n- Taller");
+    expect(prompt).not.toContain("Planos disponibles:");
+    expect(prompt).toContain(IMPORTANTE_BIBLIOTECA);
+  });
+
+  it("con Planos pero sin Locaciones, agrega solo la lista de Planos", () => {
+    const prompt = construirPrompt(idea, contexto, [], ["Primer plano", "Plano medio"]);
+    expect(prompt).toContain("### Biblioteca disponible");
+    expect(prompt).toContain("Planos disponibles:\n- Primer plano\n- Plano medio");
+    expect(prompt).not.toContain("Locaciones disponibles:");
+    expect(prompt).toContain(IMPORTANTE_BIBLIOTECA);
+  });
+
+  it("con Locaciones y Planos, agrega ambas listas y la instrucción IMPORTANTE, sin duplicar Personajes", () => {
+    const locaciones = ["Oficina", "Taller", "Sala de reuniones"];
+    const planos = ["Primer plano", "Plano medio", "Plano americano"];
+    const prompt = construirPrompt(idea, contexto, locaciones, planos);
+
+    expect(prompt).toContain(
+      "### Biblioteca disponible\n\n" +
+        "Locaciones disponibles:\n- Oficina\n- Taller\n- Sala de reuniones\n\n" +
+        "Planos disponibles:\n- Primer plano\n- Plano medio\n- Plano americano\n\n" +
+        IMPORTANTE_BIBLIOTECA,
+    );
+    // Personajes no se repiten en la Biblioteca — solo pueden venir del Contexto de Marca ya compilado.
+    expect(prompt.match(/### Biblioteca disponible/g)?.length).toBe(1);
+    expect(prompt).not.toMatch(/Personajes disponibles:/);
+  });
+
+  it("la sección Biblioteca disponible aparece antes de la plantilla CBD (Núcleo)", () => {
+    const prompt = construirPrompt(idea, contexto, ["Oficina"], ["Primer plano"]);
+    const posBiblioteca = prompt.indexOf("### Biblioteca disponible");
+    const posNucleo = prompt.indexOf("IMPORTANTE: tu respuesta la va a leer un programa");
+    expect(posBiblioteca).toBeGreaterThan(-1);
+    expect(posNucleo).toBeGreaterThan(-1);
+    expect(posBiblioteca).toBeLessThan(posNucleo);
+  });
+
+  it("sin Locaciones ni Planos, no agrega la sección Biblioteca disponible", () => {
+    const prompt = construirPrompt(idea, contexto, [], []);
+    expect(prompt).not.toContain("Biblioteca disponible");
+  });
+});

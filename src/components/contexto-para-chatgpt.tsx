@@ -17,17 +17,24 @@ import { construirPrompt } from "@/lib/blueprint-prompt";
 export function ContextoParaChatGPT({
   idea,
   contexto,
+  locaciones,
+  planos,
   onVolver,
   onContinuar,
 }: {
   idea: string;
   contexto: string;
+  /** Nombres de Locaciones/Planos reales del Proyecto, para la sección
+   * "Biblioteca disponible" del prompt (UX Migration 2.5) — ver
+   * `construirPrompt`. */
+  locaciones: string[];
+  planos: string[];
   onVolver: () => void;
   onContinuar: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
   const hayContexto = contexto.trim().length > 0 && contexto !== IDENTIDAD_SIN_CONTENIDO;
-  const prompt = construirPrompt(idea, contexto);
+  const prompt = construirPrompt(idea, contexto, locaciones, planos);
 
   async function copiar() {
     await navigator.clipboard.writeText(prompt);

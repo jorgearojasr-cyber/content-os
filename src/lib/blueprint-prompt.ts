@@ -77,6 +77,33 @@ function construirBloqueEstrategico(_idea: string, _contexto: string): string {
 }
 
 /**
+ * Parte 5 (UX-MIGRATION-2.5) — Biblioteca disponible: Locaciones y Planos
+ * reales del Proyecto, para que ChatGPT reutilice nombres existentes en
+ * vez de inventar nuevos. Personajes NO se repiten acá — la auditoría
+ * previa de esta migración confirmó que ya vienen incluidos en el
+ * Contexto de Marca vía `compileIdentity()` (ver
+ * `generarContextoParaChatGPT`). Vacío si el Proyecto no tiene ninguna
+ * Locación ni ningún Plano cargado todavía — en ese caso el prompt queda
+ * byte-a-byte idéntico al de antes de esta migración (verificado en
+ * `blueprint-prompt.test.ts`). Solo nombres, nunca IDs ni metadata. */
+function construirBloqueBiblioteca(locaciones: string[], planos: string[]): string {
+  if (locaciones.length === 0 && planos.length === 0) return "";
+
+  const secciones: string[] = ["### Biblioteca disponible"];
+  if (locaciones.length > 0) {
+    secciones.push(`Locaciones disponibles:\n${locaciones.map((l) => `- ${l}`).join("\n")}`);
+  }
+  if (planos.length > 0) {
+    secciones.push(`Planos disponibles:\n${planos.map((p) => `- ${p}`).join("\n")}`);
+  }
+  secciones.push(
+    `IMPORTANTE:\nLos Personajes disponibles ya aparecen más arriba dentro del Contexto de Marca.\nPara los campos Personajes, Locación y Plano utilizá preferentemente los nombres existentes en la Biblioteca del proyecto.\nNo inventes nuevos nombres cuando alguno existente sirva para la escena.\nSi realmente ninguno aplica, escribí "Sin asignar".`,
+  );
+
+  return `${secciones.join("\n\n")}\n\n`;
+}
+
+/**
  * Parte 3 de 4 — Núcleo CBD: la plantilla del Creative Blueprint Document
  * y las reglas explícitas de compatibilidad con `parsearBlueprint()`,
  * restauradas en UX Migration 2.3 (ver ese commit para el diagnóstico de
@@ -98,19 +125,27 @@ ${FORMATO_CBD}`;
 
 /**
  * El prompt completo que el usuario copia y pega en ChatGPT (usado por
- * `ContextoParaChatGPT`) — compuesto en cuatro partes explícitas y
- * componibles (UX-MIGRATION-2.4): Idea del usuario, Contexto de Marca,
- * Bloque estratégico (vacío hoy) y Núcleo CBD. Reorganización puramente
- * interna de CÓMO se arma el prompt — el texto que ve el usuario es
- * byte-a-byte idéntico al de antes de esta migración (verificado con un
+ * `ContextoParaChatGPT`) — compuesto en partes explícitas y componibles
+ * (UX-MIGRATION-2.4, Biblioteca disponible agregada en UX-MIGRATION-2.5):
+ * Idea del usuario, Contexto de Marca, Bloque estratégico (vacío hoy),
+ * Biblioteca disponible (vacío si el Proyecto no tiene Locaciones ni
+ * Planos) y Núcleo CBD. Reorganización puramente interna de CÓMO se arma
+ * el prompt — con `locaciones`/`planos` vacíos (el default), el texto es
+ * byte-a-byte idéntico al de antes de UX-MIGRATION-2.5 (verificado con un
  * test dedicado, ver `blueprint-prompt.test.ts`). Cuando
  * `construirBloqueEstrategico` empiece a devolver contenido real, aparece
- * automáticamente acá, antes del separador "---" y de las reglas del
- * parser. */
-export function construirPrompt(idea: string, contexto: string): string {
+ * automáticamente antes de la Biblioteca disponible, después del
+ * separador "---". */
+export function construirPrompt(
+  idea: string,
+  contexto: string,
+  locaciones: string[] = [],
+  planos: string[] = [],
+): string {
   const bloqueIdea = construirBloqueIdea(idea);
   const bloqueContextoDeMarca = construirBloqueContextoDeMarca(contexto);
   const bloqueEstrategico = construirBloqueEstrategico(idea, contexto);
+  const bloqueBiblioteca = construirBloqueBiblioteca(locaciones, planos);
   const nucleoCBD = construirNucleoCBD();
 
   return `${bloqueIdea}
@@ -119,5 +154,5 @@ ${bloqueContextoDeMarca}
 
 ${bloqueEstrategico}---
 
-${nucleoCBD}`;
+${bloqueBiblioteca}${nucleoCBD}`;
 }
