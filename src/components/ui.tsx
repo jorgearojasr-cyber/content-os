@@ -87,10 +87,18 @@ export function Empty({ title, children }: { title: string; children: ReactNode 
   );
 }
 
-export function Chip({ children }: { children: ReactNode }) {
+export function Chip({
+  children,
+  variant = "default",
+}: {
+  children: ReactNode;
+  variant?: "default" | "neutral";
+}) {
+  const styles = {
+    default: "bg-accent-soft text-accent",
+    neutral: "border border-dashed border-border bg-transparent text-text-muted",
+  } as const;
   return (
-    <span className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-[10.5px] text-accent">
-      {children}
-    </span>
+    <span className={`rounded-full px-2.5 py-1 font-mono text-[10.5px] ${styles[variant]}`}>{children}</span>
   );
 }

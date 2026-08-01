@@ -91,7 +91,7 @@ export function EscenaPanel({
             <input key={id} type="hidden" name="personajeIds" value={id} />
           ))}
 
-          <SeccionColapsable titulo="Narrativa" tieneContenido>
+          <SeccionColapsable titulo="Narrativa" tieneContenido={false}>
             <Label>Tipo de escena</Label>
             <div className="flex flex-wrap gap-1.5">
               {TIPOS_ESCENA_STORYBOARD.map((valor) => (
@@ -121,7 +121,7 @@ export function EscenaPanel({
             <Textarea id="textoPantalla" name="textoPantalla" defaultValue={escena.textoPantalla} />
           </SeccionColapsable>
 
-          <SeccionColapsable titulo="Producción" tieneContenido>
+          <SeccionColapsable titulo="Producción" tieneContenido={false}>
             <Label htmlFor="planoId">Plano</Label>
             <select
               id="planoId"
@@ -179,7 +179,7 @@ export function EscenaPanel({
             />
           </SeccionColapsable>
 
-          <SeccionColapsable titulo="Recursos" tieneContenido={false}>
+          <SeccionColapsable titulo="Recursos" tieneContenido={true}>
             <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
             <Textarea id="recursosNecesarios" name="recursosNecesarios" defaultValue={escena.recursosNecesarios} />
             <Label htmlFor="musica">Música</Label>
@@ -188,14 +188,14 @@ export function EscenaPanel({
             <Input id="transicion" name="transicion" defaultValue={escena.transicion} />
           </SeccionColapsable>
 
-          <SeccionColapsable titulo="IA" tieneContenido={false}>
+          <SeccionColapsable titulo="IA" tieneContenido={true}>
             <Label htmlFor="promptIa">Prompt IA (imagen)</Label>
             <Textarea id="promptIa" name="promptIa" defaultValue={escena.promptIa} />
             <Label htmlFor="promptVideoIa">Prompt IA (video)</Label>
             <Textarea id="promptVideoIa" name="promptVideoIa" defaultValue={escena.promptVideoIa} />
           </SeccionColapsable>
 
-          <SeccionColapsable titulo="Notas" tieneContenido={false}>
+          <SeccionColapsable titulo="Notas" tieneContenido={true}>
             <Textarea name="notas" defaultValue={escena.notas} placeholder="Notas libres sobre esta escena" />
           </SeccionColapsable>
 

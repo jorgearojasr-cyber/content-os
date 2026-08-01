@@ -26,6 +26,16 @@ function formatoTiempo(segundos: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Indicador compacto de Personajes para la tarjeta — sigue siendo una
+ * vista de escaneo rápido, no lista todos los nombres a partir de 3. */
+function etiquetaPersonajes(personajeIds: string[], personajes: Personaje[]) {
+  if (personajeIds.length === 0) return null;
+  const nombres = personajeIds.map((id) => personajes.find((p) => p.id === id)?.nombre || "Sin nombre");
+  if (nombres.length === 1) return `👤 ${nombres[0]}`;
+  if (nombres.length === 2) return `👥 ${nombres[0]} · ${nombres[1]}`;
+  return `👥 ${nombres[0]} +${nombres.length - 1}`;
+}
+
 /** Calcula, para cada escena en orden, el rango de tiempo que ocupa —
  * nunca persistido, siempre derivado de `orden` + `duracionSegundos`. */
 function calcularTiempos(escenas: StoryboardEscenaConPersonajes[]) {
@@ -125,6 +135,10 @@ export function ProduccionEscenas({
     <div className="space-y-4">
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
+      <Button type="button" variant="secondary" onClick={handleCrear} disabled={creando}>
+        {creando ? "Creando…" : "+ Nueva escena"}
+      </Button>
+
       {escenasIniciales.length === 0 ? (
         <Empty title="Todavía no hay escenas planificadas">
           Agrega la primera escena para empezar a armar el storyboard de esta producción.
@@ -137,6 +151,8 @@ export function ProduccionEscenas({
             const locacion = locaciones.find((a) => a.id === escena.locacionId);
             const esPrimera = index === 0;
             const esUltima = index === escenasIniciales.length - 1;
+            const tipoLabel = ETIQUETAS_TIPO_ESCENA[escena.tipoEscena];
+            const personajesLabel = etiquetaPersonajes(escena.personajeIds, personajes);
             return (
               <Card
                 key={escena.id}
@@ -146,7 +162,7 @@ export function ProduccionEscenas({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[11px] text-text-muted">#{escena.numero}</span>
-                      <Chip>{ETIQUETAS_TIPO_ESCENA[escena.tipoEscena] ?? "Sin tipo"}</Chip>
+                      <Chip variant={tipoLabel ? "default" : "neutral"}>{tipoLabel ?? "Sin tipo"}</Chip>
                     </div>
                     <div className="flex items-center gap-1">
                       <EstadoProduccionSelect
@@ -175,10 +191,13 @@ export function ProduccionEscenas({
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-text-muted">
                     <span>
-                      {formatoTiempo(t.inicio)}–{formatoTiempo(t.fin)} ({escena.duracionSegundos}s)
+                      {escena.duracionSegundos === 0
+                        ? "Duración pendiente"
+                        : `${formatoTiempo(t.inicio)}–${formatoTiempo(t.fin)} (${escena.duracionSegundos}s)`}
                     </span>
                     {plano ? <span>🎥 {plano.nombre}</span> : null}
                     {locacion ? <span>📍 {locacion.nombre}</span> : null}
+                    {personajesLabel ? <span>{personajesLabel}</span> : null}
                   </div>
                 </div>
               </Card>
@@ -186,10 +205,6 @@ export function ProduccionEscenas({
           })}
         </div>
       )}
-
-      <Button type="button" variant="secondary" onClick={handleCrear} disabled={creando}>
-        {creando ? "Creando…" : "+ Nueva escena"}
-      </Button>
 
       {escenaAbierta ? (
         <EscenaPanel
