@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Textarea } from "@/components/ui";
 import { ResolucionMarca } from "@/components/resolucion-marca";
@@ -8,6 +8,7 @@ import { ContextoParaChatGPT } from "@/components/contexto-para-chatgpt";
 import { RevisionBlueprint } from "@/components/revision-blueprint";
 import { tieneEstructuraDeBlueprint } from "@/lib/blueprint-parser";
 import { explicarError } from "@/lib/errores";
+import { useReconocimientoVoz } from "@/lib/reconocimiento-voz";
 import type {
   AnalisisBlueprint,
   AnalisisProyectoBlueprint,
@@ -76,6 +77,26 @@ export function HoyScreen({
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState("");
 
+  // Captura el texto ya escrito al arrancar CADA sesión de dictado, para
+  // que "volver a activar el micrófono" agregue en vez de pisar lo que ya
+  // había (a mano o de una grabación anterior) — ver `useReconocimientoVoz`.
+  const textoAlIniciarRef = useRef("");
+  const { soportado: microfonoSoportado, escuchando, iniciar, detener } = useReconocimientoVoz({
+    onTranscripcion: (textoSesion) => {
+      const base = textoAlIniciarRef.current;
+      setTexto(base + (base && textoSesion ? " " : "") + textoSesion);
+    },
+  });
+
+  function alternarMicrofono() {
+    if (escuchando) {
+      detener();
+    } else {
+      textoAlIniciarRef.current = texto;
+      iniciar();
+    }
+  }
+
   const marcaActiva = proyectos.find((p) => p.id === marcaActivaId) ?? null;
 
   async function generarContexto(proyectoId: string) {
@@ -94,6 +115,7 @@ export function HoyScreen({
 
   async function handleContinuar() {
     if (!texto.trim()) return;
+    detener();
     setError("");
     if (tieneEstructuraDeBlueprint(texto)) {
       setProyectoParaImportar(null);
@@ -164,6 +186,25 @@ export function HoyScreen({
             placeholder="Escribí tu idea, o pegá acá tu guion..."
             className="min-h-[160px] text-[14.5px]"
           />
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant={escuchando ? "primary" : "secondary"}
+              onClick={alternarMicrofono}
+              disabled={!microfonoSoportado}
+              title={
+                microfonoSoportado
+                  ? undefined
+                  : "Tu navegador no soporta dictado por voz — podés escribir tu idea igual."
+              }
+              className="gap-2"
+            >
+              <span className={escuchando ? "inline-block animate-pulse" : "inline-block"} aria-hidden>
+                🎤
+              </span>
+              {escuchando ? "Escuchando…" : "Hablar mi idea"}
+            </Button>
+          </div>
           {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
           <div className="flex justify-center">
             <Button type="button" onClick={handleContinuar} disabled={generando || !texto.trim()}>
