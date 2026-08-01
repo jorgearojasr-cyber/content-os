@@ -228,6 +228,13 @@ export type OpcionesCompilado = {
   posicionLogo?: PosicionLogo | null;
 };
 
+/** Texto exacto que devuelve `compileIdentity()` cuando la Identidad no
+ * tiene ningún campo cargado — exportado para que otras pantallas (ej.
+ * "Contexto para ChatGPT" en Hoy, UX Migration 1.1) puedan detectar este
+ * caso y mostrar su propio mensaje, sin duplicar el literal ni depender de
+ * compararlo con "". */
+export const IDENTIDAD_SIN_CONTENIDO = "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
+
 /**
  * Compila el objeto Identidad completo (más el Personaje/Avatar
  * seleccionados) en un bloque de texto canónico. Las secciones sin ningún
@@ -338,7 +345,7 @@ export function compileIdentity(identidad: Identidad, opciones: OpcionesCompilad
   ].filter(Boolean);
 
   if (secciones.length === 0) {
-    return "(Esta identidad todavía no tiene ningún campo cargado. Complétala en la pestaña Identidad.)";
+    return IDENTIDAD_SIN_CONTENIDO;
   }
 
   return secciones.join("\n\n");

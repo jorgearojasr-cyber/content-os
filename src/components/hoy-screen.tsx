@@ -156,7 +156,7 @@ export function HoyScreen({
           </div>
         </div>
       ) : (
-        <ContextoParaChatGPT contexto={contextoGenerado} onVolver={volverAlCampo} />
+        <ContextoParaChatGPT idea={texto.trim()} contexto={contextoGenerado} onVolver={volverAlCampo} />
       )}
 
       {modo === "campo" && produccionesEnCurso.length > 0 ? (
