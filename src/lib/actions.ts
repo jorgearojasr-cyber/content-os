@@ -1934,6 +1934,11 @@ export type AnalisisBlueprint = {
   personajesDisponibles: EntidadBiblioteca[];
   locacionesDisponibles: EntidadBiblioteca[];
   planosDisponibles: EntidadBiblioteca[];
+  /** Producción existente en el mismo Proyecto cuyo `cbdOriginal` es
+   * exactamente igual al texto pegado — indicio de que este Blueprint ya
+   * se importó antes. `null` si no hay coincidencia. No bloquea nada por
+   * sí sola, es una advertencia que la UI muestra antes de confirmar. */
+  produccionDuplicada: { id: string; titulo: string } | null;
 };
 
 /** Analiza un CBD pegado por el usuario contra la Biblioteca real del
@@ -1941,13 +1946,18 @@ export type AnalisisBlueprint = {
  * Proyecto y los del estudio, igual que el resto de selectores de
  * Personajes de la app. */
 export async function analizarBlueprint(proyectoId: string, textoCrudo: string): Promise<AnalisisBlueprint> {
-  const [proyecto, personajesProyecto, personajesEstudio, activosProyecto, listaPlanos] = await Promise.all([
-    getProyecto(proyectoId),
-    getPersonajes(proyectoId),
-    getPersonajesDelEstudio(),
-    getActivos(proyectoId),
-    getPlanos(),
-  ]);
+  const [proyecto, personajesProyecto, personajesEstudio, activosProyecto, listaPlanos, duplicadas] =
+    await Promise.all([
+      getProyecto(proyectoId),
+      getPersonajes(proyectoId),
+      getPersonajesDelEstudio(),
+      getActivos(proyectoId),
+      getPlanos(),
+      db
+        .select({ id: producciones.id, titulo: producciones.titulo })
+        .from(producciones)
+        .where(and(eq(producciones.proyectoId, proyectoId), eq(producciones.cbdOriginal, textoCrudo))),
+    ]);
 
   const personajesDisponibles = [...personajesProyecto, ...personajesEstudio].map((p) => ({
     id: p.id,
@@ -1967,7 +1977,13 @@ export async function analizarBlueprint(proyectoId: string, textoCrudo: string):
 
   const resultado = parsearBlueprint(textoCrudo, biblioteca);
 
-  return { resultado, personajesDisponibles, locacionesDisponibles, planosDisponibles };
+  return {
+    resultado,
+    personajesDisponibles,
+    locacionesDisponibles,
+    planosDisponibles,
+    produccionDuplicada: duplicadas[0] ?? null,
+  };
 }
 
 /** Una escena del CBD ya con sus referencias resueltas a ids reales (o
@@ -2076,10 +2092,15 @@ export async function confirmarImportacionBlueprint(
       notas: e.notas,
     });
 
-    if (e.personajeIds.length > 0) {
+    // El mismo Personaje puede aparecer más de una vez en la lista del CBD
+    // (ej. mencionado dos veces en la misma escena) — deduplicar antes de
+    // insertar, la tabla puente no debe tener dos filas para el mismo par
+    // escena+Personaje.
+    const personajeIdsUnicos = [...new Set(e.personajeIds)];
+    if (personajeIdsUnicos.length > 0) {
       await db
         .insert(storyboardEscenasPersonajes)
-        .values(e.personajeIds.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
+        .values(personajeIdsUnicos.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
     }
   }
 
@@ -2216,9 +2237,12 @@ async function renumerarStoryboard(produccionId: string) {
   }
 }
 
-/** Intercambia el `orden` de una escena con su vecina inmediata — no toca
- * `numero`. No-op silencioso si no hay vecina hacia ese lado (la UI ya
- * deshabilita el botón en los bordes; esto es solo la red de seguridad). */
+/** Intercambia el `orden` de una escena con su vecina inmediata y
+ * renumera todo el storyboard para que `numero` (la etiqueta "#N" que ve
+ * el usuario) coincida siempre con la posición real — mismo criterio que
+ * `duplicarEscenaStoryboard`/`eliminarEscenaStoryboard`. No-op silencioso
+ * si no hay vecina hacia ese lado (la UI ya deshabilita el botón en los
+ * bordes; esto es solo la red de seguridad). */
 export async function moverEscenaStoryboard(
   proyectoId: string,
   produccionId: string,
@@ -2239,19 +2263,20 @@ export async function moverEscenaStoryboard(
   const vecina = escenas[destino];
   await db.update(storyboardEscenas).set({ orden: vecina.orden }).where(eq(storyboardEscenas.id, actual.id));
   await db.update(storyboardEscenas).set({ orden: actual.orden }).where(eq(storyboardEscenas.id, vecina.id));
+  await renumerarStoryboard(produccionId);
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
 
 /** Persiste el nuevo orden completo tras un arrastre (Fase 3.3) — recibe
- * los ids en el orden final exacto y reasigna `orden` por posición. Mismo
- * criterio que `moverEscenaStoryboard`: NO toca `numero` (sigue siendo la
- * posición narrativa original), solo la posición actual. */
+ * los ids en el orden final exacto y reasigna `orden` y `numero` por
+ * posición, para que la etiqueta "#N" que ve el usuario siempre coincida
+ * con la posición real (mismo criterio que `moverEscenaStoryboard`). */
 export async function reordenarEscenasStoryboard(proyectoId: string, produccionId: string, idsEnOrden: string[]) {
   for (let i = 0; i < idsEnOrden.length; i++) {
     await db
       .update(storyboardEscenas)
-      .set({ orden: i + 1 })
+      .set({ orden: i + 1, numero: i + 1 })
       .where(and(eq(storyboardEscenas.id, idsEnOrden[i]), eq(storyboardEscenas.produccionId, produccionId)));
   }
 

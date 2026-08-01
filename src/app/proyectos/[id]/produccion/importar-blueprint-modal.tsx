@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
@@ -29,10 +30,13 @@ const SIN_VINCULAR = "__sin_vincular__";
 /** Una referencia (Personaje/Locación/Plano) ya resuelta a un id real, o
  * pendiente de que el usuario decida — `decision === undefined` es
  * "todavía no decidió", distinto de `null` ("decidió dejarla en blanco a
- * propósito"). Esa distinción es la que habilita o no el botón Confirmar. */
+ * propósito"). Esa distinción es la que habilita o no el botón Confirmar.
+ * Cuando el nombre coincide con 2+ entradas de la Biblioteca, se trata
+ * igual que "no encontrado" (no se puede adivinar cuál es) pero se listan
+ * los `candidatos` reales en vez del combo completo. */
 type Campo =
   | { resuelto: true; id: string; nombre: string }
-  | { resuelto: false; nombre: string; decision: string | null | undefined };
+  | { resuelto: false; nombre: string; decision: string | null | undefined; candidatos?: EntidadBiblioteca[] };
 
 type EscenaEnRevision = {
   cbd: EscenaCBD;
@@ -42,8 +46,16 @@ type EscenaEnRevision = {
 };
 
 function resolverCampo(nombre: string, disponibles: EntidadBiblioteca[]): Campo {
-  const match = disponibles.find((d) => d.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
-  return match ? { resuelto: true, id: match.id, nombre } : { resuelto: false, nombre, decision: undefined };
+  const coincidencias = disponibles.filter((d) => d.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
+  if (coincidencias.length === 1) {
+    return { resuelto: true, id: coincidencias[0].id, nombre };
+  }
+  return {
+    resuelto: false,
+    nombre,
+    decision: undefined,
+    candidatos: coincidencias.length > 1 ? coincidencias : undefined,
+  };
 }
 
 function construirRevision(escenas: EscenaCBD[], analisis: AnalisisBlueprint): EscenaEnRevision[] {
@@ -77,18 +89,25 @@ function SelectorResolucion({
     return <span className="text-text">{campo.nombre}</span>;
   }
   const valorActual = campo.decision === undefined ? "" : campo.decision === null ? SIN_VINCULAR : campo.decision;
+  const ambiguo = (campo.candidatos?.length ?? 0) > 1;
+  const opciones = ambiguo ? campo.candidatos! : disponibles;
   return (
     <div className="rounded-lg border border-danger/40 bg-danger/5 p-2">
-      <p className="text-[12px] text-danger">&ldquo;{campo.nombre}&rdquo; no coincide con nada existente.</p>
+      <p className="text-[12px] text-danger">
+        {ambiguo
+          ? `“${campo.nombre}” coincide con ${campo.candidatos!.length} entradas de tu Biblioteca — elegí cuál es.`
+          : `“${campo.nombre}” no coincide con nada existente.`}
+      </p>
       <select
         value={valorActual}
         onChange={(e) => onDecidir(e.target.value)}
         className="mt-1 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
       >
         <option value="">— Elegí una opción —</option>
-        {disponibles.map((d) => (
+        {opciones.map((d) => (
           <option key={d.id} value={d.id}>
             Vincular a: {d.nombre}
+            {ambiguo ? ` (id ${d.id.slice(0, 8)})` : ""}
           </option>
         ))}
         <option value={SIN_VINCULAR}>Dejar sin vincular (revisar después)</option>
@@ -114,18 +133,21 @@ export function ImportarBlueprintModal({
   const [error, setError] = useState("");
   const [analisis, setAnalisis] = useState<AnalisisBlueprint | null>(null);
   const [escenasRevision, setEscenasRevision] = useState<EscenaEnRevision[]>([]);
+  const [aceptarDuplicado, setAceptarDuplicado] = useState(false);
 
   function cerrar() {
     setAbierto(false);
     setTexto("");
     setAnalisis(null);
     setEscenasRevision([]);
+    setAceptarDuplicado(false);
     setError("");
   }
 
   async function handleAnalizar() {
     setAnalizando(true);
     setError("");
+    setAceptarDuplicado(false);
     try {
       const resultado = await onAnalizar(texto);
       if (resultado.resultado.errores.length > 0) {
@@ -221,7 +243,9 @@ export function ImportarBlueprintModal({
 
   const resultado = analisis?.resultado ?? null;
   const listo = resultado !== null && resultado.errores.length === 0;
-  const confirmarDeshabilitado = !listo || faltanDecisiones(escenasRevision) || confirmando;
+  const esDuplicado = analisis?.produccionDuplicada != null;
+  const confirmarDeshabilitado =
+    !listo || faltanDecisiones(escenasRevision) || (esDuplicado && !aceptarDuplicado) || confirmando;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={cerrar}>
@@ -280,6 +304,30 @@ export function ImportarBlueprintModal({
                     <li key={i}>{adv}</li>
                   ))}
                 </ul>
+              </div>
+            ) : null}
+
+            {analisis?.produccionDuplicada ? (
+              <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
+                <p className="text-[12.5px] font-medium text-danger">
+                  Ya existe una Producción con este Blueprint exacto:{" "}
+                  <Link
+                    href={`/proyectos/${proyectoId}/producciones/${analisis.produccionDuplicada.id}`}
+                    className="underline"
+                    target="_blank"
+                  >
+                    {analisis.produccionDuplicada.titulo}
+                  </Link>
+                  .
+                </p>
+                <label className="mt-2 flex items-center gap-2 text-[12.5px] text-text">
+                  <input
+                    type="checkbox"
+                    checked={aceptarDuplicado}
+                    onChange={(e) => setAceptarDuplicado(e.target.checked)}
+                  />
+                  Importar de todas formas (esto va a crear una Producción nueva y separada)
+                </label>
               </div>
             ) : null}
 
@@ -384,7 +432,14 @@ export function ImportarBlueprintModal({
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
             <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" onClick={() => setAnalisis(null)}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setAnalisis(null);
+                  setAceptarDuplicado(false);
+                }}
+              >
                 Volver a pegar
               </Button>
               <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
