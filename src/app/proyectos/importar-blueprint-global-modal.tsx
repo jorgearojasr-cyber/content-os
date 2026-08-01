@@ -6,7 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { explicarError } from "@/lib/errores";
-import type { AnalisisBlueprint, DatosImportacionBlueprint, EscenaResuelta } from "@/lib/actions";
+import type {
+  AnalisisBlueprint,
+  AnalisisProyectoBlueprint,
+  DatosImportacionBlueprint,
+  EscenaResuelta,
+} from "@/lib/actions";
 import {
   ETIQUETAS_TIPO_ESCENA,
   SIN_VINCULAR,
@@ -16,51 +21,113 @@ import {
   type EscenaEnRevision,
 } from "@/lib/blueprint-import-shared";
 
-export function ImportarBlueprintModal({
-  proyectoId,
-  onAnalizar,
+/** Entrada al importador de Blueprint SIN un Proyecto ya elegido de
+ * antemano (a diferencia de `ImportarBlueprintModal`, que vive dentro de
+ * un Proyecto y da por hecho cuál es). Acá "Proyecto" es una referencia
+ * más a resolver, con el mismo criterio que Personaje/Locación/Plano: si
+ * el nombre declarado coincide exacto con uno solo, se resuelve solo; si
+ * no coincide con ninguno o coincide con más de uno, el usuario decide —
+ * vincularlo a un Proyecto existente o crear uno nuevo — nunca una
+ * sustitución automática a otro Proyecto. */
+export function ImportarBlueprintGlobalModal({
+  onAnalizarProyecto,
+  onCrearProyecto,
+  onAnalizarBiblioteca,
   onConfirmar,
 }: {
-  proyectoId: string;
-  onAnalizar: (textoCrudo: string) => Promise<AnalisisBlueprint>;
-  onConfirmar: (textoCrudo: string, datos: DatosImportacionBlueprint) => Promise<{ produccionId: string }>;
+  onAnalizarProyecto: (textoCrudo: string) => Promise<AnalisisProyectoBlueprint>;
+  onCrearProyecto: (nombre: string) => Promise<{ proyectoId: string }>;
+  onAnalizarBiblioteca: (proyectoId: string, textoCrudo: string) => Promise<AnalisisBlueprint>;
+  onConfirmar: (
+    proyectoId: string,
+    textoCrudo: string,
+    datos: DatosImportacionBlueprint,
+  ) => Promise<{ produccionId: string }>;
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
   const [analizando, setAnalizando] = useState(false);
+  const [creandoProyecto, setCreandoProyecto] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState("");
-  const [analisis, setAnalisis] = useState<AnalisisBlueprint | null>(null);
+
+  const [analisisProyecto, setAnalisisProyecto] = useState<AnalisisProyectoBlueprint | null>(null);
+  const [nombreNuevoProyecto, setNombreNuevoProyecto] = useState("");
+
+  const [proyectoElegidoId, setProyectoElegidoId] = useState<string | null>(null);
+  const [proyectoElegidoNombre, setProyectoElegidoNombre] = useState("");
+  const [analisisBiblioteca, setAnalisisBiblioteca] = useState<AnalisisBlueprint | null>(null);
   const [escenasRevision, setEscenasRevision] = useState<EscenaEnRevision[]>([]);
   const [aceptarDuplicado, setAceptarDuplicado] = useState(false);
 
   function cerrar() {
     setAbierto(false);
     setTexto("");
-    setAnalisis(null);
+    setAnalisisProyecto(null);
+    setNombreNuevoProyecto("");
+    setProyectoElegidoId(null);
+    setProyectoElegidoNombre("");
+    setAnalisisBiblioteca(null);
     setEscenasRevision([]);
     setAceptarDuplicado(false);
     setError("");
   }
 
+  function volverAPegar() {
+    setAnalisisProyecto(null);
+    setProyectoElegidoId(null);
+    setProyectoElegidoNombre("");
+    setAnalisisBiblioteca(null);
+    setEscenasRevision([]);
+    setAceptarDuplicado(false);
+  }
+
+  async function resolverProyecto(proyectoId: string, nombre: string) {
+    setError("");
+    try {
+      const analisis = await onAnalizarBiblioteca(proyectoId, texto);
+      setAnalisisBiblioteca(analisis);
+      setEscenasRevision(construirRevision(analisis.resultado.escenas, analisis));
+      setProyectoElegidoId(proyectoId);
+      setProyectoElegidoNombre(nombre);
+    } catch (e) {
+      setError(explicarError(e));
+    }
+  }
+
   async function handleAnalizar() {
     setAnalizando(true);
     setError("");
+    setProyectoElegidoId(null);
+    setAnalisisBiblioteca(null);
+    setEscenasRevision([]);
     setAceptarDuplicado(false);
     try {
-      const resultado = await onAnalizar(texto);
-      if (resultado.resultado.errores.length > 0) {
-        setAnalisis(resultado);
-        setEscenasRevision([]);
-        return;
+      const resultado = await onAnalizarProyecto(texto);
+      setAnalisisProyecto(resultado);
+      setNombreNuevoProyecto(resultado.nombreDeclarado);
+      if (resultado.resultado.errores.length === 0 && resultado.proyectoResuelto) {
+        await resolverProyecto(resultado.proyectoResuelto.id, resultado.proyectoResuelto.nombre);
       }
-      setAnalisis(resultado);
-      setEscenasRevision(construirRevision(resultado.resultado.escenas, resultado));
     } catch (e) {
       setError(explicarError(e));
     } finally {
       setAnalizando(false);
+    }
+  }
+
+  async function handleCrearProyecto() {
+    if (!nombreNuevoProyecto.trim()) return;
+    setCreandoProyecto(true);
+    setError("");
+    try {
+      const { proyectoId } = await onCrearProyecto(nombreNuevoProyecto);
+      await resolverProyecto(proyectoId, nombreNuevoProyecto.trim());
+    } catch (e) {
+      setError(explicarError(e));
+    } finally {
+      setCreandoProyecto(false);
     }
   }
 
@@ -92,7 +159,7 @@ export function ImportarBlueprintModal({
   }
 
   async function handleConfirmar() {
-    if (!analisis?.resultado.produccion) return;
+    if (!analisisBiblioteca?.resultado.produccion || !proyectoElegidoId) return;
     setConfirmando(true);
     setError("");
     try {
@@ -118,15 +185,16 @@ export function ImportarBlueprintModal({
         notas: e.cbd.notas,
       }));
 
-      const { produccionId } = await onConfirmar(texto, {
-        produccion: analisis.resultado.produccion,
-        contexto: analisis.resultado.contexto,
-        recursosGlobales: analisis.resultado.recursosGlobales,
+      const { produccionId } = await onConfirmar(proyectoElegidoId, texto, {
+        produccion: analisisBiblioteca.resultado.produccion,
+        contexto: analisisBiblioteca.resultado.contexto,
+        recursosGlobales: analisisBiblioteca.resultado.recursosGlobales,
         escenas: escenasResueltas,
       });
 
+      const proyectoDestino = proyectoElegidoId;
       cerrar();
-      router.push(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+      router.push(`/proyectos/${proyectoDestino}/producciones/${produccionId}`);
     } catch (e) {
       setError(explicarError(e));
       setConfirmando(false);
@@ -141,9 +209,12 @@ export function ImportarBlueprintModal({
     );
   }
 
-  const resultado = analisis?.resultado ?? null;
+  const resultadoProyecto = analisisProyecto?.resultado ?? null;
+  const bloqueanteProyecto = resultadoProyecto !== null && resultadoProyecto.errores.length > 0;
+  const proyectoPendiente = analisisProyecto !== null && !bloqueanteProyecto && proyectoElegidoId === null;
+  const resultado = analisisBiblioteca?.resultado ?? null;
   const listo = resultado !== null && resultado.errores.length === 0;
-  const esDuplicado = analisis?.produccionDuplicada != null;
+  const esDuplicado = analisisBiblioteca?.produccionDuplicada != null;
   const confirmarDeshabilitado =
     !listo || faltanDecisiones(escenasRevision) || (esDuplicado && !aceptarDuplicado) || confirmando;
 
@@ -165,11 +236,11 @@ export function ImportarBlueprintModal({
           </button>
         </div>
 
-        {!listo ? (
+        {!analisisProyecto || bloqueanteProyecto ? (
           <div className="space-y-3">
             <p className="text-[13px] text-text-muted">
-              Pegá el Creative Blueprint Document generado por ChatGPT. Se analiza contra tu Biblioteca sin crear
-              nada todavía.
+              Pegá el Creative Blueprint Document generado por ChatGPT. Todavía no elegiste un Proyecto — se
+              analiza primero a qué Proyecto pertenece, sin crear nada.
             </p>
             <Textarea
               value={texto}
@@ -177,13 +248,13 @@ export function ImportarBlueprintModal({
               placeholder="# Creative Blueprint v1..."
               className="min-h-[320px] font-mono text-[12.5px]"
             />
-            {resultado && resultado.errores.length > 0 ? (
+            {resultadoProyecto && resultadoProyecto.errores.length > 0 ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
                 <p className="text-[12.5px] font-medium text-danger">
                   Este Blueprint no se puede importar todavía:
                 </p>
                 <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] text-danger">
-                  {resultado.errores.map((err, i) => (
+                  {resultadoProyecto.errores.map((err, i) => (
                     <li key={i}>{err}</li>
                   ))}
                 </ul>
@@ -194,8 +265,69 @@ export function ImportarBlueprintModal({
               {analizando ? "Analizando…" : "Analizar"}
             </Button>
           </div>
-        ) : (
+        ) : proyectoPendiente ? (
           <div className="space-y-4">
+            <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
+              <p className="text-[12.5px] font-medium text-danger">
+                {analisisProyecto.nombreDeclarado
+                  ? `“${analisisProyecto.nombreDeclarado}” no coincide con ningún Proyecto existente — elegí qué hacer.`
+                  : "Este Blueprint no declara ningún Proyecto — elegí a cuál pertenece."}
+              </p>
+
+              {analisisProyecto.proyectosDisponibles.length > 0 ? (
+                <>
+                  <label className="mt-3 block text-[12px] text-text-muted">Vincular a un Proyecto existente</label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const p = analisisProyecto.proyectosDisponibles.find((x) => x.id === e.target.value);
+                      if (p) resolverProyecto(p.id, p.nombre);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
+                  >
+                    <option value="">— Elegí un Proyecto —</option>
+                    {analisisProyecto.proyectosDisponibles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
+
+              <label className="mt-3 block text-[12px] text-text-muted">O crear un Proyecto nuevo</label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="text"
+                  value={nombreNuevoProyecto}
+                  onChange={(e) => setNombreNuevoProyecto(e.target.value)}
+                  placeholder="Nombre del Proyecto"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[12.5px] text-text"
+                />
+                <Button
+                  type="button"
+                  onClick={handleCrearProyecto}
+                  disabled={creandoProyecto || !nombreNuevoProyecto.trim()}
+                >
+                  {creandoProyecto ? "Creando…" : "Crear y continuar"}
+                </Button>
+              </div>
+            </div>
+
+            {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="secondary" onClick={volverAPegar}>
+                Volver a pegar
+              </Button>
+            </div>
+          </div>
+        ) : resultado && analisisBiblioteca ? (
+          <div className="space-y-4">
+            <p className="text-[12px] text-text-muted">
+              Importando a: <span className="font-medium text-text">{proyectoElegidoNombre}</span>
+            </p>
+
             {resultado.advertencias.length > 0 ? (
               <div className="rounded-lg border border-accent/40 bg-accent-soft p-3">
                 <p className="text-[12.5px] font-medium text-accent">Advertencias (no bloquean el import):</p>
@@ -207,16 +339,16 @@ export function ImportarBlueprintModal({
               </div>
             ) : null}
 
-            {analisis?.produccionDuplicada ? (
+            {analisisBiblioteca.produccionDuplicada ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
                 <p className="text-[12.5px] font-medium text-danger">
                   Ya existe una Producción con este Blueprint exacto:{" "}
                   <Link
-                    href={`/proyectos/${proyectoId}/producciones/${analisis.produccionDuplicada.id}`}
+                    href={`/proyectos/${proyectoElegidoId}/producciones/${analisisBiblioteca.produccionDuplicada.id}`}
                     className="underline"
                     target="_blank"
                   >
-                    {analisis.produccionDuplicada.titulo}
+                    {analisisBiblioteca.produccionDuplicada.titulo}
                   </Link>
                   .
                 </p>
@@ -296,7 +428,7 @@ export function ImportarBlueprintModal({
                         <span className="text-[11.5px] text-text-muted">Plano: </span>
                         <SelectorResolucion
                           campo={e.plano}
-                          disponibles={analisis?.planosDisponibles ?? []}
+                          disponibles={analisisBiblioteca.planosDisponibles}
                           onDecidir={(v) => decidirCampo(i, "plano", v)}
                         />
                       </div>
@@ -306,7 +438,7 @@ export function ImportarBlueprintModal({
                         <span className="text-[11.5px] text-text-muted">Locación: </span>
                         <SelectorResolucion
                           campo={e.locacion}
-                          disponibles={analisis?.locacionesDisponibles ?? []}
+                          disponibles={analisisBiblioteca.locacionesDisponibles}
                           onDecidir={(v) => decidirCampo(i, "locacion", v)}
                         />
                       </div>
@@ -318,7 +450,7 @@ export function ImportarBlueprintModal({
                           <SelectorResolucion
                             key={j}
                             campo={c}
-                            disponibles={analisis?.personajesDisponibles ?? []}
+                            disponibles={analisisBiblioteca.personajesDisponibles}
                             onDecidir={(v) => decidirPersonaje(i, j, v)}
                           />
                         ))}
@@ -332,14 +464,7 @@ export function ImportarBlueprintModal({
             {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
             <div className="flex justify-end gap-2 pt-1">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setAnalisis(null);
-                  setAceptarDuplicado(false);
-                }}
-              >
+              <Button type="button" variant="secondary" onClick={volverAPegar}>
                 Volver a pegar
               </Button>
               <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
@@ -347,7 +472,7 @@ export function ImportarBlueprintModal({
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

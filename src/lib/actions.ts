@@ -1986,6 +1986,72 @@ export async function analizarBlueprint(proyectoId: string, textoCrudo: string):
   };
 }
 
+export type AnalisisProyectoBlueprint = {
+  /** Solo bloqueantes en esta etapa (Título, escenas, Tipo, Objetivo
+   * narrativo) — las advertencias de Personaje/Locación/Plano no tienen
+   * sentido todavía porque no sabemos de qué Proyecto es la Biblioteca. */
+  resultado: ResultadoParseoCBD;
+  /** Todos los Proyectos reales, para el selector "vincular a uno
+   * existente" cuando el nombre declarado no resuelve solo. */
+  proyectosDisponibles: EntidadBiblioteca[];
+  /** El Proyecto real cuyo nombre coincide exacto (case-insensitive) con
+   * el declarado en el CBD — `null` si no hay ninguno o hay más de uno.
+   * Mismo criterio que Personaje/Locación/Plano: 1 coincidencia = resuelto
+   * solo, 0 o 2+ = necesita una decisión explícita. */
+  proyectoResuelto: EntidadBiblioteca | null;
+  /** El nombre tal cual lo escribió el CBD en "Proyecto:" — vacío si el
+   * campo no estaba presente. Sirve para prellenar el nombre al crear un
+   * Proyecto nuevo desde el importador. */
+  nombreDeclarado: string;
+};
+
+/** Primera etapa del importador cuando todavía no se sabe a qué Proyecto
+ * pertenece el CBD (entrada global, fuera de un Proyecto ya elegido) —
+ * parsea el documento y trata "Proyecto" como una referencia más a
+ * resolver, en vez de dejar que el sistema elija uno por su cuenta. Una
+ * vez resuelto el Proyecto (por el usuario, nunca automáticamente salvo
+ * coincidencia exacta y única), el resto del análisis contra la
+ * Biblioteca real sigue con `analizarBlueprint` sin cambios. */
+export async function analizarBlueprintSinProyecto(textoCrudo: string): Promise<AnalisisProyectoBlueprint> {
+  const todosProyectos = await db.select({ id: proyectos.id, nombre: proyectos.nombre }).from(proyectos);
+
+  const biblioteca: BibliotecaConocida = {
+    proyectos: todosProyectos.map((p) => p.nombre),
+    personajes: [],
+    locaciones: [],
+    planos: [],
+  };
+  const resultado = parsearBlueprint(textoCrudo, biblioteca);
+  const nombreDeclarado = resultado.produccion?.proyecto ?? "";
+
+  const coincidencias = nombreDeclarado
+    ? todosProyectos.filter((p) => p.nombre.trim().toLowerCase() === nombreDeclarado.trim().toLowerCase())
+    : [];
+
+  return {
+    resultado,
+    proyectosDisponibles: todosProyectos,
+    proyectoResuelto: coincidencias.length === 1 ? coincidencias[0] : null,
+    nombreDeclarado,
+  };
+}
+
+/** Crea un Proyecto nuevo desde el importador de Blueprint sin salir del
+ * flujo — mismos inserts que `createProyecto`, pero devuelve el id en vez
+ * de hacer redirect, para que el importador pueda seguir con la
+ * resolución de la Biblioteca de ese Proyecto recién creado. */
+export async function crearProyectoDesdeImportador(nombre: string): Promise<{ proyectoId: string }> {
+  const nombreLimpio = nombre.trim();
+  if (!nombreLimpio) throw new Error("El proyecto necesita un nombre.");
+
+  const proyectoId = randomUUID();
+  await db.insert(proyectos).values({ id: proyectoId, nombre: nombreLimpio, descripcion: "", areaId: null });
+  await db.insert(identidades).values({ id: randomUUID(), proyectoId });
+
+  revalidatePath("/proyectos");
+  return { proyectoId };
+}
+
 /** Una escena del CBD ya con sus referencias resueltas a ids reales (o
  * `null`/vacío si el usuario decidió dejarlas sin vincular) — lo que la UI
  * de Fase 6.2 construye a partir de `EscenaCBD` más las elecciones del
