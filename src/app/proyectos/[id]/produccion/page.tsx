@@ -9,6 +9,7 @@ import {
   getProyecto,
   getStoryboardEscenas,
   moverEscenaStoryboard,
+  reordenarEscenasStoryboard,
   updateStoryboardEscena,
 } from "@/lib/actions";
 import { notFound } from "next/navigation";
@@ -52,6 +53,7 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
   const boundSave = updateStoryboardEscena.bind(null, proyectoId);
   const boundEstado = actualizarEstadoProduccionEscena.bind(null, proyectoId);
   const boundMover = moverEscenaStoryboard.bind(null, proyectoId);
+  const boundReordenar = reordenarEscenasStoryboard.bind(null, proyectoId);
   const boundDuplicar = duplicarEscenaStoryboard.bind(null, proyectoId);
   const boundEliminar = eliminarEscenaStoryboard.bind(null, proyectoId);
 
@@ -87,6 +89,7 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
         onSave={boundSave}
         onEstadoChange={boundEstado}
         onMover={boundMover}
+        onReordenar={boundReordenar}
         onDuplicar={boundDuplicar}
         onEliminar={boundEliminar}
       />

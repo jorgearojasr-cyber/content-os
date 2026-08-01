@@ -1,8 +1,12 @@
-import type { ButtonHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = "",
+  ...rest
+}: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6 ${className}`}>
+    <div {...rest} className={`rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6 ${className}`}>
       {children}
     </div>
   );

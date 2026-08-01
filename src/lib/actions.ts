@@ -2016,6 +2016,21 @@ export async function moverEscenaStoryboard(
   revalidatePath(`/proyectos/${proyectoId}/produccion`);
 }
 
+/** Persiste el nuevo orden completo tras un arrastre (Fase 3.3) — recibe
+ * los ids en el orden final exacto y reasigna `orden` por posición. Mismo
+ * criterio que `moverEscenaStoryboard`: NO toca `numero` (sigue siendo la
+ * posición narrativa original), solo la posición actual. */
+export async function reordenarEscenasStoryboard(proyectoId: string, idsEnOrden: string[]) {
+  for (let i = 0; i < idsEnOrden.length; i++) {
+    await db
+      .update(storyboardEscenas)
+      .set({ orden: i + 1 })
+      .where(and(eq(storyboardEscenas.id, idsEnOrden[i]), eq(storyboardEscenas.proyectoId, proyectoId)));
+  }
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
 /** Duplica una escena completa (incluidos sus Personajes) justo después
  * del original, siempre en BORRADOR sin importar el estado original.
  * Renumera todo el storyboard al final para que `numero`/`orden` queden

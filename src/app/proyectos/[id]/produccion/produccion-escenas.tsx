@@ -56,6 +56,7 @@ export function ProduccionEscenas({
   onSave,
   onEstadoChange,
   onMover,
+  onReordenar,
   onDuplicar,
   onEliminar,
 }: {
@@ -67,17 +68,32 @@ export function ProduccionEscenas({
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
   onMover: (escenaId: string, direccion: "arriba" | "abajo") => Promise<void>;
+  onReordenar: (idsEnOrden: string[]) => Promise<void>;
   onDuplicar: (escenaId: string) => Promise<void>;
   onEliminar: (escenaId: string) => Promise<void>;
 }) {
+  // Copia local para poder reordenar al instante durante un arrastre, sin
+  // esperar el viaje al servidor — se resincroniza sola cada vez que el
+  // servidor confirma un cambio (drag, flechas, duplicar, eliminar, crear).
+  // Ajuste de estado derivado de props durante el render (sin useEffect),
+  // siguiendo el patrón recomendado por React para este caso exacto.
+  const [escenas, setEscenas] = useState(escenasIniciales);
+  const [escenasInicialesPrevias, setEscenasInicialesPrevias] = useState(escenasIniciales);
+  if (escenasIniciales !== escenasInicialesPrevias) {
+    setEscenasInicialesPrevias(escenasIniciales);
+    setEscenas(escenasIniciales);
+  }
+
   const [escenaAbiertaId, setEscenaAbiertaId] = useState<string | null>(null);
   const [escenaAEliminarId, setEscenaAEliminarId] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
+  const [arrastradaId, setArrastradaId] = useState<string | null>(null);
+  const [destinoId, setDestinoId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const tiempos = calcularTiempos(escenasIniciales);
-  const escenaAbierta = escenasIniciales.find((e) => e.id === escenaAbiertaId) ?? null;
+  const tiempos = calcularTiempos(escenas);
+  const escenaAbierta = escenas.find((e) => e.id === escenaAbiertaId) ?? null;
 
   async function handleCrear() {
     setCreando(true);
@@ -131,6 +147,31 @@ export function ProduccionEscenas({
     });
   }
 
+  function handleSoltar(destinoEscenaId: string) {
+    const origenId = arrastradaId;
+    setArrastradaId(null);
+    setDestinoId(null);
+    if (!origenId || origenId === destinoEscenaId) return;
+
+    const fromIndex = escenas.findIndex((e) => e.id === origenId);
+    const toIndex = escenas.findIndex((e) => e.id === destinoEscenaId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const reordenadas = [...escenas];
+    const [movida] = reordenadas.splice(fromIndex, 1);
+    reordenadas.splice(toIndex, 0, movida);
+    setEscenas(reordenadas);
+
+    startTransition(async () => {
+      try {
+        await onReordenar(reordenadas.map((e) => e.id));
+      } catch (e) {
+        setError(explicarError(e));
+        setEscenas(escenasIniciales);
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
@@ -139,24 +180,44 @@ export function ProduccionEscenas({
         {creando ? "Creando…" : "+ Nueva escena"}
       </Button>
 
-      {escenasIniciales.length === 0 ? (
+      {escenas.length === 0 ? (
         <Empty title="Todavía no hay escenas planificadas">
           Agrega la primera escena para empezar a armar el storyboard de esta producción.
         </Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {escenasIniciales.map((escena, index) => {
+          {escenas.map((escena, index) => {
             const t = tiempos.find((x) => x.id === escena.id)!;
             const plano = planos.find((p) => p.id === escena.planoId);
             const locacion = locaciones.find((a) => a.id === escena.locacionId);
             const esPrimera = index === 0;
-            const esUltima = index === escenasIniciales.length - 1;
+            const esUltima = index === escenas.length - 1;
             const tipoLabel = ETIQUETAS_TIPO_ESCENA[escena.tipoEscena];
             const personajesLabel = etiquetaPersonajes(escena.personajeIds, personajes);
             return (
               <Card
                 key={escena.id}
-                className="cursor-pointer transition-colors hover:bg-surface-2/50"
+                draggable
+                onDragStart={(e) => {
+                  setArrastradaId(escena.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", escena.id);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (arrastradaId && arrastradaId !== escena.id) setDestinoId(escena.id);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleSoltar(escena.id);
+                }}
+                onDragEnd={() => {
+                  setArrastradaId(null);
+                  setDestinoId(null);
+                }}
+                className={`cursor-grab transition-colors hover:bg-surface-2/50 active:cursor-grabbing ${
+                  arrastradaId === escena.id ? "opacity-40 shadow-lg" : ""
+                } ${destinoId === escena.id && arrastradaId && arrastradaId !== escena.id ? "ring-2 ring-accent" : ""}`}
               >
                 <div onClick={() => setEscenaAbiertaId(escena.id)}>
                   <div className="flex items-start justify-between gap-2">
