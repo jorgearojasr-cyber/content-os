@@ -1061,6 +1061,14 @@ export type Produccion = {
   notas: string;
   /** `null` = creada a mano, sin pasar por el importador de Blueprint. */
   cbdOriginal: string | null;
+  /** Agregado en UX Migration 3 — el Director de Edición del Copiloto
+   * analiza el storyboard completo (nunca una escena aislada), ver la fase
+   * "editar" del Copiloto. `null` = todavía no se generó. */
+  planEdicionJson: unknown;
+  /** Fecha de publicación PLANEADA de la Producción completa, 'YYYY-MM-DD' —
+   * `null` = sin asignar. Análoga a `Bloque.fechaPlanificada`, pero a nivel
+   * Producción (Bloque no tiene relación con Producción). */
+  fechaPlanificada: string | null;
   createdAt: string;
   updatedAt: string;
 };

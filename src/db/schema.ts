@@ -567,6 +567,14 @@ export const producciones = pgTable("producciones", {
   // distinto de "" (que significaría un CBD vacío, algo que no puede
   // pasar: el parser exige Título y al menos 1 escena para ser válido).
   cbdOriginal: text("cbd_original"),
+  // Ambas agregadas en UX Migration 3 (Copiloto de Producción) — mismo
+  // criterio que las columnas homónimas de `bloques`, pero a nivel
+  // Producción completa: el Director de Edición del Copiloto analiza el
+  // storyboard entero (nunca una escena aislada, ver la fase "editar" del
+  // Copiloto), y la fecha de publicación es la de la Producción, no la de
+  // ningún Bloque (que no tiene relación con Producción).
+  planEdicionJson: jsonb("plan_edicion_json"),
+  fechaPlanificada: text("fecha_planificada"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

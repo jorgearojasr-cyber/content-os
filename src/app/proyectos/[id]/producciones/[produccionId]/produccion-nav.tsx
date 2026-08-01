@@ -5,9 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { slug: "", label: "Escenas" },
-  { slug: "grabacion", label: "Grabación" },
-  { slug: "edicion", label: "Edición" },
-  { slug: "publicacion", label: "Publicación" },
+  { slug: "copiloto", label: "Copiloto" },
 ] as const;
 
 export function ProduccionNav({ proyectoId, produccionId }: { proyectoId: string; produccionId: string }) {

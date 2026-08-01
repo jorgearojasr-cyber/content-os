@@ -2511,3 +2511,114 @@ export async function eliminarEscenaStoryboard(proyectoId: string, produccionId:
   await renumerarStoryboard(produccionId);
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
 }
+
+/**
+ * DIRECTOR DE EDICIÓN DEL COPILOTO (UX Migration 3): analiza el storyboard
+ * COMPLETO de una Producción — nunca una escena aislada, nunca un Bloque,
+ * que no tiene relación alguna con Producción — y guarda el plan a nivel
+ * Producción. Es el paso natural en el que el Copiloto se convierte, una
+ * vez que ya no queda ninguna escena en Borrador: deja de mostrar una
+ * escena y pasa a guiar el montaje del video entero. Nunca es una pestaña
+ * independiente. Se genera una sola vez: si ya existe `planEdicionJson`,
+ * quien llama debe pasar `regenerar: true` para reemplazarlo — mismo
+ * criterio que `generarPlanEdicionAction` (el equivalente para Bloques).
+ */
+export async function generarPlanEdicionProduccionAction(
+  proyectoId: string,
+  produccionId: string,
+  regenerar = false,
+): Promise<PlanEdicion> {
+  const produccion = await getProduccion(produccionId);
+  if (!produccion || produccion.proyectoId !== proyectoId) throw new Error("La producción ya no existe.");
+
+  const planExistente = parsePlanEdicion(produccion.planEdicionJson);
+  if (planExistente && !regenerar) return planExistente;
+
+  const escenas = await getStoryboardEscenas(produccionId);
+  if (escenas.length === 0) {
+    throw new Error("Esta producción no tiene escenas para generar un plan de edición.");
+  }
+
+  const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
+    getIdentidad(proyectoId),
+    getPersonajes(proyectoId),
+    getPersonajesDelEstudio(),
+    getActivos(proyectoId),
+  ]);
+  const personajes = [...personajesProyecto, ...personajesEstudio];
+  const activosVisuales = activosProyecto
+    .filter((a) => a.tipo === "foto")
+    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
+  const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, activosVisuales }) : "";
+
+  const texto = [produccion.ideaCentral, produccion.objetivoGeneral, ...escenas.map((e) => e.textoHablado)]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const plan = await generarPlanEdicion({
+    formato: produccion.formato,
+    identidadCompilada,
+    texto,
+    // Una Producción es siempre un video real por definición en este
+    // sistema (a diferencia de un Bloque, que puede ser un Carrusel
+    // convertido a video) — nunca es un caso de conversión.
+    esConversionAVideo: false,
+    escenas: escenas.map((e) => ({
+      numero: e.numero,
+      duracionSegundos: e.duracionSegundos,
+      // `accion` no se completa desde ningún formulario del storyboard hoy
+      // (campo legado, siempre vacío) — `objetivoNarrativo` es el campo
+      // real que describe qué pasa en la escena.
+      descripcion: e.objetivoNarrativo,
+      guionHablado: e.textoHablado,
+      textoEnPantalla: e.textoPantalla,
+    })),
+  });
+
+  await db
+    .update(producciones)
+    .set({ planEdicionJson: plan, updatedAt: sql`now()` })
+    .where(and(eq(producciones.id, produccionId), eq(producciones.proyectoId, proyectoId)));
+
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+
+  return plan;
+}
+
+/** Marca todas las escenas Grabadas de la Producción como Editadas de una
+ * sola vez — se dispara desde la fase "editar" del Copiloto cuando el
+ * usuario confirma que ya terminó de montar el video completo en su
+ * editor externo. Restringido a `estadoProduccion = "GRABADA"` para no
+ * tocar ninguna escena en un estado anómalo (ej. una que quedó en
+ * Borrador porque se agregó tarde). */
+export async function marcarProduccionComoEditada(proyectoId: string, produccionId: string) {
+  await db
+    .update(storyboardEscenas)
+    .set({ estadoProduccion: "EDITADA", updatedAt: sql`now()` })
+    .where(and(eq(storyboardEscenas.produccionId, produccionId), eq(storyboardEscenas.estadoProduccion, "GRABADA")));
+
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+  // El Copiloto vuelve a resolver su fase desde cero (nunca se le dice
+  // "andá al cierre" directamente) — con todo ya Editada, cae en "cierre".
+  redirect(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+}
+
+/** Cierra la Producción: guarda la fecha de publicación planeada (a nivel
+ * Producción completa, no de ningún Bloque — no tienen relación) y marca
+ * todas las escenas Editadas como Publicadas — último paso del Copiloto. */
+export async function cerrarYPublicarProduccion(proyectoId: string, produccionId: string, formData: FormData) {
+  const fechaPlanificada = String(formData.get("fechaPlanificada") ?? "").trim() || null;
+
+  await db
+    .update(producciones)
+    .set({ fechaPlanificada, updatedAt: sql`now()` })
+    .where(and(eq(producciones.id, produccionId), eq(producciones.proyectoId, proyectoId)));
+
+  await db
+    .update(storyboardEscenas)
+    .set({ estadoProduccion: "PUBLICADA", updatedAt: sql`now()` })
+    .where(and(eq(storyboardEscenas.produccionId, produccionId), eq(storyboardEscenas.estadoProduccion, "EDITADA")));
+
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+  redirect(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+}
