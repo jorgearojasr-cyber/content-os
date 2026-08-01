@@ -10,8 +10,14 @@ import { IDENTIDAD_SIN_CONTENIDO } from "@/lib/identity-compiler";
  * un selector en la revisión — pedírselos de vuelta a ChatGPT era ruido
  * (UX Migration 1.2). Personajes/Locación/Plano se mantienen como campos
  * del CBD, pero ya no representan referencias exactas de la Biblioteca —
- * ver la instrucción en `construirPrompt`. */
+ * ver la instrucción en `construirPrompt`. La plantilla completa (con
+ * `## Contexto`) volvió a incluirse literalmente en UX Migration 2.3 —
+ * ver ese commit para el diagnóstico exacto de por qué ChatGPT dejaba de
+ * respetarla. */
 const FORMATO_CBD = `# Creative Blueprint v1
+
+## Contexto
+[Un párrafo breve: por qué esta idea encaja con la marca, para quién es.]
 
 ## Producción
 Título: ...
@@ -38,7 +44,18 @@ Texto en pantalla: ...
  * lo escuchó), sigue con el contexto de marca ya compilado por
  * `compileIdentity()` (sin tocar esa función) y cierra con el formato
  * reducido que `parsearBlueprint()` sabe leer — solo narrativa, nada que
- * Content OS ya sepa o vaya a resolver por su cuenta (UX Migration 1.2). */
+ * Content OS ya sepa o vaya a resolver por su cuenta (UX Migration 1.2).
+ *
+ * UX Migration 2.3: un CBD real generado con este prompt llegó sin un
+ * solo encabezado `##`/`###` (ChatGPT los reescribió como texto plano),
+ * las listas sin el guion `- ` (Personajes quedaba vacío) y el diálogo
+ * largo en la línea siguiente a la etiqueta en vez de en la misma línea
+ * (Texto hablado/Texto en pantalla quedaban vacíos, SIN error visible —
+ * el caso silencioso, peor que el que rompe la importación). El prompt
+ * anterior pedía "seguí esta estructura" sin explicar que el resultado lo
+ * lee un programa, no una persona — ChatGPT lo trataba como una sugerencia
+ * de estilo y lo reescribía para que se leyera mejor. El bloque de abajo
+ * lo deja explícito y prohíbe exactamente esas tres reescrituras. */
 function construirPrompt(idea: string, contexto: string): string {
   const hayContexto = contexto.trim().length > 0 && contexto !== IDENTIDAD_SIN_CONTENIDO;
   const bloqueMarca = hayContexto
@@ -48,7 +65,7 @@ function construirPrompt(idea: string, contexto: string): string {
   return `Tu idea:
 "${idea}"
 
-Usando esta idea y el siguiente contexto de marca, generá SOLO la parte narrativa de un Creative Blueprint Document para un video corto: título, objetivo general, y el guion escena por escena.
+Usando esta idea y el siguiente contexto de marca, generá SOLO la parte narrativa de un Creative Blueprint Document para un video corto: contexto breve, título, objetivo general, y el guion escena por escena.
 
 Para Personajes, Locaciones y Planos utilizá nombres narrativos naturales (ej.: Presentador, Cliente, Oficina, Taller, Primer plano). No intentes adivinar los nombres exactos de mi Biblioteca — Content OS los va a resolver durante la importación.
 
@@ -56,7 +73,15 @@ ${bloqueMarca}
 
 ---
 
-Formato esperado — seguí esta estructura exactamente, sin cambiar las etiquetas ni el orden (agregá tantas escenas como necesite el video):
+IMPORTANTE: tu respuesta la va a leer un programa (un parser), no una persona — por eso el formato de abajo es obligatorio al pie de la letra, no una sugerencia de estilo:
+
+- Completá ÚNICAMENTE la plantilla de abajo. No la resumas, no la reescribas como si fuera un documento o un posteo, no agregues introducción ni comentarios fuera de ella.
+- Los encabezados Markdown (##, ###) tienen que quedar EXACTAMENTE iguales — mismo texto, mismos símbolos "#", mismo orden. Nunca los conviertas en texto plano ni en negrita.
+- Cada etiqueta (ej. "Tipo:", "Texto hablado:") va seguida del valor en la MISMA línea, después de los dos puntos — nunca dejes la etiqueta sola y el contenido en la línea siguiente, aunque el texto sea largo.
+- Las listas (como "Personajes:") llevan un guion y un espacio ("- ") antes de cada ítem, uno por línea — nunca el nombre suelto en su propia línea.
+- Agregá tantos bloques "### Escena N" como necesite el video, siguiendo exactamente la misma estructura de la Escena 1.
+
+Plantilla a completar:
 
 ${FORMATO_CBD}`;
 }
