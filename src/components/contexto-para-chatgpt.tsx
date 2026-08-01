@@ -43,7 +43,7 @@ function construirPrompt(idea: string, contexto: string): string {
   const hayContexto = contexto.trim().length > 0 && contexto !== IDENTIDAD_SIN_CONTENIDO;
   const bloqueMarca = hayContexto
     ? contexto
-    : "Todavía no tenemos información cargada sobre esta marca — generá el Blueprint apoyándote solamente en la idea de arriba, con un tono neutro y profesional.";
+    : "Todavía no tenemos información cargada sobre esta marca — generá el guion apoyándote solamente en la idea de arriba, con un tono neutro y profesional.";
 
   return `Tu idea:
 "${idea}"

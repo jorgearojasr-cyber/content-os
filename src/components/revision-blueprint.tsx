@@ -260,9 +260,7 @@ export function RevisionBlueprint({
       <div className="sticky top-0 z-10 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">
           <div>
-            <span className="font-display text-base font-normal tracking-wide text-text">
-              Revisión del Blueprint
-            </span>
+            <span className="font-display text-base font-normal tracking-wide text-text">Revisar guion</span>
             {proyectoElegidoNombre ? (
               <span className="ml-2 text-[12px] text-text-muted">→ {proyectoElegidoNombre}</span>
             ) : null}
@@ -281,9 +279,7 @@ export function RevisionBlueprint({
       <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-6 sm:px-8">
         {etapa === "paste" ? (
           <div className="space-y-3">
-            <p className="text-[13px] text-text-muted">
-              Pegá el Creative Blueprint Document generado por ChatGPT.
-            </p>
+            <p className="text-[13px] text-text-muted">Pegá el guion generado por ChatGPT.</p>
             <Textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
@@ -292,7 +288,7 @@ export function RevisionBlueprint({
             />
             {resultadoProyecto && resultadoProyecto.errores.length > 0 ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
-                <p className="text-[12.5px] font-medium text-danger">Este Blueprint no se puede importar todavía:</p>
+                <p className="text-[12.5px] font-medium text-danger">Todavía no se puede crear el video con este guion:</p>
                 <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12.5px] text-danger">
                   {resultadoProyecto.errores.map((err, i) => (
                     <li key={i}>{err}</li>
@@ -364,7 +360,7 @@ export function RevisionBlueprint({
             {analisisBiblioteca.produccionDuplicada ? (
               <div className="rounded-lg border border-danger/40 bg-danger/5 p-3">
                 <p className="text-[12.5px] font-medium text-danger">
-                  Ya existe una Producción con este Blueprint exacto:{" "}
+                  Ya existe una Producción con este guion exacto:{" "}
                   <Link
                     href={`/proyectos/${proyectoElegidoId}/producciones/${analisisBiblioteca.produccionDuplicada.id}`}
                     className="underline"
@@ -380,7 +376,7 @@ export function RevisionBlueprint({
                     checked={aceptarDuplicado}
                     onChange={(e) => setAceptarDuplicado(e.target.checked)}
                   />
-                  Importar de todas formas (esto va a crear una Producción nueva y separada)
+                  Crear de todas formas (esto va a crear una Producción nueva y separada)
                 </label>
               </div>
             ) : null}
@@ -499,7 +495,7 @@ export function RevisionBlueprint({
               Volver a pegar
             </Button>
             <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
-              {confirmando ? "Creando…" : "Confirmar importación"}
+              {confirmando ? "Creando…" : "Crear video"}
             </Button>
           </div>
         </div>

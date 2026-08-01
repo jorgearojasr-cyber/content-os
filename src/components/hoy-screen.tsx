@@ -161,7 +161,7 @@ export function HoyScreen({
           <Textarea
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="Escribí tu idea, o pegá acá tu Creative Blueprint..."
+            placeholder="Escribí tu idea, o pegá acá tu guion..."
             className="min-h-[160px] text-[14.5px]"
           />
           {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
@@ -205,7 +205,7 @@ export function HoyScreen({
               Volver
             </Button>
             <Button type="button" onClick={analizarResultadoPegado} disabled={!textoPegado.trim()}>
-              Analizar Blueprint
+              Analizar guion
             </Button>
           </div>
         </div>

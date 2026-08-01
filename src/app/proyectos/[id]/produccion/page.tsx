@@ -17,7 +17,7 @@ export default async function ProduccionesPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-4">
       <Card>
-        <SectionTitle subtitle="Cada Producción es un video independiente, con su propio storyboard — un Proyecto puede tener varias a lo largo del tiempo. Para importar un Creative Blueprint, hacelo desde Hoy.">
+        <SectionTitle subtitle="Cada Producción es un video independiente, con su propio storyboard — un Proyecto puede tener varias a lo largo del tiempo. Para crear un video a partir de un guion, hacelo desde Hoy.">
           Producciones
         </SectionTitle>
         <div className="flex flex-wrap items-start gap-3">
