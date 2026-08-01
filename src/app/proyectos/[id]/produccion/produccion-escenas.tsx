@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
+import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
 import { EscenaPanel } from "./escena-panel";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
@@ -43,6 +45,9 @@ export function ProduccionEscenas({
   onCrear,
   onSave,
   onEstadoChange,
+  onMover,
+  onDuplicar,
+  onEliminar,
 }: {
   escenasIniciales: StoryboardEscenaConPersonajes[];
   planos: Plano[];
@@ -51,8 +56,12 @@ export function ProduccionEscenas({
   onCrear: () => Promise<void>;
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
+  onMover: (escenaId: string, direccion: "arriba" | "abajo") => Promise<void>;
+  onDuplicar: (escenaId: string) => Promise<void>;
+  onEliminar: (escenaId: string) => Promise<void>;
 }) {
   const [escenaAbiertaId, setEscenaAbiertaId] = useState<string | null>(null);
+  const [escenaAEliminarId, setEscenaAEliminarId] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
   const [, startTransition] = useTransition();
@@ -82,6 +91,36 @@ export function ProduccionEscenas({
     });
   }
 
+  function handleMover(escenaId: string, direccion: "arriba" | "abajo") {
+    startTransition(async () => {
+      try {
+        await onMover(escenaId, direccion);
+      } catch (e) {
+        setError(explicarError(e));
+      }
+    });
+  }
+
+  function handleDuplicar(escenaId: string) {
+    startTransition(async () => {
+      try {
+        await onDuplicar(escenaId);
+      } catch (e) {
+        setError(explicarError(e));
+      }
+    });
+  }
+
+  function handleEliminar(escenaId: string) {
+    startTransition(async () => {
+      try {
+        await onEliminar(escenaId);
+      } catch (e) {
+        setError(explicarError(e));
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
@@ -92,10 +131,12 @@ export function ProduccionEscenas({
         </Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {escenasIniciales.map((escena) => {
+          {escenasIniciales.map((escena, index) => {
             const t = tiempos.find((x) => x.id === escena.id)!;
             const plano = planos.find((p) => p.id === escena.planoId);
             const locacion = locaciones.find((a) => a.id === escena.locacionId);
+            const esPrimera = index === 0;
+            const esUltima = index === escenasIniciales.length - 1;
             return (
               <Card
                 key={escena.id}
@@ -107,11 +148,27 @@ export function ProduccionEscenas({
                       <span className="font-mono text-[11px] text-text-muted">#{escena.numero}</span>
                       <Chip>{ETIQUETAS_TIPO_ESCENA[escena.tipoEscena] ?? "Sin tipo"}</Chip>
                     </div>
-                    <EstadoProduccionSelect
-                      escenaId={escena.id}
-                      estado={escena.estadoProduccion}
-                      onChange={handleEstadoChange}
-                    />
+                    <div className="flex items-center gap-1">
+                      <EstadoProduccionSelect
+                        escenaId={escena.id}
+                        estado={escena.estadoProduccion}
+                        onChange={handleEstadoChange}
+                      />
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <ActionMenu>
+                          <ActionMenuItem disabled={esPrimera} onSelect={() => handleMover(escena.id, "arriba")}>
+                            ↑ Mover arriba
+                          </ActionMenuItem>
+                          <ActionMenuItem disabled={esUltima} onSelect={() => handleMover(escena.id, "abajo")}>
+                            ↓ Mover abajo
+                          </ActionMenuItem>
+                          <ActionMenuItem onSelect={() => handleDuplicar(escena.id)}>Duplicar</ActionMenuItem>
+                          <ActionMenuItem variant="danger" onSelect={() => setEscenaAEliminarId(escena.id)}>
+                            Eliminar
+                          </ActionMenuItem>
+                        </ActionMenu>
+                      </div>
+                    </div>
                   </div>
                   <p className="mt-2 truncate text-[13.5px] text-text">
                     {escena.objetivoNarrativo || "Sin objetivo narrativo todavía"}
@@ -145,6 +202,18 @@ export function ProduccionEscenas({
           onEstadoChange={onEstadoChange}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={escenaAEliminarId !== null}
+        onOpenChange={(open) => !open && setEscenaAEliminarId(null)}
+        title="¿Eliminar esta escena?"
+        description="Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={() => {
+          if (escenaAEliminarId) handleEliminar(escenaAEliminarId);
+        }}
+      />
     </div>
   );
 }

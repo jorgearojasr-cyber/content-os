@@ -1970,3 +1970,116 @@ export async function actualizarEstadoProduccionEscena(proyectoId: string, escen
 
   revalidatePath(`/proyectos/${proyectoId}/produccion`);
 }
+
+/** Recalcula `orden` y `numero` de todo el storyboard según el orden
+ * actual — deja la secuencia sin huecos tras insertar (duplicar) o borrar
+ * una escena. `mover` NO pasa por acá: ahí `numero` (posición narrativa
+ * original) debe mantenerse fijo, solo se intercambia `orden`. */
+async function renumerarStoryboard(proyectoId: string) {
+  const escenas = await db
+    .select({ id: storyboardEscenas.id, orden: storyboardEscenas.orden })
+    .from(storyboardEscenas)
+    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+  escenas.sort((a, b) => a.orden - b.orden);
+
+  for (let i = 0; i < escenas.length; i++) {
+    await db
+      .update(storyboardEscenas)
+      .set({ orden: i + 1, numero: i + 1 })
+      .where(eq(storyboardEscenas.id, escenas[i].id));
+  }
+}
+
+/** Intercambia el `orden` de una escena con su vecina inmediata — no toca
+ * `numero`. No-op silencioso si no hay vecina hacia ese lado (la UI ya
+ * deshabilita el botón en los bordes; esto es solo la red de seguridad). */
+export async function moverEscenaStoryboard(
+  proyectoId: string,
+  escenaId: string,
+  direccion: "arriba" | "abajo",
+) {
+  const escenas = await db
+    .select({ id: storyboardEscenas.id, orden: storyboardEscenas.orden })
+    .from(storyboardEscenas)
+    .where(eq(storyboardEscenas.proyectoId, proyectoId));
+  escenas.sort((a, b) => a.orden - b.orden);
+
+  const index = escenas.findIndex((e) => e.id === escenaId);
+  const destino = direccion === "arriba" ? index - 1 : index + 1;
+  if (index === -1 || destino < 0 || destino >= escenas.length) return;
+
+  const actual = escenas[index];
+  const vecina = escenas[destino];
+  await db.update(storyboardEscenas).set({ orden: vecina.orden }).where(eq(storyboardEscenas.id, actual.id));
+  await db.update(storyboardEscenas).set({ orden: actual.orden }).where(eq(storyboardEscenas.id, vecina.id));
+
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Duplica una escena completa (incluidos sus Personajes) justo después
+ * del original, siempre en BORRADOR sin importar el estado original.
+ * Renumera todo el storyboard al final para que `numero`/`orden` queden
+ * contiguos con la copia insertada en su lugar. */
+export async function duplicarEscenaStoryboard(proyectoId: string, escenaId: string) {
+  const [original] = await db
+    .select()
+    .from(storyboardEscenas)
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+  if (!original) throw new Error("La escena original ya no existe.");
+
+  const relacionesOriginal = await db
+    .select()
+    .from(storyboardEscenasPersonajes)
+    .where(eq(storyboardEscenasPersonajes.escenaId, escenaId));
+
+  await db
+    .update(storyboardEscenas)
+    .set({ orden: sql`${storyboardEscenas.orden} + 1` })
+    .where(and(eq(storyboardEscenas.proyectoId, proyectoId), sql`${storyboardEscenas.orden} > ${original.orden}`));
+
+  const nuevaId = randomUUID();
+  await db.insert(storyboardEscenas).values({
+    id: nuevaId,
+    proyectoId: original.proyectoId,
+    numero: original.numero,
+    orden: original.orden + 1,
+    duracionSegundos: original.duracionSegundos,
+    tipoEscena: original.tipoEscena,
+    objetivoNarrativo: original.objetivoNarrativo,
+    emocion: original.emocion,
+    valorEspectador: original.valorEspectador,
+    locacionId: original.locacionId,
+    planoId: original.planoId,
+    movimientoCamara: original.movimientoCamara,
+    accion: original.accion,
+    textoHablado: original.textoHablado,
+    textoPantalla: original.textoPantalla,
+    recursosNecesarios: original.recursosNecesarios,
+    promptIa: original.promptIa,
+    promptVideoIa: original.promptVideoIa,
+    musica: original.musica,
+    transicion: original.transicion,
+    estadoProduccion: "BORRADOR",
+    notas: original.notas,
+  });
+
+  if (relacionesOriginal.length > 0) {
+    await db
+      .insert(storyboardEscenasPersonajes)
+      .values(relacionesOriginal.map((r) => ({ id: randomUUID(), escenaId: nuevaId, personajeId: r.personajeId })));
+  }
+
+  await renumerarStoryboard(proyectoId);
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}
+
+/** Elimina una escena — la tabla puente se limpia sola por cascade. Deja
+ * `orden`/`numero` del resto sin huecos. */
+export async function eliminarEscenaStoryboard(proyectoId: string, escenaId: string) {
+  await db
+    .delete(storyboardEscenas)
+    .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.proyectoId, proyectoId)));
+
+  await renumerarStoryboard(proyectoId);
+  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+}

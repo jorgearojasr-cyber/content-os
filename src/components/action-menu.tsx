@@ -42,24 +42,26 @@ export function ActionMenuItem({
   onSelect,
   variant = "default",
   href,
+  disabled = false,
 }: {
   children: React.ReactNode;
   onSelect?: () => void;
   variant?: "default" | "danger";
   href?: string;
+  disabled?: boolean;
 }) {
-  const className = `block w-full px-3 py-2 text-left text-[13.5px] transition-colors hover:bg-surface ${
-    variant === "danger" ? "text-danger" : "text-text"
-  }`;
+  const className = `block w-full px-3 py-2 text-left text-[13.5px] transition-colors ${
+    disabled ? "cursor-not-allowed text-text-muted/50" : "hover:bg-surface"
+  } ${variant === "danger" && !disabled ? "text-danger" : !disabled ? "text-text" : ""}`;
   if (href) {
     return (
-      <a href={href} className={className}>
+      <a href={disabled ? undefined : href} className={className} aria-disabled={disabled}>
         {children}
       </a>
     );
   }
   return (
-    <button type="button" onClick={onSelect} className={className}>
+    <button type="button" onClick={disabled ? undefined : onSelect} disabled={disabled} className={className}>
       {children}
     </button>
   );

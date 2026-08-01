@@ -1,11 +1,14 @@
 import {
   actualizarEstadoProduccionEscena,
   crearEscenaEnBlanco,
+  duplicarEscenaStoryboard,
+  eliminarEscenaStoryboard,
   getActivos,
   getPersonajes,
   getPlanos,
   getProyecto,
   getStoryboardEscenas,
+  moverEscenaStoryboard,
   updateStoryboardEscena,
 } from "@/lib/actions";
 import { notFound } from "next/navigation";
@@ -48,6 +51,9 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
   const boundCrear = crearEscenaEnBlanco.bind(null, proyectoId);
   const boundSave = updateStoryboardEscena.bind(null, proyectoId);
   const boundEstado = actualizarEstadoProduccionEscena.bind(null, proyectoId);
+  const boundMover = moverEscenaStoryboard.bind(null, proyectoId);
+  const boundDuplicar = duplicarEscenaStoryboard.bind(null, proyectoId);
+  const boundEliminar = eliminarEscenaStoryboard.bind(null, proyectoId);
 
   return (
     <div className="space-y-4">
@@ -80,6 +86,9 @@ export default async function ProduccionPage({ params }: { params: Promise<{ id:
         onCrear={boundCrear}
         onSave={boundSave}
         onEstadoChange={boundEstado}
+        onMover={boundMover}
+        onDuplicar={boundDuplicar}
+        onEliminar={boundEliminar}
       />
     </div>
   );
