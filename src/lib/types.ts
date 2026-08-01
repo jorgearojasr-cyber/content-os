@@ -1058,6 +1058,7 @@ export type Produccion = {
   musicaPrincipal: string;
   intro: string;
   outro: string;
+  notas: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -557,6 +557,11 @@ export const producciones = pgTable("producciones", {
   musicaPrincipal: text("musica_principal").notNull().default(""),
   intro: text("intro").notNull().default(""),
   outro: text("outro").notNull().default(""),
+  // Válvula de escape a nivel Producción, mismo criterio que
+  // `storyboardEscenas.notas` — agregada tras el stress test del formato
+  // técnico del CBD (sección 2.3 del diseño conceptual la contemplaba
+  // desde el inicio, este campo cierra esa brecha).
+  notas: text("notas").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),
