@@ -6,12 +6,18 @@ pasa a ser una herramienta elegida por el usuario — ChatGPT, Claude, Gemini,
 Grok o cualquier otra.
 
 Esta es la arquitectura de referencia para toda funcionalidad de **Nivel A**
-(ver `ARCHITECTURE-MIGRATION`) que necesita que el resultado de la IA vuelva
-a alimentar algo dentro de Content OS — un formulario, un deep-link, un
-cálculo. Para funcionalidades donde el resultado puede quedarse
-directamente en la conversación del usuario con su IA, sin volver a
-Content OS, ver el Patrón 1 (fire-and-forget) — no cubierto en este
-documento.
+(ver [`nivel-a-nivel-b.md`](./nivel-a-nivel-b.md) para la clasificación
+oficial completa, incluido Nivel B y por qué no existe un Nivel C) que
+necesita que el resultado de la IA vuelva a alimentar algo dentro de
+Content OS — un formulario, un deep-link, un cálculo. Para funcionalidades
+donde el resultado puede quedarse directamente en la conversación del
+usuario con su IA, sin volver a Content OS, ver el Patrón 1
+(fire-and-forget) — no cubierto en este documento.
+
+Junto con [`nivel-a-nivel-b.md`](./nivel-a-nivel-b.md), este documento
+cubre la arquitectura completa de IA de Content OS: uno define **qué es**
+cada nivel y **cuándo** aplica cada uno; este define **cómo** se
+implementa el Patrón 2 una vez que algo ya se clasificó como Nivel A.
 
 ## El flujo estándar
 
