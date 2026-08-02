@@ -6,8 +6,8 @@ import {
   deleteDocumento,
   getArea,
   getDocumentosDeArea,
+  getPersonajes,
   getProyectosDeArea,
-  getTodosLosPersonajes,
   updateArea,
   updateDocumento,
 } from "@/lib/actions";
@@ -26,7 +26,7 @@ export default async function AreaDetallePage({ params }: { params: Promise<{ id
   const [proyectos, documentos, personajes] = await Promise.all([
     getProyectosDeArea(areaId),
     getDocumentosDeArea(areaId),
-    getTodosLosPersonajes(),
+    getPersonajes(),
   ]);
   const boundCreate = createDocumentoDeArea.bind(null, areaId);
   const boundUpdate = updateArea.bind(null, areaId);

@@ -10,13 +10,10 @@ export const OPCIONES_POSICION_LOGO: { value: PosicionLogo; etiqueta: string }[]
   { value: "inferior-derecha", etiqueta: "Esquina inferior derecha" },
 ];
 
-/** La única opción es de proyecto -> se auto-selecciona sin selector (cero
- * fricción). Cualquier otro caso con al menos 2 opciones (de proyecto y/o
- * de estudio), o con la única opción siendo del estudio, sí muestra
- * selector — un Personaje del estudio nunca se elige solo. */
-export function haySelectorDePersonaje(personajes: Personaje[], personajesEstudio: Personaje[]): boolean {
-  const total = personajes.length + personajesEstudio.length;
-  return total > 1 || (total === 1 && personajes.length === 0);
+/** 0 o 1 Personaje disponible -> se auto-selecciona sin selector (cero
+ * fricción). 2+ sí muestra selector. */
+export function haySelectorDePersonaje(personajes: Personaje[]): boolean {
+  return personajes.length > 1;
 }
 
 /**
@@ -30,7 +27,6 @@ export function QueIncluir({
   incluirPersonaje,
   setIncluirPersonaje,
   personajes,
-  personajesEstudio,
   personajeIds,
   onTogglePersonaje,
   onElegirAutomatico,
@@ -52,7 +48,6 @@ export function QueIncluir({
   incluirPersonaje: boolean;
   setIncluirPersonaje: (v: boolean) => void;
   personajes: Personaje[];
-  personajesEstudio: Personaje[];
   /** Selección múltiple — misma fuente de verdad que el carrusel de la
    * tarjeta "Personajes" en Crear (`personajeSeleccion.ids`), nunca un
    * estado separado. */
@@ -77,7 +72,7 @@ export function QueIncluir({
   posicionLogo: PosicionLogo;
   setPosicionLogo: (v: PosicionLogo) => void;
 }) {
-  const mostrarSelectorPersonaje = haySelectorDePersonaje(personajes, personajesEstudio);
+  const mostrarSelectorPersonaje = haySelectorDePersonaje(personajes);
 
   return (
     <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
@@ -105,27 +100,7 @@ export function QueIncluir({
                 </label>
                 {personajes.length > 0 ? (
                   <div className="mt-1.5">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-                      De este proyecto
-                    </p>
                     {personajes.map((p) => (
-                      <label key={p.id} className="flex items-center gap-2 text-[12.5px] text-text">
-                        <input
-                          type="checkbox"
-                          checked={personajeIds.includes(p.id)}
-                          onChange={() => onTogglePersonaje(p.id)}
-                        />
-                        {p.nombre || "Personaje sin nombre"}
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-                {personajesEstudio.length > 0 ? (
-                  <div className="mt-1.5">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-                      Del estudio
-                    </p>
-                    {personajesEstudio.map((p) => (
                       <label key={p.id} className="flex items-center gap-2 text-[12.5px] text-text">
                         <input
                           type="checkbox"

@@ -5,7 +5,6 @@ import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "./
 function personajeVacio(overrides: Partial<Personaje> = {}): Personaje {
   return {
     id: "p-1",
-    proyectoId: "proyecto-1",
     nombre: "",
     personalidad: "",
     fisica: "",

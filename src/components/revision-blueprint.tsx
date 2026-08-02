@@ -79,7 +79,7 @@ export function RevisionBlueprint({
     textoCrudo: string,
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
-  onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
+  onCrearPersonaje: (nombre: string) => Promise<{ id: string }>;
   onCrearLocacion: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onCerrar: () => void;
 }) {
@@ -126,8 +126,7 @@ export function RevisionBlueprint({
   }
 
   async function crearPersonajeYResolver(nombre: string): Promise<{ id: string }> {
-    if (!proyectoElegidoId) throw new Error("Todavía no se eligió un Proyecto.");
-    const { id } = await onCrearPersonaje(proyectoElegidoId, nombre);
+    const { id } = await onCrearPersonaje(nombre);
     setAnalisisBiblioteca((prev) =>
       prev ? { ...prev, personajesDisponibles: [...prev.personajesDisponibles, { id, nombre }] } : prev,
     );

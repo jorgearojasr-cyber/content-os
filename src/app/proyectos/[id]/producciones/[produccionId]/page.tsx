@@ -43,7 +43,7 @@ export default async function ProduccionDetallePage({
     getStoryboardEscenas(produccionId),
     getPlanos(),
     getActivos(proyectoId),
-    getPersonajes(proyectoId),
+    getPersonajes(),
   ]);
   const locaciones = activos.filter((a) => a.tipo === "foto");
 

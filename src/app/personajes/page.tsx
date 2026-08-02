@@ -5,8 +5,8 @@ import {
   eliminarArchivoTemporal,
   eliminarFotoContextoPersonaje,
   eliminarFotoPersonaje,
-  getProyectos,
-  getTodosLosPersonajes,
+  generarPersonajeAction,
+  getPersonajes,
   subirArchivoTemporal,
   subirFotoContextoPersonaje,
   subirFotoPersonaje,
@@ -18,7 +18,7 @@ import { PersonajesGlobalLista } from "./personajes-global-lista";
 export const dynamic = "force-dynamic";
 
 export default async function PersonajesPage() {
-  const [personajes, proyectos] = await Promise.all([getTodosLosPersonajes(), getProyectos()]);
+  const personajes = await getPersonajes();
 
   return (
     <main className="mx-auto max-w-[900px] px-4 py-6 sm:py-8">
@@ -27,14 +27,11 @@ export default async function PersonajesPage() {
           Estudio Creativo JR
         </div>
         <h1 className="font-display text-2xl font-normal tracking-wide">Personajes</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Los de cada proyecto, más los del estudio — reutilizables en cualquiera.
-        </p>
+        <p className="mt-1 text-sm text-text-muted">Reutilizables en cualquier proyecto.</p>
       </header>
 
       <PersonajesGlobalLista
         personajes={personajes}
-        proyectos={proyectos}
         onCreate={createPersonaje}
         onUpdate={updatePersonaje}
         onDelete={deletePersonaje}
@@ -42,6 +39,7 @@ export default async function PersonajesPage() {
         onEliminarFoto={eliminarFotoPersonaje}
         onSubirTemporal={subirArchivoTemporal}
         onEliminarTemporal={eliminarArchivoTemporal}
+        onGenerarPersonaje={generarPersonajeAction}
         onSubirFotoContexto={subirFotoContextoPersonaje}
         onEditarEtiquetaFotoContexto={editarEtiquetaFotoContexto}
         onEliminarFotoContexto={eliminarFotoContextoPersonaje}

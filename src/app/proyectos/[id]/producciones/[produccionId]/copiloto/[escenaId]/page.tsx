@@ -23,7 +23,7 @@ export default async function CopilotoGrabarPage({
     getStoryboardEscenas(produccionId),
     getPlanos(),
     getActivos(proyectoId),
-    getPersonajes(proyectoId),
+    getPersonajes(),
   ]);
   const escena = escenas.find((e) => e.id === escenaId);
   if (!escena) notFound();

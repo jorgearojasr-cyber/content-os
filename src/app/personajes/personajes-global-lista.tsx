@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { getRelacionesPersonaje } from "@/lib/actions";
-import { Button, Card, Chip, Empty } from "@/components/ui";
+import { Button, Card, Empty, Textarea } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RelacionadoPanel } from "@/components/relacionado-panel";
 import { PersonajeForm } from "@/app/proyectos/[id]/identidad/personajes-lista";
+import { explicarError } from "@/lib/errores";
 import { extraerFragmento } from "@/lib/reutilizacion";
 import { urlImagenVisible } from "@/lib/imagen-url";
 import { fotoPrincipal, parseFotosPersonaje } from "@/lib/types";
-import type { FotoContextoPersonaje, FotoPersonaje, Personaje, Proyecto, TipoFotoPersonaje } from "@/lib/types";
+import type { FotoContextoPersonaje, FotoPersonaje, Personaje, TipoFotoPersonaje } from "@/lib/types";
+import type { PersonajeSugerido } from "@/lib/ai";
 
 const LARGO_RESUMEN = 90;
 
@@ -19,18 +20,17 @@ function resumenPersonaje(p: Personaje): string {
   return extraerFragmento(primero ?? "", LARGO_RESUMEN);
 }
 
-type PersonajeGlobal = Personaje & { proyectoNombre: string };
+function setCampoEstilo(id: string, valor: string) {
+  const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+  if (el) el.value = valor;
+}
 
 /**
- * Lista global de Personajes: los de proyecto se ven y se editan como
- * siempre (Editar navega a la Identidad de su proyecto — no hay formulario
- * acá para no duplicarlo). Los del estudio (`proyectoId: null`) no tienen
- * proyecto al que navegar, así que Editar/Eliminar se resuelven aquí
- * mismo, reutilizando el mismo `PersonajeForm` de Identidad.
+ * Lista global de Personajes (PERSONAJES-1-PASADA-1: ya no hay Personajes
+ * de Proyecto — todos viven acá, la única pantalla que los administra).
  */
 export function PersonajesGlobalLista({
   personajes,
-  proyectos,
   onCreate,
   onUpdate,
   onDelete,
@@ -38,64 +38,107 @@ export function PersonajesGlobalLista({
   onEliminarFoto,
   onSubirTemporal,
   onEliminarTemporal,
+  onGenerarPersonaje,
   onSubirFotoContexto,
   onEditarEtiquetaFotoContexto,
   onEliminarFotoContexto,
 }: {
-  personajes: PersonajeGlobal[];
-  proyectos: Proyecto[];
-  onCreate: (proyectoId: string | null, formData: FormData) => Promise<{ id: string }>;
+  personajes: Personaje[];
+  onCreate: (formData: FormData) => Promise<{ id: string }>;
   onUpdate: (personajeId: string, formData: FormData) => Promise<void>;
   onDelete: (personajeId: string) => Promise<void>;
   onSubirFoto: (personajeId: string, tipo: TipoFotoPersonaje, formData: FormData) => Promise<FotoPersonaje[]>;
   onEliminarFoto: (personajeId: string, url: string) => Promise<FotoPersonaje[]>;
   onSubirTemporal: (formData: FormData) => Promise<string>;
   onEliminarTemporal: (url: string) => Promise<void>;
+  onGenerarPersonaje: (
+    descripcion: string,
+    contexto?: Partial<PersonajeSugerido>,
+  ) => Promise<PersonajeSugerido>;
   onSubirFotoContexto: (personajeId: string, formData: FormData) => Promise<FotoContextoPersonaje[]>;
   onEditarEtiquetaFotoContexto: (personajeId: string, url: string, etiqueta: string) => Promise<FotoContextoPersonaje[]>;
   onEliminarFotoContexto: (personajeId: string, url: string) => Promise<FotoContextoPersonaje[]>;
 }) {
   const [abierto, setAbierto] = useState<"nuevo" | string | null>(null);
-  const [destino, setDestino] = useState("");
+  const [modoIA, setModoIA] = useState(false);
+  const [descripcionIA, setDescripcionIA] = useState("");
+  const [generando, setGenerando] = useState(false);
+  const [errorIA, setErrorIA] = useState("");
   const [confirmEliminar, setConfirmEliminar] = useState<string | null>(null);
+
+  async function generarYAbrir() {
+    setGenerando(true);
+    setErrorIA("");
+    try {
+      const sugerido = await onGenerarPersonaje(descripcionIA);
+      const fd = new FormData();
+      fd.set("nombre", "");
+      fd.set("personalidad", sugerido.personajePersonalidad);
+      fd.set("fisica", sugerido.fisica);
+      fd.set("vestuario", sugerido.vestuario);
+      fd.set("vozDescrita", sugerido.vozDescrita);
+      fd.set("gestos", sugerido.gestos);
+      fd.set("muletillas", sugerido.muletillas);
+      const { id } = await onCreate(fd);
+      // look/cámara son campos de Estilo (viven en identidades, no en el
+      // Personaje) — se sugieren igual, como subproducto de describirlo.
+      setCampoEstilo("look", sugerido.look);
+      setCampoEstilo("camara", sugerido.camara);
+      setModoIA(false);
+      setDescripcionIA("");
+      setAbierto(id);
+    } catch (e) {
+      setErrorIA(explicarError(e));
+    } finally {
+      setGenerando(false);
+    }
+  }
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
-          onClick={() => {
-            setDestino("");
-            setAbierto(abierto === "nuevo" ? null : "nuevo");
-          }}
+          variant="secondary"
+          onClick={() => setModoIA((v) => !v)}
+        >
+          ✨ Generar con IA
+        </Button>
+        <Button
+          type="button"
+          onClick={() => setAbierto(abierto === "nuevo" ? null : "nuevo")}
         >
           + Nuevo personaje
         </Button>
       </div>
 
+      {modoIA ? (
+        <div className="mb-4 rounded-xl border border-border bg-surface-2 p-3.5">
+          <Textarea
+            value={descripcionIA}
+            onChange={(e) => setDescripcionIA(e.target.value)}
+            placeholder="Ej: Quiero un maestro chileno de aproximadamente 58 años, cercano, con mucha experiencia y que enseñe de forma sencilla."
+          />
+          {errorIA ? <p className="mt-2 text-[12.5px] text-danger">{errorIA}</p> : null}
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setModoIA(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" disabled={generando || !descripcionIA.trim()} onClick={generarYAbrir}>
+              {generando ? "Generando…" : "Generar"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {abierto === "nuevo" ? (
         <div className="mb-4">
-          <Card className="mb-3 border border-accent/30 bg-accent-soft/20">
-            <label className="mb-1 block text-[12.5px] text-text-muted">¿Dónde vive este personaje?</label>
-            <select
-              value={destino}
-              onChange={(e) => setDestino(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[13.5px] text-text"
-            >
-              <option value="">Personaje del estudio (usable en cualquier proyecto)</option>
-              {proyectos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
-          </Card>
           <PersonajeForm
             key="nuevo"
             titulo="Nuevo personaje"
             personaje={null}
             onSubmit={async (fd) => {
-              await onCreate(destino || null, fd);
+              await onCreate(fd);
               setAbierto(null);
             }}
             onCancelar={() => setAbierto(null)}
@@ -106,14 +149,10 @@ export function PersonajesGlobalLista({
       ) : null}
 
       {personajes.length === 0 && abierto !== "nuevo" ? (
-        <Empty title="Todavía no hay personajes">
-          Crea el primero arriba, o desde la Identidad de un proyecto — ambos aparecen aquí.
-        </Empty>
+        <Empty title="Todavía no hay personajes">Crea el primero arriba.</Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {personajes.map((p) => {
-            const esDelEstudio = p.proyectoId === null;
-
             if (abierto === p.id) {
               return (
                 <div key={p.id} className="sm:col-span-2">
@@ -148,40 +187,24 @@ export function PersonajesGlobalLista({
             return (
               <Card key={p.id}>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <Chip>{esDelEstudio ? "Estudio" : p.proyectoNombre}</Chip>
-                    <div className="mt-1.5 font-display text-[16px]">
-                      {p.nombre || "Personaje sin nombre"}
-                    </div>
-                  </div>
+                  <div className="font-display text-[16px]">{p.nombre || "Personaje sin nombre"}</div>
                   <div className="flex shrink-0 gap-1.5">
-                    {esDelEstudio ? (
-                      <>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="px-2.5 py-1 text-[12.5px]"
-                          onClick={() => setAbierto(p.id)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="danger"
-                          className="px-2.5 py-1 text-[12.5px]"
-                          onClick={() => setConfirmEliminar(p.id)}
-                        >
-                          Eliminar
-                        </Button>
-                      </>
-                    ) : (
-                      <Link
-                        href={`/proyectos/${p.proyectoId}/identidad`}
-                        className="inline-flex items-center justify-center rounded-xl border border-border bg-transparent px-2.5 py-1 text-[12.5px] text-text transition-opacity hover:bg-surface-2"
-                      >
-                        Editar
-                      </Link>
-                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="px-2.5 py-1 text-[12.5px]"
+                      onClick={() => setAbierto(p.id)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      className="px-2.5 py-1 text-[12.5px]"
+                      onClick={() => setConfirmEliminar(p.id)}
+                    >
+                      Eliminar
+                    </Button>
                   </div>
                 </div>
                 {foto ? (

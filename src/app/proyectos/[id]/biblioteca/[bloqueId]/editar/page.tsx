@@ -7,7 +7,6 @@ import {
   getBloque,
   getIdentidad,
   getPersonajes,
-  getPersonajesDelEstudio,
   revisarEscenaAction,
   updateBloque,
 } from "@/lib/actions";
@@ -29,8 +28,7 @@ export default async function EditarBloquePage({
 
   const identidad = await getIdentidad(proyectoId);
   const activos = await getActivos(proyectoId);
-  const personajes = await getPersonajes(proyectoId);
-  const personajesEstudio = await getPersonajesDelEstudio();
+  const personajes = await getPersonajes();
   const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateBloque.bind(null, proyectoId, bloqueId);
   const boundGenerarImagen = generarImagenParaEscena.bind(null, proyectoId, bloqueId);
@@ -66,7 +64,6 @@ export default async function EditarBloquePage({
         tieneAvatar={avatares.length > 0}
         personajesUsados={personajesUsados}
         personajes={personajes}
-        personajesEstudio={personajesEstudio}
         avatares={avatares}
         personajeIdsIniciales={personajeIds}
       />

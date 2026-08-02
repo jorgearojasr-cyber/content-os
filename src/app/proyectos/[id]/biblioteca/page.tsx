@@ -6,7 +6,6 @@ import {
   getIdentidad,
   getPapelera,
   getPersonajes,
-  getPersonajesDelEstudio,
   getProyectos,
 } from "@/lib/actions";
 import { Empty, SectionTitle } from "@/components/ui";
@@ -48,15 +47,14 @@ export default async function BibliotecaPage({
   const vista: Vista =
     vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
 
-  const [bloques, proyectos, personajes, personajesEstudio, activosDelProyecto, identidad] = await Promise.all([
+  const [bloques, proyectos, personajes, activosDelProyecto, identidad] = await Promise.all([
     vista === "activos"
       ? getBloques(proyectoId)
       : vista === "archivados"
         ? getBloquesArchivados(proyectoId)
         : getPapelera(proyectoId),
     getProyectos(),
-    getPersonajes(proyectoId),
-    getPersonajesDelEstudio(),
+    getPersonajes(),
     getActivos(proyectoId),
     getIdentidad(proyectoId),
   ]);
@@ -64,7 +62,7 @@ export default async function BibliotecaPage({
   const otrosProyectos = proyectos
     .filter((p) => p.id !== proyectoId)
     .map((p) => ({ id: p.id, nombre: p.nombre }));
-  const personajePorId = personajesPorId([...personajes, ...personajesEstudio]);
+  const personajePorId = personajesPorId(personajes);
   // Etiqueta -> URL de cada foto de lugar (Activo tipo "foto") — para que la
   // guía de producción pueda mostrar la foto real cuando una escena la usó
   // como referencia (`escena.activoReferenciado`).

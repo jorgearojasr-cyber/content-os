@@ -1,26 +1,17 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
   completarProyectoAction,
   createAvatar,
   createPersonaje,
   deleteAvatar,
-  deletePersonaje,
-  editarEtiquetaFotoContexto,
-  eliminarArchivoTemporal,
-  eliminarFotoContextoPersonaje,
-  eliminarFotoPersonaje,
-  generarPersonajeAction,
   getActivos,
   getAvatares,
   getIdentidad,
   getPersonajes,
-  subirArchivoTemporal,
-  subirFotoContextoPersonaje,
-  subirFotoPersonaje,
   subirLogo,
   updateAvatar,
   updateIdentidad,
-  updatePersonaje,
 } from "@/lib/actions";
 import { Card, SectionTitle } from "@/components/ui";
 import { BotonGuardar } from "@/components/boton-guardar";
@@ -56,7 +47,6 @@ import {
 } from "@/lib/types";
 import type { Identidad } from "@/lib/types";
 import { IdentidadAiTools } from "./ai-tools";
-import { PersonajesLista } from "./personajes-lista";
 import { AvataresLista } from "./avatares-lista";
 
 const LARGO_RESUMEN = 80;
@@ -167,15 +157,13 @@ export default async function IdentidadPage({
   if (!identidad) notFound();
 
   const activos = await getActivos(proyectoId);
-  const personajes = await getPersonajes(proyectoId);
+  // Personajes son globales (PERSONAJES-1-PASADA-1) — no se acotan a este
+  // Proyecto, se administran en /personajes; acá solo alimentan el Prompt
+  // Maestro y el Estado del Compilador de esta Marca.
+  const personajes = await getPersonajes();
   const avatares = await getAvatares(proyectoId);
   const boundUpdate = updateIdentidad.bind(null, proyectoId);
   const boundSubirLogo = subirLogo.bind(null, proyectoId);
-  // Un Personaje creado desde la Identidad de un proyecto siempre es DE ESE
-  // proyecto (nunca del estudio) — updatePersonaje/deletePersonaje/subirFoto/
-  // eliminarFoto ya no necesitan proyectoId (personajeId es suficiente y
-  // único), así que se pasan tal cual, sin bind.
-  const boundCreatePersonaje = createPersonaje.bind(null, proyectoId);
   const boundCreateAvatar = createAvatar.bind(null, proyectoId);
   const boundUpdateAvatar = updateAvatar.bind(null, proyectoId);
   const boundDeleteAvatar = deleteAvatar.bind(null, proyectoId);
@@ -221,7 +209,7 @@ export default async function IdentidadPage({
 
       <IdentidadAiTools
         onCompletarProyecto={completarProyectoAction}
-        onCreatePersonaje={boundCreatePersonaje}
+        onCreatePersonaje={createPersonaje}
         onCreateAvatar={boundCreateAvatar}
       />
 
@@ -282,28 +270,20 @@ export default async function IdentidadPage({
         </div>
       </form>
 
-      <SeccionColapsable
-        titulo="Personajes"
-        subtitulo="Quién aparece, si aplica. Un proyecto puede tener varios — eliges cuál usar al crear."
-        tieneContenido={tienePersonaje}
-        resumen={resumenPersonajes}
-      >
-        <PersonajesLista
-          personajes={personajes}
-          identidad={identidad}
-          onCreate={boundCreatePersonaje}
-          onUpdate={updatePersonaje}
-          onDelete={deletePersonaje}
-          onSubirFoto={subirFotoPersonaje}
-          onEliminarFoto={eliminarFotoPersonaje}
-          onSubirTemporal={subirArchivoTemporal}
-          onEliminarTemporal={eliminarArchivoTemporal}
-          onGenerarPersonaje={generarPersonajeAction}
-          onSubirFotoContexto={subirFotoContextoPersonaje}
-          onEditarEtiquetaFotoContexto={editarEtiquetaFotoContexto}
-          onEliminarFotoContexto={eliminarFotoContextoPersonaje}
-        />
-      </SeccionColapsable>
+      <Card>
+        <SectionTitle subtitle="Los Personajes son globales — se administran en una sola pantalla, reutilizables en cualquier Proyecto.">
+          Personajes
+        </SectionTitle>
+        <p className="text-[13px] text-text-muted">
+          {tienePersonaje ? resumenPersonajes : "Todavía no hay ninguno."}
+        </p>
+        <Link
+          href="/personajes"
+          className="mt-2 inline-flex items-center justify-center rounded-xl border border-border bg-transparent px-3 py-1.5 text-[12.5px] text-text transition-opacity hover:bg-surface-2"
+        >
+          Ir a Personajes →
+        </Link>
+      </Card>
 
       <SeccionColapsable
         titulo="Avatares del cliente ideal"

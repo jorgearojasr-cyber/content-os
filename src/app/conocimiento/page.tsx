@@ -2,7 +2,7 @@ import {
   createDocumento,
   deleteDocumento,
   getDocumentosGlobales,
-  getTodosLosPersonajes,
+  getPersonajes,
   updateDocumento,
 } from "@/lib/actions";
 import { DocumentosLista } from "@/components/documentos-lista";
@@ -11,7 +11,7 @@ import { DocumentosLista } from "@/components/documentos-lista";
 export const dynamic = "force-dynamic";
 
 export default async function ConocimientoGlobalPage() {
-  const [documentos, personajes] = await Promise.all([getDocumentosGlobales(), getTodosLosPersonajes()]);
+  const [documentos, personajes] = await Promise.all([getDocumentosGlobales(), getPersonajes()]);
   const boundCreate = createDocumento.bind(null, null);
 
   return (

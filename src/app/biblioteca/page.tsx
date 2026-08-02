@@ -1,4 +1,4 @@
-import { getProyectos, getTodosLosBloquesActivos, getTodosLosPersonajes } from "@/lib/actions";
+import { getPersonajes, getProyectos, getTodosLosBloquesActivos } from "@/lib/actions";
 import { personajesPorId } from "@/lib/types";
 import { BibliotecaGlobalLista } from "./biblioteca-global-lista";
 
@@ -9,7 +9,7 @@ export default async function BibliotecaGlobalPage() {
   const [bloques, proyectos, todosPersonajes] = await Promise.all([
     getTodosLosBloquesActivos(),
     getProyectos(),
-    getTodosLosPersonajes(),
+    getPersonajes(),
   ]);
   const personajePorId = personajesPorId(todosPersonajes);
 

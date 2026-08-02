@@ -1,8 +1,8 @@
 import {
   createPromptGuardado,
   deletePromptGuardado,
+  getPersonajes,
   getPromptsGlobales,
-  getTodosLosPersonajes,
   updatePromptGuardado,
 } from "@/lib/actions";
 import { PromptsLista } from "@/components/prompts-lista";
@@ -11,7 +11,7 @@ import { PromptsLista } from "@/components/prompts-lista";
 export const dynamic = "force-dynamic";
 
 export default async function PromptsGlobalPage() {
-  const [prompts, personajes] = await Promise.all([getPromptsGlobales(), getTodosLosPersonajes()]);
+  const [prompts, personajes] = await Promise.all([getPromptsGlobales(), getPersonajes()]);
   const boundCreate = createPromptGuardado.bind(null, null);
 
   return (

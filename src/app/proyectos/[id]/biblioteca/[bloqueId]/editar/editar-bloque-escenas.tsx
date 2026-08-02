@@ -50,7 +50,6 @@ export function EditarBloqueConEscenas({
   tieneAvatar,
   personajesUsados,
   personajes,
-  personajesEstudio,
   avatares,
   personajeIdsIniciales,
 }: {
@@ -85,7 +84,6 @@ export function EditarBloqueConEscenas({
   tieneAvatar: boolean;
   personajesUsados: Personaje[];
   personajes: Personaje[];
-  personajesEstudio: Personaje[];
   avatares: Avatar[];
   /** Personajes que esta pieza ya tenía seleccionados al guardarse (ver
    * `personajeIdsJson`/`personajeId` del bloque) — precarga el toggle
@@ -116,7 +114,7 @@ export function EditarBloqueConEscenas({
     (bloque.posicionLogo as PosicionLogo | null) ?? POSICION_LOGO_DEFAULT,
   );
 
-  const hayPersonajeDisponible = personajes.length > 0 || personajesEstudio.length > 0;
+  const hayPersonajeDisponible = personajes.length > 0;
   const mostrarContacto = identidad ? identidadTieneContacto(identidad) : false;
 
   function alternarPersonajeSeleccionado(id: string) {
@@ -131,14 +129,13 @@ export function EditarBloqueConEscenas({
   }
 
   // "✨ Automático" (selección vacía con "Usar Personaje" marcado) toma el
-  // primero disponible del proyecto/estudio, para que el comportamiento
-  // sea idéntico al de la pieza cuando se creó.
-  const todosLosPersonajes = [...personajes, ...personajesEstudio];
+  // primero disponible, para que el comportamiento sea idéntico al de la
+  // pieza cuando se creó.
   const personajeIdsParaRevisar = !incluirPersonaje
     ? []
     : personajeSeleccion.ids.length > 0
       ? personajeSeleccion.ids
-      : todosLosPersonajes.slice(0, 1).map((p) => p.id);
+      : personajes.slice(0, 1).map((p) => p.id);
 
   function revisarEscena(escena: Escena, otrasEscenas: Escena[]) {
     return onRevisarEscena(
@@ -202,7 +199,6 @@ export function EditarBloqueConEscenas({
           incluirPersonaje={incluirPersonaje}
           setIncluirPersonaje={(v) => setPersonajeSeleccion((prev) => ({ ...prev, incluir: v }))}
           personajes={personajes}
-          personajesEstudio={personajesEstudio}
           personajeIds={personajeSeleccion.ids}
           onTogglePersonaje={alternarPersonajeSeleccionado}
           onElegirAutomatico={elegirPersonajeAutomatico}

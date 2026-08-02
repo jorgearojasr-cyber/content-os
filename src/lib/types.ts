@@ -325,17 +325,14 @@ export type Bloque = {
 };
 
 /**
- * Personaje: quién aparece en el contenido, si aplica. Un proyecto puede
- * tener varios (ver Crear: selector de cuál usar). Reemplaza a las
- * columnas `personaje*`/`fotosUrlsJson` que antes vivían en `Identidad`
- * (ahora deprecadas ahí, una fila fija por proyecto no alcanzaba).
+ * Personaje: quién aparece en el contenido, si aplica. Global — no
+ * pertenece a ningún Proyecto, reutilizable en cualquiera (ver
+ * PERSONAJES-1-PASADA-1). Reemplaza a las columnas `personaje*`/
+ * `fotosUrlsJson` que antes vivían en `Identidad` (ahora deprecadas ahí,
+ * una fila fija por proyecto no alcanzaba).
  */
 export type Personaje = {
   id: string;
-  /** `null` = Personaje DEL ESTUDIO — no pertenece a ningún proyecto,
-   * reutilizable en cualquiera. Con un proyecto asignado, sigue siendo
-   * exclusivo de ese proyecto, como antes. */
-  proyectoId: string | null;
   nombre: string;
   personalidad: string;
   fisica: string;
@@ -429,7 +426,7 @@ export type Personaje = {
 
 export type PersonajeInput = Omit<
   Personaje,
-  "id" | "proyectoId" | "createdAt" | "fotosUrlsJson" | "versionesJson" | "fotosContextoJson"
+  "id" | "createdAt" | "fotosUrlsJson" | "versionesJson" | "fotosContextoJson"
 >;
 
 /** Los roles posibles de un Personaje dentro del ecosistema de contenido —

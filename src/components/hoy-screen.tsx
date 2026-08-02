@@ -57,7 +57,7 @@ export function HoyScreen({
     textoCrudo: string,
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
-  onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
+  onCrearPersonaje: (nombre: string) => Promise<{ id: string }>;
   onCrearLocacion: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onGenerarContexto: (proyectoId: string) => Promise<string>;
   /** Locaciones/Planos reales de la Marca activa, para la sección

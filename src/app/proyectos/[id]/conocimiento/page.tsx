@@ -4,7 +4,6 @@ import {
   getArea,
   getDocumentosDeProyecto,
   getPersonajes,
-  getPersonajesDelEstudio,
   getProyecto,
   updateDocumento,
 } from "@/lib/actions";
@@ -17,10 +16,9 @@ export default async function ProyectoConocimientoPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: proyectoId } = await params;
-  const [documentos, personajes, personajesEstudio, proyecto] = await Promise.all([
+  const [documentos, personajes, proyecto] = await Promise.all([
     getDocumentosDeProyecto(proyectoId),
-    getPersonajes(proyectoId),
-    getPersonajesDelEstudio(),
+    getPersonajes(),
     getProyecto(proyectoId),
   ]);
   const areaDelProyecto = proyecto?.areaId ? await getArea(proyecto.areaId) : null;
@@ -42,7 +40,7 @@ export default async function ProyectoConocimientoPage({
         documentos={documentos}
         mostrarChipGlobal
         nombreArea={areaDelProyecto?.nombre}
-        personajes={[...personajes, ...personajesEstudio].map((p) => ({ id: p.id, nombre: p.nombre }))}
+        personajes={personajes.map((p) => ({ id: p.id, nombre: p.nombre }))}
         onCreate={boundCreate}
         onUpdate={updateDocumento}
         onDelete={deleteDocumento}

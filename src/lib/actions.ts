@@ -336,53 +336,25 @@ export async function completarProyectoAction(
  * `identidades` llevan un `created_at` en formato ISO (`new Date().toISOString()`),
  * mientras que las filas nuevas usan el formato nativo de Postgres — un
  * `<` de strings entre ambos formatos da un orden incorrecto. */
-export async function getPersonajes(proyectoId: string): Promise<Personaje[]> {
-  const rows = await db.select().from(personajes).where(eq(personajes.proyectoId, proyectoId));
+/** Única fuente de verdad para leer Personajes — son globales (ver
+ * PERSONAJES-1-PASADA-1: ya no pertenecen a ningún Proyecto), así que no
+ * hay filtro que aplicar. Más reciente primero. Ningún llamador debe volver
+ * a armar su propia lista combinada — si una pantalla necesita Personajes,
+ * es siempre esta función. */
+export async function getPersonajes(): Promise<Personaje[]> {
+  const rows = await db.select().from(personajes);
   return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-/** Personajes DEL ESTUDIO (`proyectoId` null) — no pertenecen a ningún
- * proyecto, reutilizables en cualquiera. Mismo criterio de orden que
- * `getPersonajes`. */
-export async function getPersonajesDelEstudio(): Promise<Personaje[]> {
-  const rows = await db.select().from(personajes).where(isNull(personajes.proyectoId));
-  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
-
-/** Todos los personajes de todos los proyectos MÁS los del estudio, con el
- * nombre de su proyecto ya resuelto (`""` para los del estudio — la
- * pantalla decide mostrar "Estudio" mirando `proyectoId === null`) — usado
- * por la pantalla global /personajes. Más reciente primero, mismo criterio
- * (y mismo motivo) que `getPersonajes`. */
-export async function getTodosLosPersonajes(): Promise<(Personaje & { proyectoNombre: string })[]> {
-  const [todosPersonajes, todosProyectos] = await Promise.all([
-    db.select().from(personajes),
-    db.select().from(proyectos),
-  ]);
-  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
-  return todosPersonajes
-    .map((p) => ({ ...p, proyectoNombre: p.proyectoId ? (nombrePorProyecto.get(p.proyectoId) ?? "") : "" }))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
-
-/** `personajeId` es globalmente único — no se acota por proyecto (y no se
- * podría de forma uniforme: un Personaje del estudio no tiene proyecto al
- * que acotar). Esto es lo que permite que un Personaje del estudio
- * funcione idéntico a uno de proyecto en cualquier generación. */
+/** `personajeId` es globalmente único. */
 export async function getPersonaje(personajeId: string): Promise<Personaje | null> {
   const rows = await db.select().from(personajes).where(eq(personajes.id, personajeId));
   return rows[0] ?? null;
 }
 
-/** Revalida las rutas que muestran este Personaje: siempre la lista
- * global, y además Identidad/Crear del proyecto dueño si tiene uno (los
- * del estudio no aparecen en ninguna pantalla de proyecto). */
-function revalidarRutasPersonaje(proyectoId: string | null) {
+/** Revalida la única pantalla que administra Personajes. */
+function revalidarRutasPersonaje() {
   revalidatePath("/personajes");
-  if (proyectoId) {
-    revalidatePath(`/proyectos/${proyectoId}/identidad`);
-    revalidatePath(`/proyectos/${proyectoId}/crear`);
-  }
 }
 
 // Mismos campos que captura un snapshot de versión — una sola lista de
@@ -435,19 +407,16 @@ function leerFotosDeFormData(formData: FormData): FotoPersonaje[] {
 
 /** Crea un Personaje nuevo — nunca sobrescribe uno existente, ni siquiera
  * desde los botones de IA ("Generar personaje" crea uno nuevo en la lista,
- * ver ai-tools.tsx / personajes-lista.tsx). `proyectoId: null` = Personaje
- * del estudio. */
-export async function createPersonaje(
-  proyectoId: string | null,
-  formData: FormData,
-): Promise<{ id: string }> {
+ * ver ai-tools.tsx / personajes-global-lista.tsx). Global — no toma
+ * proyectoId. */
+export async function createPersonaje(formData: FormData): Promise<{ id: string }> {
   const valores = leerCamposPersonaje(formData);
   const fotosUrlsJson = leerFotosDeFormData(formData);
   const id = randomUUID();
 
-  await db.insert(personajes).values({ id, proyectoId, ...valores, fotosUrlsJson });
+  await db.insert(personajes).values({ id, ...valores, fotosUrlsJson });
 
-  revalidarRutasPersonaje(proyectoId);
+  revalidarRutasPersonaje();
   return { id };
 }
 
@@ -455,13 +424,12 @@ export async function updatePersonaje(personajeId: string, formData: FormData) {
   const valores = leerCamposPersonaje(formData);
   const fotosUrlsJson = leerFotosDeFormData(formData);
 
-  const [actualizado] = await db
+  await db
     .update(personajes)
     .set({ ...valores, fotosUrlsJson })
-    .where(eq(personajes.id, personajeId))
-    .returning({ proyectoId: personajes.proyectoId });
+    .where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(actualizado?.proyectoId ?? null);
+  revalidarRutasPersonaje();
 }
 
 export async function deletePersonaje(personajeId: string) {
@@ -473,7 +441,7 @@ export async function deletePersonaje(personajeId: string) {
     await eliminarArchivoSubido(foto.url).catch(() => {});
   }
 
-  revalidarRutasPersonaje(existente?.proyectoId ?? null);
+  revalidarRutasPersonaje();
 }
 
 /** Guarda un snapshot de la ficha de texto ACTUAL del Personaje (las fotos
@@ -494,7 +462,7 @@ export async function guardarVersionPersonaje(personajeId: string, nombreVersion
 
   await db.update(personajes).set({ versionesJson: versiones }).where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(personaje.proyectoId);
+  revalidarRutasPersonaje();
 }
 
 /** Restaura la ficha de texto del Personaje a la versión `indice` de su
@@ -514,7 +482,7 @@ export async function restaurarVersionPersonaje(personajeId: string, indice: num
 
   await db.update(personajes).set(valores).where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(personaje.proyectoId);
+  revalidarRutasPersonaje();
 }
 
 /** Elimina la versión `indice` de la lista — la ficha actual no cambia. */
@@ -526,7 +494,7 @@ export async function eliminarVersionPersonaje(personajeId: string, indice: numb
 
   await db.update(personajes).set({ versionesJson: versiones }).where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(personaje.proyectoId);
+  revalidarRutasPersonaje();
 }
 
 /** Sube una foto de referencia de un `tipo` específico (rostro/perfil/
@@ -555,7 +523,7 @@ export async function subirFotoPersonaje(
 
   if (fotoReemplazada) await eliminarArchivoSubido(fotoReemplazada.url).catch(() => {});
 
-  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  revalidarRutasPersonaje();
   return fotosNuevas;
 }
 
@@ -569,7 +537,7 @@ export async function eliminarFotoPersonaje(personajeId: string, url: string): P
 
   await eliminarArchivoSubido(url).catch(() => {});
 
-  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  revalidarRutasPersonaje();
   return fotosNuevas;
 }
 
@@ -590,7 +558,7 @@ export async function subirFotoContextoPersonaje(
 
   await db.update(personajes).set({ fotosContextoJson: nuevas }).where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  revalidarRutasPersonaje();
   return nuevas;
 }
 
@@ -606,7 +574,7 @@ export async function editarEtiquetaFotoContexto(
 
   await db.update(personajes).set({ fotosContextoJson: nuevas }).where(eq(personajes.id, personajeId));
 
-  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  revalidarRutasPersonaje();
   return nuevas;
 }
 
@@ -621,7 +589,7 @@ export async function eliminarFotoContextoPersonaje(
 
   await eliminarArchivoSubido(url).catch(() => {});
 
-  revalidarRutasPersonaje(personaje?.proyectoId ?? null);
+  revalidarRutasPersonaje();
   return nuevas;
 }
 
@@ -2005,21 +1973,19 @@ export type EntidadBiblioteca = { id: string; nombre: string };
 /** Compila el contexto de una Marca listo para copiar y desarrollar en
  * ChatGPT (UX Migration 1, pantalla "Contexto para ChatGPT") — reutiliza
  * `compileIdentity()` exactamente como existe hoy, invocada de forma
- * aislada: recolecta Identidad + Personajes (proyecto y estudio) + Activos
+ * aislada: recolecta Identidad + todos los Personajes (globales) + Activos
  * visuales (fotos) de la Marca y se los pasa directo como parámetros,
  * igual que ya hace `analizarBlueprint` para construir la Biblioteca del
  * importador. No genera nada con IA — es el mismo compilador determinístico,
  * sin destino a un Bloque. `""` si la Marca no tiene Identidad todavía. */
 export async function generarContextoParaChatGPT(proyectoId: string): Promise<string> {
-  const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
+  const [identidad, personajes, activosProyecto] = await Promise.all([
     getIdentidad(proyectoId),
-    getPersonajes(proyectoId),
-    getPersonajesDelEstudio(),
+    getPersonajes(),
     getActivos(proyectoId),
   ]);
   if (!identidad) return "";
 
-  const personajes = [...personajesProyecto, ...personajesEstudio];
   const activosVisuales = activosProyecto
     .filter((a) => a.tipo === "foto")
     .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
@@ -2059,24 +2025,22 @@ export type AnalisisBlueprint = {
 };
 
 /** Analiza un CBD pegado por el usuario contra la Biblioteca real del
- * Proyecto — no crea nada todavía (Fase 6.1). Personajes incluye los del
- * Proyecto y los del estudio, igual que el resto de selectores de
- * Personajes de la app. */
+ * Proyecto — no crea nada todavía (Fase 6.1). Personajes son globales
+ * (PERSONAJES-1-PASADA-1), así que se ofrecen todos, sin filtrar por
+ * Proyecto. */
 export async function analizarBlueprint(proyectoId: string, textoCrudo: string): Promise<AnalisisBlueprint> {
-  const [proyecto, personajesProyecto, personajesEstudio, activosProyecto, listaPlanos, duplicadas] =
-    await Promise.all([
-      getProyecto(proyectoId),
-      getPersonajes(proyectoId),
-      getPersonajesDelEstudio(),
-      getActivos(proyectoId),
-      getPlanos(),
-      db
-        .select({ id: producciones.id, titulo: producciones.titulo })
-        .from(producciones)
-        .where(and(eq(producciones.proyectoId, proyectoId), eq(producciones.cbdOriginal, textoCrudo))),
-    ]);
+  const [proyecto, todosLosPersonajes, activosProyecto, listaPlanos, duplicadas] = await Promise.all([
+    getProyecto(proyectoId),
+    getPersonajes(),
+    getActivos(proyectoId),
+    getPlanos(),
+    db
+      .select({ id: producciones.id, titulo: producciones.titulo })
+      .from(producciones)
+      .where(and(eq(producciones.proyectoId, proyectoId), eq(producciones.cbdOriginal, textoCrudo))),
+  ]);
 
-  const personajesDisponibles = [...personajesProyecto, ...personajesEstudio].map((p) => ({
+  const personajesDisponibles = todosLosPersonajes.map((p) => ({
     id: p.id,
     nombre: p.nombre,
   }));
@@ -2173,15 +2137,17 @@ export async function crearProyectoDesdeImportador(nombre: string): Promise<{ pr
  * importador de Blueprint — "Crear nuevo" en `SelectorResolucion` cuando
  * ninguna sugerencia por similitud coincide (UX Migration 1.2). Reusa
  * `createPersonaje` con el resto de campos en blanco; el usuario puede
- * completarlo después en Personajes. Plano todavía no tiene administración
- * propia (ver `getPlanos`), así que no tiene un "Crear nuevo" equivalente;
- * Locación sí lo tiene — ver `crearLocacionDesdeImportador` abajo. */
-export async function crearPersonajeDesdeImportador(proyectoId: string, nombre: string): Promise<{ id: string }> {
+ * completarlo después en Personajes. Personajes son globales, así que no
+ * necesita el Proyecto elegido (a diferencia de Locación, que sí — ver
+ * `crearLocacionDesdeImportador` abajo, un Activo del Proyecto). Plano
+ * todavía no tiene administración propia (ver `getPlanos`), así que no
+ * tiene un "Crear nuevo" equivalente. */
+export async function crearPersonajeDesdeImportador(nombre: string): Promise<{ id: string }> {
   const nombreLimpio = nombre.trim();
   if (!nombreLimpio) throw new Error("El personaje necesita un nombre.");
   const formData = new FormData();
   formData.set("nombre", nombreLimpio);
-  return createPersonaje(proyectoId, formData);
+  return createPersonaje(formData);
 }
 
 /** Crea una Locación mínima (solo nombre) desde la resolución del
@@ -2605,13 +2571,11 @@ export async function generarPlanEdicionProduccionAction(
       throw new Error("Esta producción no tiene escenas para generar un plan de edición.");
     }
 
-    const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
+    const [identidad, personajes, activosProyecto] = await Promise.all([
       getIdentidad(proyectoId),
-      getPersonajes(proyectoId),
-      getPersonajesDelEstudio(),
+      getPersonajes(),
       getActivos(proyectoId),
     ]);
-    const personajes = [...personajesProyecto, ...personajesEstudio];
     const activosVisuales = activosProyecto
       .filter((a) => a.tipo === "foto")
       .map((a) => ({ etiqueta: a.nombre, url: a.valor }));

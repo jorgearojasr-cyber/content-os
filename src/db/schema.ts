@@ -128,17 +128,15 @@ export const identidades = pgTable("identidades", {
 /**
  * Personaje: quién aparece en el contenido, si aplica. Antes vivía como
  * columnas únicas dentro de `identidades` (relación 1 a 1); ahora es su
- * propia tabla porque un proyecto puede tener varios personajes (varias
- * filas por `proyectoId`) y elegir cuál usar en cada pieza. Las columnas
- * equivalentes en `identidades` (personajeNombre, fisica, etc.) quedan
- * deprecadas — se conservan por ahora, sin usarse.
+ * propia tabla. Global desde PERSONAJES-1-PASADA-1 — ya no pertenece a
+ * ningún Proyecto (antes tenía un `proyectoId` opcional para distinguir
+ * "del proyecto" vs "del estudio"; esa dualidad se colapsó a un solo grupo
+ * global, reutilizable en cualquier Proyecto). Las columnas equivalentes en
+ * `identidades` (personajeNombre, fisica, etc.) quedan deprecadas — se
+ * conservan por ahora, sin usarse.
  */
 export const personajes = pgTable("personajes", {
   id: text("id").primaryKey(),
-  // Nullable: null = "Personaje del estudio", reutilizable en cualquier
-  // proyecto (no pertenece a ninguno). Con un proyecto asignado, sigue
-  // siendo el Personaje de ESE proyecto únicamente, como antes.
-  proyectoId: text("proyecto_id").references(() => proyectos.id, { onDelete: "cascade" }),
   nombre: text("nombre").notNull().default(""),
   personalidad: text("personalidad").notNull().default(""),
   fisica: text("fisica").notNull().default(""),
