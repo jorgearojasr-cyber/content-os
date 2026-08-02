@@ -10,7 +10,6 @@ import { explicarError } from "@/lib/errores";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
-import type { ExplicarRecomendacionInput } from "@/lib/ai";
 
 const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
   GANCHO: "Gancho",
@@ -43,52 +42,16 @@ function FilaChecklist({ resuelto, etiqueta, valor }: { resuelto: boolean; etiqu
   );
 }
 
-/** Nivel 1 + Nivel 2 de UX-PREP-4B.1, con la redacción de UX-MIGRATION-4B:
- * "Usa un {plano}." es la instrucción; `recomendacionBase` (sin IA) es el
- * porqué. "Explicar esta recomendación" es la única forma de disparar IA
- * acá — nunca se llama sola, nunca al abrir la escena. */
-function RecomendacionPlano({
-  planoNombre,
-  recomendacionBase,
-  onExplicar,
-}: {
-  planoNombre: string;
-  recomendacionBase: string;
-  onExplicar: () => Promise<string>;
-}) {
-  const [explicacion, setExplicacion] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState("");
-
-  async function explicar() {
-    setCargando(true);
-    setError("");
-    try {
-      setExplicacion(await onExplicar());
-    } catch (e) {
-      setError(explicarError(e));
-    } finally {
-      setCargando(false);
-    }
-  }
-
+/** Nivel 1 de UX-PREP-4B.1, con la redacción de UX-MIGRATION-4B: "Usa un
+ * {plano}." es la instrucción; `recomendacionBase` (sin IA) es el porqué.
+ * ARCHITECTURE-FIX-1: el Nivel 2 (explicación bajo demanda vía IA
+ * integrada) se retiró — esta recomendación es puramente heurística,
+ * nunca depende de una llamada a IA. */
+function RecomendacionPlano({ planoNombre, recomendacionBase }: { planoNombre: string; recomendacionBase: string }) {
   return (
     <div>
       <p className="text-[15px] text-text">Usa un {planoNombre.toLowerCase()}.</p>
       <p className="mt-1 text-[13px] text-text-muted">{recomendacionBase}</p>
-      {!explicacion ? (
-        <button
-          type="button"
-          onClick={explicar}
-          disabled={cargando}
-          className="mt-2 text-[12.5px] text-accent underline hover:text-accent/80"
-        >
-          {cargando ? "Pensando…" : "Explicar esta recomendación"}
-        </button>
-      ) : (
-        <p className="mt-2 text-[13.5px] text-text">{explicacion}</p>
-      )}
-      {error ? <p className="mt-1 text-[12.5px] text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -115,7 +78,6 @@ export function CopilotoGrabar({
   personajes,
   onSave,
   onEstadoChange,
-  onExplicarRecomendacion,
 }: {
   proyectoId: string;
   produccionId: string;
@@ -126,7 +88,6 @@ export function CopilotoGrabar({
   personajes: Personaje[];
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
-  onExplicarRecomendacion: (input: ExplicarRecomendacionInput) => Promise<string>;
 }) {
   const router = useRouter();
   const base = `/proyectos/${proyectoId}/producciones/${produccionId}`;
@@ -255,30 +216,12 @@ export function CopilotoGrabar({
           </div>
         </Card>
 
-        {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA) siempre visible;
-            Nivel 2 (IA) solo bajo demanda, ver RecomendacionPlano. */}
+        {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA), ver RecomendacionPlano. */}
         {recomendacionBase && planoActual ? (
           <Card>
             <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Recomendación</p>
             <div className="mt-2">
-              <RecomendacionPlano
-                planoNombre={planoActual.nombre}
-                recomendacionBase={recomendacionBase}
-                onExplicar={() =>
-                  onExplicarRecomendacion({
-                    recomendacionBase,
-                    tipo: tipoEscena,
-                    objetivoNarrativo: escena.objetivoNarrativo,
-                    textoHablado: escena.textoHablado,
-                    textoPantalla: escena.textoPantalla,
-                    planoNombre: planoActual.nombre,
-                    locacionNombre: locacionActual?.nombre ?? "",
-                    personajesNombres: personajeIds
-                      .map((id) => personajes.find((p) => p.id === id)?.nombre)
-                      .filter((n): n is string => Boolean(n)),
-                  })
-                }
-              />
+              <RecomendacionPlano planoNombre={planoActual.nombre} recomendacionBase={recomendacionBase} />
             </div>
           </Card>
         ) : null}
