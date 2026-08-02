@@ -74,7 +74,6 @@ export default async function AreaDetallePage({ params }: { params: Promise<{ id
 
       <DocumentosLista
         documentos={documentos}
-        mostrarChipGlobal={false}
         personajes={personajes.map((p) => ({ id: p.id, nombre: p.nombre }))}
         onCreate={boundCreate}
         onUpdate={updateDocumento}

@@ -726,6 +726,38 @@ export async function getTodosLosBloquesActivos() {
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/** Los bloques archivados de TODOS los proyectos, con el nombre de su
+ * proyecto ya resuelto — vista "Archivados" de la pantalla global
+ * /biblioteca (MIGRATION-4B). Mismo criterio de orden que `getTodosLosBloquesActivos`. */
+export async function getTodosLosBloquesArchivados() {
+  const [todosBloques, todosProyectos] = await Promise.all([
+    db.select().from(bloques).where(eq(bloques.estado, "archivado")),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosBloques
+    .map((b) => ({ ...b, proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "" }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+/** La papelera de TODOS los proyectos, con el nombre de su proyecto ya
+ * resuelto — vista "Papelera" de la pantalla global /biblioteca (MIGRATION-4B). */
+export async function getTodaLaPapelera() {
+  await purgarPapeleraVencida();
+  const [todosBloques, todosProyectos] = await Promise.all([
+    db.select().from(bloques).where(eq(bloques.estado, "papelera")),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosBloques
+    .map((b) => ({
+      ...b,
+      proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "",
+      diasRestantes: diasRestantesEnPapelera(b.eliminadoAt),
+    }))
+    .sort((a, b) => (a.eliminadoAt < b.eliminadoAt ? 1 : -1));
+}
+
 export async function getBloquesArchivados(proyectoId: string) {
   const rows = await db
     .select()
@@ -1656,28 +1688,28 @@ export async function asignarFechaPlanificada(proyectoId: string, bloqueId: stri
 // Biblioteca de Prompts
 // ---------------------------------------------------------------------
 
-function revalidarRutasPrompt(proyectoId: string | null) {
+function revalidarRutasPrompt() {
   revalidatePath("/prompts");
-  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/prompts`);
 }
 
-/** Prompts GLOBALES (`proyectoId` null) — visibles en /prompts y, con el
- * chip "Global", dentro de cualquier proyecto. Más reciente primero, mismo
- * criterio de orden que el resto de listas de esta app. */
-export async function getPromptsGlobales(): Promise<PromptGuardado[]> {
-  return db.select().from(promptsGuardados).where(isNull(promptsGuardados.proyectoId)).orderBy(desc(promptsGuardados.createdAt));
+/** Alcance elegido en el formulario de Prompts/Documentos ("" = Global, id =
+ * una Marca específica) — MIGRATION-4B: la navegación deja de decidir el
+ * alcance, lo decide el usuario al crear o editar, en una pantalla única. */
+function leerProyectoIdDeAlcance(formData: FormData): string | null {
+  return String(formData.get("proyectoId") ?? "").trim() || null;
 }
 
-/** Prompts de UN proyecto (los suyos + los globales combinados) — usado por
- * la pestaña "Prompts" del proyecto. La pantalla distingue los globales
- * mirando `proyectoId === null` (mismo patrón que Personajes del estudio)
- * para mostrar el chip "Global". */
-export async function getPromptsDeProyecto(proyectoId: string): Promise<PromptGuardado[]> {
-  const [propios, globales] = await Promise.all([
-    db.select().from(promptsGuardados).where(eq(promptsGuardados.proyectoId, proyectoId)),
-    getPromptsGlobales(),
+/** Todos los prompts guardados (globales + de cada Marca), con el nombre de
+ * su Marca ya resuelto para la tarjeta — pantalla única /prompts, MIGRATION-4B. */
+export async function getTodosLosPrompts(): Promise<(PromptGuardado & { proyectoNombre: string })[]> {
+  const [todosPrompts, todosProyectos] = await Promise.all([
+    db.select().from(promptsGuardados),
+    db.select().from(proyectos),
   ]);
-  return [...propios, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todosPrompts
+    .map((p) => ({ ...p, proyectoNombre: p.proyectoId ? nombrePorProyecto.get(p.proyectoId) ?? "" : "" }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 const CAMPOS_PROMPT = ["titulo", "texto", "categoria", "etiquetas", "estado"] as const;
@@ -1694,61 +1726,43 @@ function leerCamposPrompt(formData: FormData) {
   return { ...valores, estado: valores.estado || "activo", personajeId };
 }
 
-/** `proyectoId: null` desde /prompts (global) — desde la pestaña "Prompts"
- * de un proyecto viene pre-aplicado con `.bind()`, igual que `createPersonaje`. */
-export async function createPromptGuardado(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+export async function createPromptGuardado(formData: FormData): Promise<{ id: string }> {
   const valores = leerCamposPrompt(formData);
+  const proyectoId = leerProyectoIdDeAlcance(formData);
   const id = randomUUID();
 
   await db.insert(promptsGuardados).values({ id, proyectoId, ...valores });
 
-  revalidarRutasPrompt(proyectoId);
+  revalidarRutasPrompt();
   return { id };
 }
 
 export async function updatePromptGuardado(promptId: string, formData: FormData) {
   const valores = leerCamposPrompt(formData);
+  const proyectoId = leerProyectoIdDeAlcance(formData);
 
   // La versión sube en cada edición — un contador simple de cuántas veces
   // se ha guardado este prompt, no un historial de contenidos.
-  const [actualizado] = await db
+  await db
     .update(promptsGuardados)
-    .set({ ...valores, version: sql`${promptsGuardados.version} + 1` })
-    .where(eq(promptsGuardados.id, promptId))
-    .returning({ proyectoId: promptsGuardados.proyectoId });
+    .set({ ...valores, proyectoId, version: sql`${promptsGuardados.version} + 1` })
+    .where(eq(promptsGuardados.id, promptId));
 
-  revalidarRutasPrompt(actualizado?.proyectoId ?? null);
+  revalidarRutasPrompt();
 }
 
 export async function deletePromptGuardado(promptId: string) {
-  const [eliminado] = await db
-    .delete(promptsGuardados)
-    .where(eq(promptsGuardados.id, promptId))
-    .returning({ proyectoId: promptsGuardados.proyectoId });
-
-  revalidarRutasPrompt(eliminado?.proyectoId ?? null);
+  await db.delete(promptsGuardados).where(eq(promptsGuardados.id, promptId));
+  revalidarRutasPrompt();
 }
 
 // ---------------------------------------------------------------------
 // Biblioteca de Conocimiento (documentos)
 // ---------------------------------------------------------------------
 
-function revalidarRutasDocumento(proyectoId: string | null, areaId: string | null = null) {
+function revalidarRutasDocumento(areaId: string | null = null) {
   revalidatePath("/conocimiento");
-  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}/conocimiento`);
   if (areaId) revalidatePath(`/areas/${areaId}`);
-}
-
-/** Documentos GLOBALES (`proyectoId` null Y `areaId` null) — visibles en
- * /conocimiento y, con el chip "Global", dentro de cualquier proyecto. Los
- * documentos de Área también tienen `proyectoId` null pero NO son
- * globales — se excluyen explícitamente para no duplicarlos. */
-export async function getDocumentosGlobales(): Promise<Documento[]> {
-  return db
-    .select()
-    .from(documentos)
-    .where(and(isNull(documentos.proyectoId), isNull(documentos.areaId)))
-    .orderBy(desc(documentos.createdAt));
 }
 
 /** Documentos propios de UN Área de Conocimiento (ej. normativa de
@@ -1758,19 +1772,26 @@ export async function getDocumentosDeArea(areaId: string): Promise<Documento[]> 
   return db.select().from(documentos).where(eq(documentos.areaId, areaId)).orderBy(desc(documentos.createdAt));
 }
 
-/** Documentos de UN proyecto: los suyos propios + los de su Área (si tiene
- * una asignada) + los globales, combinados. Un proyecto sin Área (areaId
- * null) se comporta exactamente igual que antes de que existieran las
- * Áreas — solo sus propios documentos + los globales. */
-export async function getDocumentosDeProyecto(proyectoId: string): Promise<Documento[]> {
-  const [proyectoRows, propios, globales] = await Promise.all([
-    db.select({ areaId: proyectos.areaId }).from(proyectos).where(eq(proyectos.id, proyectoId)),
-    db.select().from(documentos).where(eq(documentos.proyectoId, proyectoId)),
-    getDocumentosGlobales(),
+/** Todos los documentos (globales + de Área + de cada Marca), con el nombre
+ * de su Marca/Área ya resuelto para la tarjeta — pantalla única /conocimiento,
+ * MIGRATION-4B. */
+export async function getTodosLosDocumentos(): Promise<
+  (Documento & { proyectoNombre: string; areaNombre: string })[]
+> {
+  const [todosDocumentos, todosProyectos, todasAreas] = await Promise.all([
+    db.select().from(documentos),
+    db.select().from(proyectos),
+    db.select().from(area),
   ]);
-  const areaId = proyectoRows[0]?.areaId ?? null;
-  const deArea = areaId ? await getDocumentosDeArea(areaId) : [];
-  return [...propios, ...deArea, ...globales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  const nombrePorArea = new Map(todasAreas.map((a) => [a.id, a.nombre]));
+  return todosDocumentos
+    .map((d) => ({
+      ...d,
+      proyectoNombre: d.proyectoId ? nombrePorProyecto.get(d.proyectoId) ?? "" : "",
+      areaNombre: d.areaId ? nombrePorArea.get(d.areaId) ?? "" : "",
+    }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 function leerCamposDocumento(formData: FormData) {
@@ -1804,16 +1825,17 @@ async function crearDocumentoConDestino(
   const id = randomUUID();
   await db.insert(documentos).values({ id, ...destino, valor, ...campos });
 
-  revalidarRutasDocumento(destino.proyectoId, destino.areaId);
+  revalidarRutasDocumento(destino.areaId);
   return { id };
 }
 
-/** Crea un documento de proyecto o global. Para tipo "archivo" lee el
- * `<input name="archivo">` y lo sube a Blob; para "link" lee el campo de
- * texto `link`; para "texto" solo usa `contenido`. `proyectoId: null`
- * desde /conocimiento (global), pre-aplicado con `.bind()` desde la
- * pestaña del proyecto. */
-export async function createDocumento(proyectoId: string | null, formData: FormData): Promise<{ id: string }> {
+/** Crea un documento global o de una Marca — el alcance (`proyectoId: null`
+ * = global) lo decide el formulario, no la pantalla desde la que se entra
+ * (MIGRATION-4B). Para tipo "archivo" lee el `<input name="archivo">` y lo
+ * sube a Blob; para "link" lee el campo de texto `link`; para "texto" solo
+ * usa `contenido`. */
+export async function createDocumento(formData: FormData): Promise<{ id: string }> {
+  const proyectoId = leerProyectoIdDeAlcance(formData);
   return crearDocumentoConDestino({ proyectoId, areaId: null }, formData);
 }
 
@@ -1824,11 +1846,14 @@ export async function createDocumentoDeArea(areaId: string, formData: FormData):
 }
 
 /** Edita los metadatos de un documento (título/contenido/etiquetas/
- * personaje) — el archivo o link (`valor`) no cambia; para reemplazarlo se
- * crea un documento nuevo y se borra el viejo. */
+ * personaje/alcance) — el archivo o link (`valor`) no cambia; para
+ * reemplazarlo se crea un documento nuevo y se borra el viejo. El campo
+ * `proyectoId` del formulario solo llega cuando el documento no es de Área
+ * (ver `DocumentoForm`) — si no llega, el alcance actual no se toca. */
 export async function updateDocumento(documentoId: string, formData: FormData) {
   const campos = leerCamposDocumento(formData);
   const link = String(formData.get("link") ?? "").trim();
+  const cambiaAlcance = formData.has("proyectoId");
 
   const [actualizado] = await db
     .update(documentos)
@@ -1839,11 +1864,12 @@ export async function updateDocumento(documentoId: string, formData: FormData) {
       personajeId: campos.personajeId,
       // Solo el link es editable en sitio (es solo texto) — el archivo no.
       ...(link ? { valor: link } : {}),
+      ...(cambiaAlcance ? { proyectoId: leerProyectoIdDeAlcance(formData) } : {}),
     })
     .where(eq(documentos.id, documentoId))
-    .returning({ proyectoId: documentos.proyectoId, areaId: documentos.areaId });
+    .returning({ areaId: documentos.areaId });
 
-  revalidarRutasDocumento(actualizado?.proyectoId ?? null, actualizado?.areaId ?? null);
+  revalidarRutasDocumento(actualizado?.areaId ?? null);
 }
 
 export async function deleteDocumento(documentoId: string) {
@@ -1851,7 +1877,6 @@ export async function deleteDocumento(documentoId: string) {
     .delete(documentos)
     .where(eq(documentos.id, documentoId))
     .returning({
-      proyectoId: documentos.proyectoId,
       areaId: documentos.areaId,
       tipo: documentos.tipo,
       valor: documentos.valor,
@@ -1861,7 +1886,7 @@ export async function deleteDocumento(documentoId: string) {
     await eliminarArchivoSubido(eliminado.valor).catch(() => {});
   }
 
-  revalidarRutasDocumento(eliminado?.proyectoId ?? null, eliminado?.areaId ?? null);
+  revalidarRutasDocumento(eliminado?.areaId ?? null);
 }
 
 // ---------------------------------------------------------------------

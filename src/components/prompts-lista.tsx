@@ -41,13 +41,20 @@ const DURACION_CONFIRMACION_MS = 2000;
  * completa no se necesita acá). */
 export type PersonajeAsociable = { id: string; nombre: string };
 
+/** Marcas disponibles para el selector de Alcance — MIGRATION-4B: pantalla
+ * única, el alcance (Global o de una Marca) lo elige el usuario al crear o
+ * editar, no la pantalla desde la que entra. */
+export type MarcaAsociable = { id: string; nombre: string };
+
+type PromptConMarca = PromptGuardado & { proyectoNombre?: string };
+
 type Props = {
-  prompts: PromptGuardado[];
-  /** true solo en la pestaña "Prompts" de un proyecto — la vista global ya
-   * sabe que todo lo que ve es global, no necesita el chip. */
-  mostrarChipGlobal: boolean;
-  /** Para el selector "Personaje asociado (opcional)" y para mostrar el
-   * nombre del asociado en cada tarjeta. */
+  prompts: PromptConMarca[];
+  marcas: MarcaAsociable[];
+  /** Si se entra desde una Marca (ej. `/prompts?proyecto=<id>`), preselecciona
+   * esa Marca tanto en el filtro de la lista como en el formulario de
+   * creación — el usuario puede cambiarla igual. */
+  marcaIdPreseleccionada?: string | null;
   personajes: PersonajeAsociable[];
   onCreate: (formData: FormData) => Promise<{ id: string }>;
   onUpdate: (promptId: string, formData: FormData) => Promise<void>;
@@ -56,7 +63,8 @@ type Props = {
 
 export function PromptsLista({
   prompts,
-  mostrarChipGlobal,
+  marcas,
+  marcaIdPreseleccionada = null,
   personajes,
   onCreate,
   onUpdate,
@@ -64,6 +72,7 @@ export function PromptsLista({
 }: Props) {
   const [filtro, setFiltro] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroAlcance, setFiltroAlcance] = useState(marcaIdPreseleccionada ?? "");
   const [busqueda, setBusqueda] = useState("");
   const [creando, setCreando] = useState(false);
 
@@ -71,6 +80,8 @@ export function PromptsLista({
   const promptsFiltrados = prompts.filter((p) => {
     if (filtro && p.categoria !== filtro) return false;
     if (filtroEstado && p.estado !== filtroEstado) return false;
+    if (filtroAlcance === "global" && p.proyectoId !== null) return false;
+    if (filtroAlcance && filtroAlcance !== "global" && p.proyectoId !== filtroAlcance) return false;
     if (texto && !`${p.titulo} ${p.texto} ${p.etiquetas}`.toLowerCase().includes(texto)) return false;
     return true;
   });
@@ -86,6 +97,19 @@ export function PromptsLista({
             placeholder="Buscar por título, texto o etiquetas"
             className="min-w-[200px] rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text placeholder:text-text-muted/60"
           />
+          <select
+            value={filtroAlcance}
+            onChange={(e) => setFiltroAlcance(e.target.value)}
+            className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text"
+          >
+            <option value="">Todas las marcas</option>
+            <option value="global">🌍 Todo el estudio</option>
+            {marcas.map((m) => (
+              <option key={m.id} value={m.id}>
+                🪪 {m.nombre}
+              </option>
+            ))}
+          </select>
           <select
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
@@ -120,6 +144,8 @@ export function PromptsLista({
         <Card>
           <PromptForm
             personajes={personajes}
+            marcas={marcas}
+            defaultValues={{ proyectoId: marcaIdPreseleccionada ?? "" }}
             onSubmit={async (formData) => {
               await onCreate(formData);
               setCreando(false);
@@ -133,7 +159,7 @@ export function PromptsLista({
         <Empty title="No hay prompts para este filtro">
           {prompts.length === 0
             ? "Guarda tu primer prompt de referencia con \"+ Nuevo prompt\"."
-            : "Prueba con otra categoría, estado o búsqueda."}
+            : "Prueba con otra marca, categoría, estado o búsqueda."}
         </Empty>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -141,7 +167,7 @@ export function PromptsLista({
             <PromptCard
               key={p.id}
               prompt={p}
-              mostrarChipGlobal={mostrarChipGlobal}
+              marcas={marcas}
               personajes={personajes}
               onUpdate={onUpdate}
               onDelete={onDelete}
@@ -157,18 +183,22 @@ function PromptForm({
   onSubmit,
   submitLabel,
   personajes,
+  marcas,
   defaultValues,
 }: {
   onSubmit: (formData: FormData) => Promise<void>;
   submitLabel: string;
   personajes: PersonajeAsociable[];
+  marcas: MarcaAsociable[];
   defaultValues?: {
-    titulo: string;
-    categoria: string;
-    texto: string;
-    etiquetas: string;
-    estado: string;
-    personajeId: string | null;
+    titulo?: string;
+    categoria?: string;
+    texto?: string;
+    etiquetas?: string;
+    estado?: string;
+    personajeId?: string | null;
+    /** "" = Global, id = una Marca — default de la pestaña Alcance. */
+    proyectoId?: string;
   };
 }) {
   const [guardando, setGuardando] = useState(false);
@@ -251,6 +281,21 @@ function PromptForm({
         </>
       ) : null}
 
+      <Label htmlFor="proyectoId">Alcance</Label>
+      <select
+        id="proyectoId"
+        name="proyectoId"
+        defaultValue={defaultValues?.proyectoId ?? ""}
+        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[14.5px] text-text"
+      >
+        <option value="">🌍 Todo el estudio</option>
+        {marcas.map((m) => (
+          <option key={m.id} value={m.id}>
+            🪪 {m.nombre}
+          </option>
+        ))}
+      </select>
+
       <Label htmlFor="estado">Estado</Label>
       <select
         id="estado"
@@ -276,13 +321,13 @@ function PromptForm({
 
 function PromptCard({
   prompt,
-  mostrarChipGlobal,
+  marcas,
   personajes,
   onUpdate,
   onDelete,
 }: {
-  prompt: PromptGuardado;
-  mostrarChipGlobal: boolean;
+  prompt: PromptConMarca;
+  marcas: MarcaAsociable[];
   personajes: PersonajeAsociable[];
   onUpdate: (promptId: string, formData: FormData) => Promise<void>;
   onDelete: (promptId: string) => Promise<void>;
@@ -302,6 +347,7 @@ function PromptCard({
         <PromptForm
           submitLabel="Guardar cambios"
           personajes={personajes}
+          marcas={marcas}
           defaultValues={{
             titulo: prompt.titulo,
             categoria: prompt.categoria,
@@ -309,6 +355,7 @@ function PromptCard({
             etiquetas: prompt.etiquetas,
             estado: prompt.estado,
             personajeId: prompt.personajeId,
+            proyectoId: prompt.proyectoId ?? "",
           }}
           onSubmit={async (formData) => {
             await onUpdate(prompt.id, formData);
@@ -330,11 +377,15 @@ function PromptCard({
     <Card>
       <div className="flex flex-wrap items-center gap-1.5">
         <ChipCategoria categoria={prompt.categoria} />
-        {mostrarChipGlobal && esGlobal ? (
+        {esGlobal ? (
           <span className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-[10.5px] text-accent">
-            Global
+            🌍 Global
           </span>
-        ) : null}
+        ) : (
+          <span className="rounded-full bg-accent-soft px-2.5 py-1 font-mono text-[10.5px] text-accent">
+            🪪 {prompt.proyectoNombre || "Marca"}
+          </span>
+        )}
         {prompt.estado !== "activo" ? (
           <span className="rounded-full border border-border bg-surface-2 px-2.5 py-1 font-mono text-[10.5px] text-text-muted">
             {etiquetaEstado(prompt.estado)}

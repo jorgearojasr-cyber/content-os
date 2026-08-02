@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+/** MIGRATION-4B: Prompts y Conocimiento ya no tienen pestaña propia acá —
+ * ahora son pantallas únicas (/prompts, /conocimiento) con selector de
+ * Alcance, así que la Marca deja de ser la única forma de llegar a su
+ * contenido con alcance específico. Ver el excepción #2 de MIGRATION-4A que
+ * este pase resuelve. */
 const TABS = [
   { slug: "crear", label: "Crear", icono: "✍️" },
   { slug: "identidad", label: "Identidad", icono: "🪪" },
   { slug: "produccion", label: "Producción", icono: "🎬" },
   { slug: "biblioteca", label: "Biblioteca", icono: "📖" },
   { slug: "activos", label: "Activos", icono: "🖼️" },
-  { slug: "prompts", label: "Prompts", icono: "📝" },
-  { slug: "conocimiento", label: "Conocimiento", icono: "📚" },
   { slug: "configuracion", label: "Configuración", icono: "⚙️" },
 ] as const;
 

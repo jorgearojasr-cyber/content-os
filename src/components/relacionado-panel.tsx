@@ -66,12 +66,12 @@ export function RelacionadoPanel({ onCargar }: { onCargar: () => Promise<Relacio
       <GrupoRelacion
         titulo="Prompts"
         items={relaciones.prompts}
-        href={(r) => (r.proyectoId ? `/proyectos/${r.proyectoId}/prompts` : "/prompts")}
+        href={(r) => (r.proyectoId ? `/prompts?proyecto=${r.proyectoId}` : "/prompts")}
       />
       <GrupoRelacion
         titulo="Documentos"
         items={relaciones.documentos}
-        href={(r) => (r.proyectoId ? `/proyectos/${r.proyectoId}/conocimiento` : "/conocimiento")}
+        href={(r) => (r.proyectoId ? `/conocimiento?proyecto=${r.proyectoId}` : "/conocimiento")}
       />
       <GrupoRelacion titulo="Ideas" items={relaciones.ideas} href={() => "/segundo-cerebro"} />
       <GrupoRelacion

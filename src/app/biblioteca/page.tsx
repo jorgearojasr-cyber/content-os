@@ -1,13 +1,30 @@
-import { getPersonajes, getProyectos, getTodosLosBloquesActivos } from "@/lib/actions";
+import {
+  getPersonajes,
+  getProyectos,
+  getTodaLaPapelera,
+  getTodosLosBloquesActivos,
+  getTodosLosBloquesArchivados,
+} from "@/lib/actions";
 import { personajesPorId } from "@/lib/types";
-import { BibliotecaGlobalLista } from "./biblioteca-global-lista";
+import { BibliotecaGlobalLista, type Vista } from "./biblioteca-global-lista";
 
 // Lee bloques reales de la base de datos en cada visita.
 export const dynamic = "force-dynamic";
 
-export default async function BibliotecaGlobalPage() {
+export default async function BibliotecaGlobalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vista?: string }>;
+}) {
+  const { vista: vistaParam } = await searchParams;
+  const vista: Vista = vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
+
   const [bloques, proyectos, todosPersonajes] = await Promise.all([
-    getTodosLosBloquesActivos(),
+    vista === "activos"
+      ? getTodosLosBloquesActivos()
+      : vista === "archivados"
+        ? getTodosLosBloquesArchivados()
+        : getTodaLaPapelera(),
     getProyectos(),
     getPersonajes(),
   ]);
@@ -21,11 +38,16 @@ export default async function BibliotecaGlobalPage() {
         </div>
         <h1 className="font-display text-2xl font-normal tracking-wide">Biblioteca</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Todo lo que has guardado en todos tus proyectos, en un solo lugar.
+          Todo lo que has guardado en todas tus marcas, en un solo lugar.
         </p>
       </header>
 
-      <BibliotecaGlobalLista bloques={bloques} proyectos={proyectos} personajePorId={personajePorId} />
+      <BibliotecaGlobalLista
+        vista={vista}
+        bloques={bloques}
+        proyectos={proyectos}
+        personajePorId={personajePorId}
+      />
     </main>
   );
 }
