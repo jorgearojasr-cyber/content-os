@@ -7,6 +7,7 @@ import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
 import { explicarError } from "@/lib/errores";
+import { emocionSugeridaParaTipo, movimientoSugeridoParaPlano } from "@/lib/decision-engine";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
@@ -38,6 +39,21 @@ function FilaChecklist({ resuelto, etiqueta, valor }: { resuelto: boolean; etiqu
     <p className={`flex items-center gap-1.5 text-[14px] ${resuelto ? "text-text" : "text-accent"}`}>
       <span aria-hidden>{resuelto ? "✔" : "⚠"}</span>
       {resuelto ? valor : `Falta ${etiqueta}`}
+    </p>
+  );
+}
+
+/** Nivel Sugerido del Decision Engine (PRODUCT-ARCHITECTURE) — a diferencia
+ * de una sugerencia Automática (se pre-llena sola, ver Movimiento de
+ * cámara), esta requiere una acción explícita del usuario para aceptarse:
+ * nunca se escribe en el campo hasta que se hace clic en "usar". */
+function SugerenciaCampo({ sugerencia, onUsar }: { sugerencia: string; onUsar: () => void }) {
+  return (
+    <p className="mt-1 text-[12px] text-text-muted">
+      💡 Sugerencia: {sugerencia} —{" "}
+      <button type="button" onClick={onUsar} className="text-accent underline hover:text-accent/80">
+        usar
+      </button>
     </p>
   );
 }
@@ -105,11 +121,28 @@ export function CopilotoGrabar({
   );
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState("");
+  // Decision Engine (PRODUCT-ARCHITECTURE) — Emoción es Nivel Sugerido:
+  // necesita estado controlado (a diferencia de Movimiento de cámara, que
+  // solo se pre-llena una vez al montar) porque el botón "usar" de
+  // SugerenciaCampo debe poder escribir en el campo sin pasar por un ref
+  // sobre el <Input> compartido (que no reenvía refs).
+  const [emocion, setEmocion] = useState(escena.emocion);
 
   const indice = escenas.findIndex((e) => e.id === escena.id);
   const planoActual = planos.find((p) => p.id === escena.planoId);
   const locacionActual = locaciones.find((a) => a.id === escena.locacionId);
   const recomendacionBase = planoActual ? recomendacionBaseParaPlano(planoActual.nombre) : null;
+  // Decision Engine — Movimiento de cámara (Automático): el plano ya
+  // resuelto es señal suficientemente fuerte como para pre-llenar sin
+  // pedir confirmación; solo se calcula si el campo real está vacío, así
+  // nunca pisa lo que trajo el CBD o lo que el usuario ya escribió.
+  const movimientoSugerido = !escena.movimientoCamara.trim() && planoActual
+    ? movimientoSugeridoParaPlano(planoActual.nombre)
+    : null;
+  // Decision Engine — Emoción (Sugerido): mismo criterio de "solo si está
+  // vacío", pero acá nunca se pre-llena sola — se ofrece y hace falta un
+  // clic para aceptarla.
+  const emocionSugerida = !emocion.trim() ? emocionSugeridaParaTipo(tipoEscena) : null;
 
   function togglePersonaje(id: string) {
     setPersonajeIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -320,7 +353,14 @@ export function CopilotoGrabar({
             </>
           ) : null}
           <Label htmlFor="movimientoCamara">Movimiento de cámara</Label>
-          <Input id="movimientoCamara" name="movimientoCamara" defaultValue={escena.movimientoCamara} />
+          <Input
+            id="movimientoCamara"
+            name="movimientoCamara"
+            defaultValue={escena.movimientoCamara || movimientoSugerido || ""}
+          />
+          {movimientoSugerido ? (
+            <p className="mt-1 text-[12px] text-text-muted">💡 Sugerido según el plano — editable.</p>
+          ) : null}
           <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
           <Textarea id="recursosNecesarios" name="recursosNecesarios" defaultValue={escena.recursosNecesarios} />
 
@@ -344,7 +384,10 @@ export function CopilotoGrabar({
           <Label htmlFor="objetivoNarrativo">Objetivo narrativo</Label>
           <Textarea id="objetivoNarrativo" name="objetivoNarrativo" defaultValue={escena.objetivoNarrativo} />
           <Label htmlFor="emocion">Emoción</Label>
-          <Input id="emocion" name="emocion" defaultValue={escena.emocion} />
+          <Input id="emocion" name="emocion" value={emocion} onChange={(e) => setEmocion(e.target.value)} />
+          {emocionSugerida ? (
+            <SugerenciaCampo sugerencia={emocionSugerida} onUsar={() => setEmocion(emocionSugerida)} />
+          ) : null}
           <Label htmlFor="valorEspectador">Valor para el espectador</Label>
           <Input id="valorEspectador" name="valorEspectador" defaultValue={escena.valorEspectador} />
           <Label htmlFor="duracionSegundos">¿Cuánto dura? (segundos)</Label>
