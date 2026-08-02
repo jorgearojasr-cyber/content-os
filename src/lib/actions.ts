@@ -23,8 +23,14 @@ import {
 } from "@/db/schema";
 import { compileIdentity } from "./identity-compiler";
 import type { PosicionLogo } from "./identity-compiler";
-import { completarProyecto, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
-import type { EscenaRevisada, IdentidadCompletaSugerida, PersonajeSugerido, PlanEdicion } from "./ai";
+import { completarProyecto, explicarRecomendacionEscena, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
+import type {
+  EscenaRevisada,
+  ExplicarRecomendacionInput,
+  IdentidadCompletaSugerida,
+  PersonajeSugerido,
+  PlanEdicion,
+} from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
@@ -2606,6 +2612,19 @@ export async function generarPlanEdicionProduccionAction(
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
 
   return plan;
+}
+
+/**
+ * Nivel 2 de UX-PREP-4B.1 ("Explicar esta recomendación" en el Copiloto):
+ * envoltorio fino sobre `explicarRecomendacionEscena` (ai.ts) — sin lógica
+ * propia, solo la capa de server action. Se dispara EXCLUSIVAMENTE al
+ * presionar el botón en `CopilotoGrabar`; nunca se llama automáticamente
+ * al abrir una escena (esa parte es Nivel 1, sin IA — ver
+ * `recomendacionBaseParaPlano` en recomendaciones-audiovisuales.ts). No
+ * escribe nada en la base de datos: el resultado vive solo en el estado
+ * del cliente mientras el usuario mira esa escena. */
+export async function explicarRecomendacionEscenaAction(input: ExplicarRecomendacionInput): Promise<string> {
+  return explicarRecomendacionEscena(input);
 }
 
 /** Marca todas las escenas Grabadas de la Producción como Editadas de una

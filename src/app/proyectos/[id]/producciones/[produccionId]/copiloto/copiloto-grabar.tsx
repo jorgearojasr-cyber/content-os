@@ -7,8 +7,10 @@ import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
 import { explicarError } from "@/lib/errores";
+import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
+import type { ExplicarRecomendacionInput } from "@/lib/ai";
 
 const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
   GANCHO: "Gancho",
@@ -40,6 +42,52 @@ function FilaResumen({ resuelto, etiqueta, valor }: { resuelto: boolean; etiquet
   );
 }
 
+/** Nivel 1 + Nivel 2 de UX-PREP-4B.1 — `recomendacionBase` ya viene
+ * resuelta sin IA (recomendaciones-audiovisuales.ts), visible apenas se
+ * abre la escena. "Explicar esta recomendación" es la única forma de
+ * disparar IA acá — nunca se llama sola. */
+function RecomendacionPlano({
+  recomendacionBase,
+  onExplicar,
+}: {
+  recomendacionBase: string;
+  onExplicar: () => Promise<string>;
+}) {
+  const [explicacion, setExplicacion] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function explicar() {
+    setCargando(true);
+    setError("");
+    try {
+      setExplicacion(await onExplicar());
+    } catch (e) {
+      setError(explicarError(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <div className="w-full text-[12px] text-text-muted">
+      <span>{recomendacionBase}</span>{" "}
+      {!explicacion ? (
+        <button
+          type="button"
+          onClick={explicar}
+          disabled={cargando}
+          className="text-accent underline hover:text-accent/80"
+        >
+          {cargando ? "Pensando…" : "Explicar esta recomendación"}
+        </button>
+      ) : null}
+      {explicacion ? <p className="mt-1 text-[12.5px] text-text">{explicacion}</p> : null}
+      {error ? <p className="mt-1 text-danger">{error}</p> : null}
+    </div>
+  );
+}
+
 /**
  * Pantalla de grabación del Copiloto (UX Migration 3, jerarquía visual
  * rediseñada en UX-MIGRATION-3D) — mismos campos y la misma acción de
@@ -64,6 +112,7 @@ export function CopilotoGrabar({
   personajes,
   onSave,
   onEstadoChange,
+  onExplicarRecomendacion,
 }: {
   proyectoId: string;
   produccionId: string;
@@ -74,6 +123,7 @@ export function CopilotoGrabar({
   personajes: Personaje[];
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
+  onExplicarRecomendacion: (input: ExplicarRecomendacionInput) => Promise<string>;
 }) {
   const router = useRouter();
   const base = `/proyectos/${proyectoId}/producciones/${produccionId}`;
@@ -86,6 +136,7 @@ export function CopilotoGrabar({
   const indice = escenas.findIndex((e) => e.id === escena.id);
   const planoActual = planos.find((p) => p.id === escena.planoId);
   const locacionActual = locaciones.find((a) => a.id === escena.locacionId);
+  const recomendacionBase = planoActual ? recomendacionBaseParaPlano(planoActual.nombre) : null;
 
   function togglePersonaje(id: string) {
     setPersonajeIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -133,6 +184,25 @@ export function CopilotoGrabar({
       <Card className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <p className="w-full text-[11px] font-medium uppercase tracking-wide text-text-muted">Necesitás</p>
         <FilaResumen resuelto={!!planoActual} etiqueta="Plano" valor={planoActual?.nombre ?? ""} />
+        {recomendacionBase ? (
+          <RecomendacionPlano
+            recomendacionBase={recomendacionBase}
+            onExplicar={() =>
+              onExplicarRecomendacion({
+                recomendacionBase,
+                tipo: tipoEscena,
+                objetivoNarrativo: escena.objetivoNarrativo,
+                textoHablado: escena.textoHablado,
+                textoPantalla: escena.textoPantalla,
+                planoNombre: planoActual!.nombre,
+                locacionNombre: locacionActual?.nombre ?? "",
+                personajesNombres: personajeIds
+                  .map((id) => personajes.find((p) => p.id === id)?.nombre)
+                  .filter((n): n is string => Boolean(n)),
+              })
+            }
+          />
+        ) : null}
         <FilaResumen resuelto={!!locacionActual} etiqueta="Locación" valor={locacionActual?.nombre ?? ""} />
         {personajes.length > 0 ? (
           <FilaResumen

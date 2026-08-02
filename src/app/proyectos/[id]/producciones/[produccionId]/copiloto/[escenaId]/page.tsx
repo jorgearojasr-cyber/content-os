@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   actualizarEstadoProduccionEscena,
+  explicarRecomendacionEscenaAction,
   getActivos,
   getPersonajes,
   getPlanos,
@@ -43,6 +44,7 @@ export default async function CopilotoGrabarPage({
       personajes={personajes}
       onSave={boundSave}
       onEstadoChange={boundEstado}
+      onExplicarRecomendacion={explicarRecomendacionEscenaAction}
     />
   );
 }

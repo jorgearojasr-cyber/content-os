@@ -391,3 +391,52 @@ export async function generarPlanEdicion(input: PlanEdicionInput): Promise<PlanE
   // reutiliza el contexto ya cacheado.
   return generarEstructurado(prompt, PlanEdicionSchema, 6144, input.identidadCompilada || undefined);
 }
+
+const ExplicacionRecomendacionSchema = z.object({
+  explicacion: z
+    .string()
+    .describe("1-2 frases en español explicando por qué la recomendación aplica específicamente a esta escena"),
+});
+
+export type ExplicarRecomendacionInput = {
+  /** La recomendación base de Nivel 1 (recomendaciones-audiovisuales.ts) —
+   * la IA explica POR QUÉ esta recomendación general encaja acá, nunca
+   * inventa una recomendación distinta. */
+  recomendacionBase: string;
+  tipo: string;
+  objetivoNarrativo: string;
+  textoHablado: string;
+  textoPantalla: string;
+  planoNombre: string;
+  locacionNombre: string;
+  personajesNombres: string[];
+};
+
+/**
+ * Nivel 2 de UX-PREP-4B.1 — explicación contextual bajo demanda, nunca
+ * automática: solo se llama cuando el usuario presiona "Explicar esta
+ * recomendación" en el Copiloto. Recibe el contexto completo de la escena
+ * y la recomendación base de Nivel 1 (sin IA, recomendaciones-
+ * audiovisuales.ts) — la IA no decide el Plano ni inventa una
+ * recomendación nueva, solo argumenta por qué la recomendación universal
+ * ya elegida aplica bien a esta escena puntual. No se persiste en base de
+ * datos: vive solo en el estado del cliente mientras el usuario mira esa
+ * escena (UX-PREP-4B.1, "no agregar columnas si no son estrictamente
+ * necesarias"). */
+export async function explicarRecomendacionEscena(input: ExplicarRecomendacionInput): Promise<string> {
+  const prompt =
+    `Sos un director de fotografía con años de experiencia en contenido audiovisual para redes sociales. ` +
+    `La recomendación general para un "${input.planoNombre}" es: "${input.recomendacionBase}". Explicá en ` +
+    `1-2 frases, en español y en tono directo, por qué esa recomendación es especialmente adecuada para ` +
+    `ESTA escena en particular — no repitas la recomendación general con otras palabras, argumentá desde ` +
+    `el contenido real de la escena.\n\n` +
+    `Tipo de escena: ${input.tipo}\n` +
+    `Objetivo narrativo: ${input.objetivoNarrativo || "(sin especificar)"}\n` +
+    `Texto hablado: ${input.textoHablado || "(sin diálogo)"}\n` +
+    `Texto en pantalla: ${input.textoPantalla || "(ninguno)"}\n` +
+    `Locación: ${input.locacionNombre || "(sin asignar)"}\n` +
+    `Personajes: ${input.personajesNombres.length > 0 ? input.personajesNombres.join(", ") : "(ninguno)"}`;
+
+  const { explicacion } = await generarEstructurado(prompt, ExplicacionRecomendacionSchema, 512);
+  return explicacion;
+}
