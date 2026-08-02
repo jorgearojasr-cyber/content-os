@@ -49,8 +49,12 @@ export function similitudTexto(a: string, b: string): number {
   return 1 - distanciaLevenshtein(x, y) / largoMax;
 }
 
-/** >= 85%: sugerencia fuerte, se distingue visualmente pero igual requiere
- * un clic explícito — nunca se autoselecciona (filosofía QA-1). */
+/** >= 85%: sugerencia fuerte. Cuando es la única candidata que cruza este
+ * umbral (sin otra reñida cerca), `resolverCampo` la vincula sola —
+ * reversible, nunca oculta (UX Migration 4A: "automatización primero",
+ * reemplaza la filosofía anterior de QA-1 de no autoseleccionar jamás). Si
+ * hay dos o más candidatas por encima de este umbral, sigue siendo una
+ * decisión real y no se autoselecciona ninguna. */
 export const UMBRAL_SUGERENCIA_FUERTE = 0.85;
 
 /** < 60%: no se sugiere — evita asociaciones de baja calidad ("Presentador"

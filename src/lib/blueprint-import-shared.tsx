@@ -3,13 +3,27 @@
 import { useState } from "react";
 import type { EntidadBiblioteca, AnalisisBlueprint } from "@/lib/actions";
 import type { EscenaCBD } from "@/lib/blueprint-parser";
-import { explicarError } from "@/lib/errores";
-import { similitudTexto, UMBRAL_SUGERENCIA_FUERTE, UMBRAL_SUGERENCIA_MINIMA } from "@/lib/similitud";
+import { explicarError } from "./errores";
+import { similitudTexto, UMBRAL_SUGERENCIA_FUERTE, UMBRAL_SUGERENCIA_MINIMA } from "./similitud";
 
 /** Piezas puras usadas por `RevisionBlueprint` (UX Migration 2) — la
  * resolución de Personajes/Locación/Plano dentro de cada escena, igual
  * sin importar si el Proyecto llegó pre-resuelto o se resolvió recién en
- * la propia pantalla. */
+ * la propia pantalla. Importa `errores`/`similitud` con ruta relativa (no
+ * `@/lib/...`) a propósito — Vitest no resuelve alias de path, y este
+ * archivo necesita ser testeable directamente (`resolverCampo` es la
+ * pieza central de la automatización de UX Migration 4A). Los imports de
+ * tipo (`EntidadBiblioteca`, `AnalisisBlueprint`, `EscenaCBD`) se borran
+ * en build y no necesitan el mismo tratamiento.
+ *
+ * UX Migration 4A — "automatización primero": `resolverCampo` ya no deja
+ * como pendiente una coincidencia fuerte sin competencia (ver el umbral en
+ * `similitud.ts`); la vincula sola, de forma visible y reversible (ver
+ * `SelectorResolucion`). Cuando sí hace falta preguntar, el `Campo`
+ * resultante trae su propio `motivo` explicado y, si existe, la
+ * `recomendacion` del sistema — nunca una etiqueta fija en el componente,
+ * para que una recomendación real (IA, más adelante) pueda ocupar el mismo
+ * lugar sin tocar la UI de nuevo. */
 
 export const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
   GANCHO: "Gancho",
@@ -26,6 +40,12 @@ export const SIN_VINCULAR = "__sin_vincular__";
 
 export type CandidatoSimilitud = EntidadBiblioteca & { similitud: number };
 
+/** La recomendación del propio sistema para un campo pendiente — existe
+ * incluso cuando no alcanza para autovincular (ver `resolverCampo`), para
+ * que `SelectorResolucion` siempre pueda mostrar "esto es lo que yo
+ * elegiría" en vez de una lista neutra sin opinión (UX Migration 4A). */
+export type Recomendacion = { id: string; nombre: string; similitud: number };
+
 /** Una referencia (Personaje/Locación/Plano) ya resuelta a un id real, o
  * pendiente de que el usuario decida — `decision === undefined` es
  * "todavía no decidió", distinto de `null` ("decidió dejarla en blanco a
@@ -34,14 +54,24 @@ export type CandidatoSimilitud = EntidadBiblioteca & { similitud: number };
  * entradas de la Biblioteca, se trata igual que "no encontrado" (no se
  * puede adivinar cuál es) pero se listan los `candidatos` reales en vez
  * del combo completo. Cuando no hay ninguna coincidencia exacta, se
- * ofrecen `sugerencias` por similitud (UX Migration 1.2) — nunca ambas
- * cosas a la vez, y ninguna de las dos se autoselecciona jamás. */
+ * ofrecen `sugerencias` por similitud (UX Migration 1.2).
+ *
+ * `autoResuelto` (UX Migration 4A): true cuando `resolverCampo` ya dejó
+ * `decision` prellenada con una sugerencia fuerte sin competencia —
+ * sigue siendo `resuelto: false` (no es una coincidencia exacta, sigue
+ * siendo reversible) pero no bloquea "Crear video". `motivo` explica en
+ * lenguaje llano por qué este campo necesita atención (o por qué se
+ * autovinculó); `recomendacion`, si existe, es la mejor opción según el
+ * sistema aunque no haya alcanzado para autovincular sola. */
 export type Campo =
   | { resuelto: true; id: string; nombre: string }
   | {
       resuelto: false;
       nombre: string;
       decision: string | null | undefined;
+      autoResuelto: boolean;
+      motivo: string;
+      recomendacion?: Recomendacion;
       candidatos?: EntidadBiblioteca[];
       sugerencias?: CandidatoSimilitud[];
     };
@@ -59,20 +89,33 @@ export type EscenaEnRevision = {
  * ocurre por casualidad — la resolución por similitud es el camino
  * normal, no la excepción. La coincidencia exacta (ignorando mayúsculas
  * y tildes) sigue resolviéndose sola cuando hay una sola candidata,
- * exactamente como en Migration 1; si hay 0 exactas, se ofrecen
+ * exactamente como en Migration 1.
+ *
+ * UX Migration 4A — automatización primero: si hay 0 exactas, se ofrecen
  * `sugerencias` ordenadas por similitud, filtradas por
- * `UMBRAL_SUGERENCIA_MINIMA` — pero la decisión siempre queda pendiente
- * hasta que el usuario haga clic, sin importar qué tan alta sea la
- * similitud (filosofía QA-1: ninguna decisión aproximada en silencio). */
+ * `UMBRAL_SUGERENCIA_MINIMA`. Cuando la mejor sugerencia cruza
+ * `UMBRAL_SUGERENCIA_FUERTE` y ninguna otra la acompaña por encima de ese
+ * mismo umbral (no hay ambigüedad real), se vincula sola: `autoResuelto:
+ * true` y `decision` ya prellenada — sigue siendo reversible desde
+ * `SelectorResolucion`, nunca oculta. Cuando hay dos o más candidatas
+ * fuertes reñidas, o la mejor no llega al umbral fuerte, sigue siendo una
+ * decisión real del usuario — pero `recomendacion` igual queda expuesta
+ * con la mejor opción encontrada, para que la pregunta nunca sea "elegí a
+ * ciegas" sino "¿confirmás esto, o preferís otra?". */
 export function resolverCampo(nombre: string, disponibles: EntidadBiblioteca[]): Campo {
-  const coincidenciasExactas = disponibles.filter(
-    (d) => similitudTexto(d.nombre, nombre) === 1,
-  );
+  const coincidenciasExactas = disponibles.filter((d) => similitudTexto(d.nombre, nombre) === 1);
   if (coincidenciasExactas.length === 1) {
     return { resuelto: true, id: coincidenciasExactas[0].id, nombre };
   }
   if (coincidenciasExactas.length > 1) {
-    return { resuelto: false, nombre, decision: undefined, candidatos: coincidenciasExactas };
+    return {
+      resuelto: false,
+      nombre,
+      decision: undefined,
+      autoResuelto: false,
+      motivo: `Hay ${coincidenciasExactas.length} entradas en tu Biblioteca con el mismo nombre — no puedo saber sola cuál es.`,
+      candidatos: coincidenciasExactas,
+    };
   }
 
   const sugerencias = disponibles
@@ -80,10 +123,29 @@ export function resolverCampo(nombre: string, disponibles: EntidadBiblioteca[]):
     .filter((c) => c.similitud >= UMBRAL_SUGERENCIA_MINIMA)
     .sort((a, b) => b.similitud - a.similitud);
 
+  const mejor = sugerencias[0];
+  const segunda = sugerencias[1];
+  const autoResuelto =
+    mejor !== undefined &&
+    mejor.similitud >= UMBRAL_SUGERENCIA_FUERTE &&
+    (segunda === undefined || segunda.similitud < UMBRAL_SUGERENCIA_FUERTE);
+
+  const motivo =
+    mejor === undefined
+      ? `No encontré nada parecido a "${nombre}" en tu Biblioteca.`
+      : autoResuelto
+        ? `"${nombre}" se parece mucho a "${mejor.nombre}" de tu Biblioteca — lo vinculé sola.`
+        : mejor.similitud >= UMBRAL_SUGERENCIA_FUERTE
+          ? `Hay más de una opción de tu Biblioteca muy parecida a "${nombre}" — no quiero adivinar cuál preferís.`
+          : `"${nombre}" no coincide exacto con nada — lo más parecido que encontré es "${mejor.nombre}", pero no estoy segura.`;
+
   return {
     resuelto: false,
     nombre,
-    decision: undefined,
+    decision: autoResuelto ? mejor.id : undefined,
+    autoResuelto,
+    motivo,
+    recomendacion: mejor ? { id: mejor.id, nombre: mejor.nombre, similitud: mejor.similitud } : undefined,
     sugerencias: sugerencias.length > 0 ? sugerencias : undefined,
   };
 }
@@ -106,12 +168,27 @@ export function faltanDecisiones(escenas: EscenaEnRevision[]): boolean {
   );
 }
 
+/** Se muestra en todo campo genuinamente pendiente — la misma respuesta a
+ * "¿qué pasa si no hago nada?" sin importar el tipo de campo, porque el
+ * mecanismo es siempre el mismo: "sin vincular" no bloquea nada (UX
+ * Migration 4A, principio "las preguntas deben tener contexto"). */
+const QUE_PASA_SI_NO_DECIDIS = "Podés dejarlo sin vincular y resolverlo después desde Escenas — no bloquea crear el video.";
+
 /**
  * Resuelve un campo pendiente (Personaje/Locación/Plano) — lista de radios
  * en vez del `<select>` de Migration 1, para poder distinguir visualmente
- * la sugerencia fuerte (>= `UMBRAL_SUGERENCIA_FUERTE`) sin nunca marcarla
- * como elegida por su cuenta: ningún radio queda tildado hasta que el
- * usuario hace clic, sin importar la similitud (UX Migration 1.2).
+ * la recomendación del sistema sin nunca marcarla como elegida por su
+ * cuenta cuando de verdad hace falta una decisión (UX Migration 1.2).
+ *
+ * UX Migration 4A: cuando `campo.autoResuelto` es true y el usuario
+ * todavía no tocó nada, se muestra como una línea liviana ya resuelta
+ * ("Vinculé... — cambiar"), no como una tarjeta de decisión — la elección
+ * ya está tomada, solo queda visible y reversible. Cuando sí hace falta
+ * preguntar, la tarjeta explica el motivo, qué pasa si no se decide nada,
+ * y marca la recomendación del sistema si existe — en un tono neutro, no
+ * de error: el rojo queda solo para errores bloqueantes reales del CBD y
+ * para Producción duplicada, en `RevisionBlueprint`.
+ *
  * `onCrearNuevo`, si se pasa, agrega la opción "Crear nuevo" — hoy solo
  * tiene sentido para Personaje (Locación necesita una foto real y Plano
  * todavía no tiene administración propia, ver `getPlanos`). */
@@ -126,6 +203,7 @@ export function SelectorResolucion({
 }) {
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
+  const [revisando, setRevisando] = useState(false);
 
   if (campo.resuelto) {
     return <span className="text-text">{campo.nombre}</span>;
@@ -151,24 +229,35 @@ export function SelectorResolucion({
     }
   }
 
+  if (campo.autoResuelto && !revisando) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-text">
+        <span className="text-accent">✔</span>
+        <span>
+          Vinculé “{campo.nombre}” con <span className="font-medium">{campo.recomendacion?.nombre}</span> de tu
+          Biblioteca.
+        </span>
+        <button type="button" onClick={() => setRevisando(true)} className="text-text-muted underline hover:text-text">
+          cambiar
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-danger/40 bg-danger/5 p-2">
-      <p className="text-[12px] text-danger">
-        {ambiguo
-          ? `“${campo.nombre}” coincide con ${campo.candidatos!.length} entradas de tu Biblioteca — elegí cuál es.`
-          : opciones.length > 0
-            ? `“${campo.nombre}” no coincide exacto con nada — ¿es alguna de estas?`
-            : `“${campo.nombre}” no coincide con nada existente.`}
-      </p>
+    <div className="rounded-lg border border-accent/30 bg-accent-soft p-2">
+      <p className="text-[12px] text-text">{campo.motivo}</p>
+      <p className="mt-0.5 text-[11px] text-text-muted">{QUE_PASA_SI_NO_DECIDIS}</p>
       <div className="mt-1.5 space-y-1">
-        {opciones.map((d, i) => {
-          const fuerte = !ambiguo && i === 0 && (d.similitud ?? 0) >= UMBRAL_SUGERENCIA_FUERTE;
+        {opciones.map((d) => {
+          const esRecomendacion =
+            !ambiguo && campo.recomendacion?.id === d.id && (campo.recomendacion?.similitud ?? 0) >= UMBRAL_SUGERENCIA_FUERTE;
           return (
             <label key={d.id} className="flex items-center gap-1.5 text-[12.5px] text-text">
               <input type="radio" checked={valorActual === d.id} onChange={() => onDecidir(d.id)} />
-              {fuerte ? (
+              {esRecomendacion ? (
                 <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-medium text-accent">
-                  Sugerido
+                  Mi recomendación
                 </span>
               ) : null}
               {d.nombre}
