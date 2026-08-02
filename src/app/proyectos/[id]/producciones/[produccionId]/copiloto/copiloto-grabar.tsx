@@ -121,24 +121,35 @@ export function CopilotoGrabar({
   );
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState("");
-  // Decision Engine (PRODUCT-ARCHITECTURE) — Emoción es Nivel Sugerido:
-  // necesita estado controlado (a diferencia de Movimiento de cámara, que
-  // solo se pre-llena una vez al montar) porque el botón "usar" de
-  // SugerenciaCampo debe poder escribir en el campo sin pasar por un ref
-  // sobre el <Input> compartido (que no reenvía refs).
-  const [emocion, setEmocion] = useState(escena.emocion);
 
   const indice = escenas.findIndex((e) => e.id === escena.id);
   const planoActual = planos.find((p) => p.id === escena.planoId);
   const locacionActual = locaciones.find((a) => a.id === escena.locacionId);
   const recomendacionBase = planoActual ? recomendacionBaseParaPlano(planoActual.nombre) : null;
+
   // Decision Engine — Movimiento de cámara (Automático): el plano ya
   // resuelto es señal suficientemente fuerte como para pre-llenar sin
   // pedir confirmación; solo se calcula si el campo real está vacío, así
-  // nunca pisa lo que trajo el CBD o lo que el usuario ya escribió.
-  const movimientoSugerido = !escena.movimientoCamara.trim() && planoActual
+  // nunca pisa lo que trajo el CBD o lo que el usuario ya escribió. Estado
+  // controlado (UX-MIGRATION — Decision Engine Visual Language) para poder
+  // apagar `movimientoEsSugerencia` en cuanto el usuario edita el campo —
+  // antes solo existía una leyenda de texto que quedaba pegada aunque el
+  // valor ya fuera del usuario.
+  const movimientoSugeridoInicial = !escena.movimientoCamara.trim() && planoActual
     ? movimientoSugeridoParaPlano(planoActual.nombre)
     : null;
+  const [movimientoCamara, setMovimientoCamara] = useState(escena.movimientoCamara || movimientoSugeridoInicial || "");
+  const [movimientoEsSugerencia, setMovimientoEsSugerencia] = useState(!!movimientoSugeridoInicial);
+
+  // Decision Engine (PRODUCT-ARCHITECTURE) — Emoción es Nivel Sugerido:
+  // necesita estado controlado porque el botón "usar" de SugerenciaCampo
+  // debe poder escribir en el campo sin pasar por un ref sobre el <Input>
+  // compartido (que no reenvía refs). `emocionEsSugerencia` es aparte:
+  // arranca en false (Sugerido nunca se pre-llena solo) y pasa a true
+  // cuando el usuario acepta la sugerencia con "usar" — el valor sigue
+  // siendo el que propuso el Decision Engine hasta que el usuario lo edite.
+  const [emocion, setEmocion] = useState(escena.emocion);
+  const [emocionEsSugerencia, setEmocionEsSugerencia] = useState(false);
   // Decision Engine — Emoción (Sugerido): mismo criterio de "solo si está
   // vacío", pero acá nunca se pre-llena sola — se ofrece y hace falta un
   // clic para aceptarla.
@@ -356,9 +367,14 @@ export function CopilotoGrabar({
           <Input
             id="movimientoCamara"
             name="movimientoCamara"
-            defaultValue={escena.movimientoCamara || movimientoSugerido || ""}
+            value={movimientoCamara}
+            onChange={(e) => {
+              setMovimientoCamara(e.target.value);
+              setMovimientoEsSugerencia(false);
+            }}
+            sugerido={movimientoEsSugerencia}
           />
-          {movimientoSugerido ? (
+          {movimientoEsSugerencia ? (
             <p className="mt-1 text-[12px] text-text-muted">💡 Sugerido según el plano — editable.</p>
           ) : null}
           <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
@@ -384,9 +400,24 @@ export function CopilotoGrabar({
           <Label htmlFor="objetivoNarrativo">Objetivo narrativo</Label>
           <Textarea id="objetivoNarrativo" name="objetivoNarrativo" defaultValue={escena.objetivoNarrativo} />
           <Label htmlFor="emocion">Emoción</Label>
-          <Input id="emocion" name="emocion" value={emocion} onChange={(e) => setEmocion(e.target.value)} />
+          <Input
+            id="emocion"
+            name="emocion"
+            value={emocion}
+            onChange={(e) => {
+              setEmocion(e.target.value);
+              setEmocionEsSugerencia(false);
+            }}
+            sugerido={emocionEsSugerencia}
+          />
           {emocionSugerida ? (
-            <SugerenciaCampo sugerencia={emocionSugerida} onUsar={() => setEmocion(emocionSugerida)} />
+            <SugerenciaCampo
+              sugerencia={emocionSugerida}
+              onUsar={() => {
+                setEmocion(emocionSugerida);
+                setEmocionEsSugerencia(true);
+              }}
+            />
           ) : null}
           <Label htmlFor="valorEspectador">Valor para el espectador</Label>
           <Input id="valorEspectador" name="valorEspectador" defaultValue={escena.valorEspectador} />

@@ -29,11 +29,26 @@ export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: st
   );
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * `sugerido` — lenguaje visual único para "esto lo propuso el Decision
+ * Engine y el usuario todavía no lo tocó" (UX-MIGRATION — Decision Engine
+ * Visual Language). Borde + fondo ámbar (mismo tono que ya usa `Chip`
+ * para "seleccionado") en vez de una leyenda de texto: el origen del dato
+ * se entiende de un vistazo, no leyendo. Vive en el componente, no en
+ * clases sueltas por campo, para que sea la única implementación de este
+ * estado en toda la app.
+ */
+export function Input({
+  sugerido,
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { sugerido?: boolean }) {
   return (
     <input
       {...props}
-      className={`w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text placeholder:text-text-muted/60 ${props.className ?? ""}`}
+      className={`w-full rounded-xl border px-3.5 py-3 text-[14.5px] text-text placeholder:text-text-muted/60 ${
+        sugerido ? "border-accent bg-accent-soft" : "border-border bg-surface-2"
+      } ${className}`}
     />
   );
 }
