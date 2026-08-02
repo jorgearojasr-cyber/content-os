@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getProduccion, getStoryboardEscenas } from "@/lib/actions";
 import { resolverFaseCopiloto } from "@/lib/estado-produccion";
-import { Card, Empty, SectionTitle } from "@/components/ui";
+import { Card, Empty, LinkButton, SectionTitle } from "@/components/ui";
 
 /**
  * Entrada del Copiloto (UX Migration 3) — nunca decide nada por sí misma:
@@ -46,6 +46,20 @@ export default async function CopilotoPage({
         Copiloto
       </SectionTitle>
       <Empty title="Producción completa ✓">Este video ya recorrió todo el proceso.</Empty>
+
+      {/* UX-MIGRATION-5.1: el acompañamiento no debe apagarse justo al
+          terminar — la misma pregunta que guió cada paso anterior
+          ("¿y ahora qué hago?") sigue mereciendo respuesta acá. */}
+      <div className="mt-5 rounded-xl border border-accent/30 bg-accent-soft p-4 text-center">
+        <p className="text-[15px]">🎉 Video terminado.</p>
+        <p className="mt-0.5 text-[13px] text-text-muted">¿Qué querés hacer ahora?</p>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <LinkButton href="/">Crear otro video</LinkButton>
+          <LinkButton href="/" variant="secondary">
+            Volver a Hoy
+          </LinkButton>
+        </div>
+      </div>
     </Card>
   );
 }

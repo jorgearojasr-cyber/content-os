@@ -92,6 +92,7 @@ export function ProduccionEscenas({
   const [, startTransition] = useTransition();
 
   const tiempos = calcularTiempos(escenas);
+  const quedanEscenasPorGrabar = escenas.some((e) => e.estadoProduccion === "BORRADOR");
 
   // UX-MIGRATION-5: tocar una tarjeta lleva a Copiloto para esa escena —
   // el Storyboard deja de ser una segunda forma de editar contenido
@@ -181,6 +182,15 @@ export function ProduccionEscenas({
   return (
     <div className="space-y-4">
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
+
+      {/* UX-MIGRATION-5.1: hace explícito algo que ya funcionaba (tocar una
+          tarjeta abre el Copiloto en esa escena) — desaparece sola apenas
+          no queda ninguna escena en Borrador. */}
+      {quedanEscenasPorGrabar ? (
+        <p className="text-[12.5px] text-text-muted">
+          Todavía quedan escenas por grabar. Tocá una tarjeta para continuar donde quedaste.
+        </p>
+      ) : null}
 
       <Button type="button" variant="secondary" onClick={handleCrear} disabled={creando}>
         {creando ? "Creando…" : "+ Nueva escena"}
