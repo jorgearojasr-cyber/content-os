@@ -51,7 +51,7 @@ export function ProyectosLista({
         type="search"
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
-        placeholder="Buscar proyecto por nombre..."
+        placeholder="Buscar marca por nombre..."
         className="mb-4 w-full rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-text placeholder:text-text-muted/60"
       />
       {filtrados.length === 0 ? (
@@ -66,7 +66,7 @@ export function ProyectosLista({
                 🏛 {area.nombre}
               </p>
               {proyectosDeArea.length === 0 ? (
-                <p className="text-[12.5px] text-text-muted">Sin proyectos todavía.</p>
+                <p className="text-[12.5px] text-text-muted">Sin marcas todavía.</p>
               ) : (
                 <div className="space-y-3">
                   {proyectosDeArea.map((p) => (
@@ -131,7 +131,7 @@ function ProyectoCard({
         type="button"
         onClick={() => setConfirmOpen(true)}
         aria-label={`Eliminar ${proyecto.nombre}`}
-        title="Eliminar proyecto"
+        title="Eliminar marca"
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-danger"
       >
         🗑
@@ -142,7 +142,7 @@ function ProyectoCard({
         onOpenChange={setConfirmOpen}
         title={`¿Eliminar "${proyecto.nombre}"?`}
         description="Se eliminarán también su identidad, todo su contenido guardado (incluida la papelera) y sus activos. Esta acción no se puede deshacer."
-        confirmLabel="Eliminar proyecto"
+        confirmLabel="Eliminar marca"
         onConfirm={() => onDelete(proyecto.id)}
       />
     </Card>

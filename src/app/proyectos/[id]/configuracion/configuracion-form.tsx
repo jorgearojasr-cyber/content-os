@@ -74,7 +74,7 @@ export function ConfiguracionForm({
         </select>
         <p className="mt-1.5 text-[12px] text-text-muted">
           El Conocimiento propio de esa Área queda disponible automáticamente al generar
-          contenido en este proyecto, sin subirlo a su Biblioteca.
+          contenido en esta marca, sin subirlo a su Biblioteca.
         </p>
       </div>
     </div>

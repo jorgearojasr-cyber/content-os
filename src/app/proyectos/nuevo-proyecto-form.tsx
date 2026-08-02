@@ -37,11 +37,11 @@ export function NuevoProyectoForm({
       />
       {esDuplicado ? (
         <p className="mt-1.5 text-[12.5px] text-danger">
-          Ya existe un proyecto con este nombre — ¿seguro que quieres crear otro?
+          Ya existe una marca con este nombre — ¿seguro que quieres crear otra?
         </p>
       ) : null}
       <Label htmlFor="descripcion">Descripción (opcional)</Label>
-      <Textarea id="descripcion" name="descripcion" placeholder="De qué trata este proyecto" />
+      <Textarea id="descripcion" name="descripcion" placeholder="De qué trata esta marca" />
       {areas.length > 0 ? (
         <>
           <Label htmlFor="areaId">Área (opcional)</Label>
@@ -61,7 +61,7 @@ export function NuevoProyectoForm({
         </>
       ) : null}
       <Button type="submit" className="mt-4">
-        Crear proyecto
+        Crear marca
       </Button>
     </form>
   );

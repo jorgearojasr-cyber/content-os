@@ -13,7 +13,7 @@ export default async function ConfiguracionPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-4">
-      <SectionTitle subtitle="Nombre, descripción y el Área de Conocimiento de este proyecto.">
+      <SectionTitle subtitle="Nombre, descripción y el Área de Conocimiento de esta marca.">
         Configuración
       </SectionTitle>
       <Card>
