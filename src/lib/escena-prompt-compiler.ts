@@ -6,9 +6,10 @@ import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "./
 
 /**
  * Compilador de prompts de Imagen/Video por escena — PREPARACION-FIX-1B.
- * Nivel C (ARCHITECTURE-MIGRATION): ensamblado determinista puro, sin IA y
- * sin llamada externa, mismo principio y mismos helpers (`linea`/`unir`)
- * que `compilarPersonaje()`. Patrón 1 (fire-and-forget, ver
+ * Nivel B (ARCHITECTURE-MIGRATION): heurística local que nunca sale de
+ * Content OS — ensamblado determinista puro, sin IA y sin llamada externa,
+ * mismo principio y mismos helpers (`linea`/`unir`) que
+ * `compilarPersonaje()`. Patrón 1 (fire-and-forget, ver
  * `docs/arquitectura/prompt-oficial.md`): Content OS solo arma el borrador
  * para que el usuario lo copie y lo corra en el generador de imagen/video
  * que prefiera — nunca necesita leer un resultado de vuelta.

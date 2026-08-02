@@ -158,7 +158,7 @@ export function CopilotoGrabar({
   // clic para aceptarla.
   const emocionSugerida = !emocion.trim() ? emocionSugeridaParaTipo(tipoEscena) : null;
 
-  // PREPARACION-FIX-1B — Nivel C: borradores de prompt de Imagen/Video
+  // PREPARACION-FIX-1B — Nivel B: borradores de prompt de Imagen/Video
   // ensamblados de forma determinista (`escena-prompt-compiler.ts`), mismo
   // criterio "solo si está vacío" que Movimiento de cámara — se calculan
   // una sola vez a partir de los datos con los que arrancó la escena, no
