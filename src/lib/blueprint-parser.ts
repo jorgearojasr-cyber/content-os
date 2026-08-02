@@ -200,6 +200,19 @@ function tituloSiEncabezadoEscena(linea: string): string | null {
   return /^escena\b/i.test(normalizarTexto(contenido)) ? contenido : null;
 }
 
+/** True si `lineaTrim` empieza con `${etiqueta}:`, comparando case/tilde-
+ * insensitive (mismo criterio que los encabezados — ver
+ * `tituloSiEncabezadoSeccion`) — acepta "Título"/"Titulo",
+ * "Locación"/"Locacion", etc. La normalización nunca cambia la cantidad de
+ * caracteres (una vocal con o sin tilde sigue siendo un solo caracter), así
+ * que el largo de `etiqueta` sigue siendo el corte correcto para separar
+ * la etiqueta del valor libre que la sigue — ese valor nunca se toca. */
+function empiezaConEtiqueta(lineaTrim: string, etiqueta: string): boolean {
+  const necesaria = `${etiqueta}:`;
+  if (lineaTrim.length < necesaria.length) return false;
+  return normalizarTexto(lineaTrim.slice(0, necesaria.length)) === normalizarTexto(necesaria);
+}
+
 /** Parsea un bloque de líneas contra una lista fija de campos. Etiquetas
  * no reconocidas se ignoran (forward-compat). El candidato con la
  * etiqueta más larga gana si dos etiquetas coincidieran como prefijo una
@@ -216,7 +229,7 @@ function parsearBloque(lineas: string[], campos: DefinicionCampo[]): Record<stri
     }
 
     const campo = campos
-      .filter((c) => lineaTrim.startsWith(`${c.etiqueta}:`))
+      .filter((c) => empiezaConEtiqueta(lineaTrim, c.etiqueta))
       .sort((a, b) => b.etiqueta.length - a.etiqueta.length)[0];
 
     if (!campo) {
@@ -283,19 +296,29 @@ function parsearDuracion(valor: string | undefined): number | null {
 }
 
 function normalizarTipoEscena(valor: string): TipoEscenaStoryboard | null {
-  const normalizado = valor.trim().toLowerCase();
-  const indice = ETIQUETAS_TIPO_ESCENA_CBD.findIndex((e) => e.toLowerCase() === normalizado);
+  const normalizado = normalizarTexto(valor);
+  const indice = ETIQUETAS_TIPO_ESCENA_CBD.findIndex((e) => normalizarTexto(e) === normalizado);
   return indice === -1 ? null : TIPOS_ESCENA_STORYBOARD[indice];
 }
 
 function coincideCaseInsensitive(valor: string, conocidos: string[]): boolean {
-  const normalizado = valor.trim().toLowerCase();
-  return conocidos.some((c) => c.trim().toLowerCase() === normalizado);
+  const normalizado = normalizarTexto(valor);
+  return conocidos.some((c) => normalizarTexto(c) === normalizado);
 }
 
 function extraerNumero(tituloBloque: string): number | null {
   const match = tituloBloque.match(/(\d+)/);
   return match ? Number.parseInt(match[1], 10) : null;
+}
+
+/** "Sin asignar" es el valor que el propio prompt de Content OS le pide a
+ * ChatGPT que escriba en Personajes/Locación/Plano cuando no aplica nada —
+ * nunca el nombre real de un Personaje/Locación/Plano a resolver contra la
+ * Biblioteca. Tratarlo como ausencia de valor (case/tilde-insensitive,
+ * igual que un campo vacío) evita que el importador lo ofrezca como si
+ * fuera un candidato a vincular — FIX 2 de PREPARACION-FIX-1. */
+function esSinAsignar(valor: string): boolean {
+  return normalizarTexto(valor) === "sin asignar";
 }
 
 function parsearEscena(
@@ -321,17 +344,19 @@ function parsearEscena(
     errores.push(`${ubicacion}: falta "Objetivo narrativo".`);
   }
 
-  const personajes = (campos.personajes as string[]) ?? [];
+  const personajes = ((campos.personajes as string[]) ?? []).filter((n) => !esSinAsignar(n));
   for (const nombre of personajes) {
     if (!coincideCaseInsensitive(nombre, biblioteca.personajes)) {
       advertencias.push(`${ubicacion}: Personaje "${nombre}" no coincide con ningún Personaje existente.`);
     }
   }
-  const locacion = ((campos.locacion as string) ?? "").trim();
+  const locacionCruda = ((campos.locacion as string) ?? "").trim();
+  const locacion = esSinAsignar(locacionCruda) ? "" : locacionCruda;
   if (locacion && !coincideCaseInsensitive(locacion, biblioteca.locaciones)) {
     advertencias.push(`${ubicacion}: Locación "${locacion}" no coincide con ninguna Locación existente.`);
   }
-  const plano = ((campos.plano as string) ?? "").trim();
+  const planoCrudo = ((campos.plano as string) ?? "").trim();
+  const plano = esSinAsignar(planoCrudo) ? "" : planoCrudo;
   if (plano && !coincideCaseInsensitive(plano, biblioteca.planos)) {
     advertencias.push(`${ubicacion}: Plano "${plano}" no coincide con ningún Plano existente.`);
   }

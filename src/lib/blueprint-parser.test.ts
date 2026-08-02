@@ -414,6 +414,109 @@ Texto hablado: Primero quiero hablar del Contexto en el que vivimos, y después 
   });
 });
 
+describe("parsearBlueprint — PREPARACION-FIX-1, FIX 1: etiquetas sin tilde", () => {
+  const CBD_SIN_TILDES = `# Creative Blueprint v1
+
+Autor: ChatGPT
+Fecha: 2026-07-31
+
+## Produccion
+
+Titulo: Video sin tildes en las etiquetas
+Proyecto: OBRABIEN
+Duracion estimada: 20
+
+## Escenas
+
+### Escena 1
+
+Tipo: Solucion
+Objetivo narrativo: Confirmar que las etiquetas sin tilde se reconocen igual que con tilde.
+Locacion: Obra
+Duracion estimada: 20
+`;
+
+  it('"Produccion"/"Titulo"/"Duracion estimada" sin tilde se reconocen igual que "Producción"/"Título"/"Duración estimada"', () => {
+    const resultado = parsearBlueprint(CBD_SIN_TILDES, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe("Video sin tildes en las etiquetas");
+    expect(resultado.produccion?.duracionEstimada).toBe(20);
+  });
+
+  it('"Solucion" (valor de Tipo) y "Locacion" (etiqueta de escena) sin tilde se reconocen igual', () => {
+    const resultado = parsearBlueprint(CBD_SIN_TILDES, BIBLIOTECA);
+    expect(resultado.escenas[0]).toMatchObject({ tipo: "SOLUCION", locacion: "Obra", duracionEstimada: 20 });
+  });
+
+  it("nunca modifica el valor libre que sigue a la etiqueta, solo la reconoce sin tilde", () => {
+    const texto = `# Creative Blueprint v1
+
+## Produccion
+
+Titulo: Título con tílde adentro, sin tocar
+
+## Escenas
+
+### Escena 1
+
+Tipo: Gancho
+Objetivo narrativo: Probar.
+`;
+    const resultado = parsearBlueprint(texto, BIBLIOTECA);
+    expect(resultado.produccion?.titulo).toBe("Título con tílde adentro, sin tocar");
+  });
+});
+
+describe("parsearBlueprint — PREPARACION-FIX-1, FIX 2: 'Sin asignar' se comporta como campo vacío", () => {
+  const CBD_SIN_ASIGNAR = `# Creative Blueprint v1
+
+## Producción
+
+Título: Video con Sin asignar
+
+## Escenas
+
+### Escena 1
+
+Tipo: Gancho
+Objetivo narrativo: Confirmar que "Sin asignar" no genera advertencias ni candidatos a resolver.
+Personajes:
+- Sin asignar
+Locación: sin asignar
+Plano: SIN ASIGNAR
+`;
+
+  it('"Sin asignar" (cualquier mayúscula) en Personajes/Locación/Plano no queda como valor ni genera advertencias', () => {
+    const resultado = parsearBlueprint(CBD_SIN_ASIGNAR, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.advertencias).toEqual([]);
+    expect(resultado.escenas[0].personajes).toEqual([]);
+    expect(resultado.escenas[0].locacion).toBe("");
+    expect(resultado.escenas[0].plano).toBe("");
+  });
+
+  it('un Personaje real junto a "Sin asignar" en la misma lista conserva el real y descarta solo "Sin asignar"', () => {
+    const texto = `# Creative Blueprint v1
+
+## Producción
+
+Título: Prueba
+
+## Escenas
+
+### Escena 1
+
+Tipo: Gancho
+Objetivo narrativo: Probar.
+Personajes:
+- Don José
+- Sin asignar
+`;
+    const resultado = parsearBlueprint(texto, BIBLIOTECA);
+    expect(resultado.escenas[0].personajes).toEqual(["Don José"]);
+  });
+});
+
 describe("parsearBlueprint — casos de error explícitos", () => {
   it("rechaza un CBD sin encabezado de versión, sin lanzar excepción", () => {
     const texto = `## Producción\n\nTítulo: Algo\n\n## Escenas\n\n### Escena 1\n\nTipo: Gancho\nObjetivo narrativo: Probar.\n`;

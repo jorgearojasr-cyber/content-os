@@ -206,10 +206,19 @@ export function agruparPendientes(escenas: EscenaEnRevision[]): CampoPendiente[]
 }
 
 /** Se muestra en todo campo genuinamente pendiente — la misma respuesta a
- * "¿qué pasa si no hago nada?" sin importar el tipo de campo, porque el
- * mecanismo es siempre el mismo: "sin vincular" no bloquea nada (UX
- * Migration 4A, principio "las preguntas deben tener contexto"). */
-const QUE_PASA_SI_NO_DECIDIS = "Podés dejarlo sin vincular y resolverlo después desde Escenas — no bloquea crear el video.";
+ * "¿qué pasa si no hago nada?" sin importar el tipo de campo (UX Migration
+ * 4A, principio "las preguntas deben tener contexto").
+ *
+ * PREPARACION-FIX-1, FIX 3: hasta acá el texto decía "no bloquea crear el
+ * video", pero el botón SÍ queda deshabilitado (`faltanDecisiones`) hasta
+ * elegir una opción — incluida "No lo sé todavía". Esa era la
+ * contradicción a resolver: se optó por corregir el texto (no por
+ * preseleccionar la opción sola), porque el flujo de "Antes de continuar"
+ * ya depende de que el campo quede genuinamente pendiente hasta que el
+ * usuario lo toque — preseleccionarlo lo sacaría de ese bloque sin que
+ * nadie lo haya decidido de verdad. */
+const QUE_PASA_SI_NO_DECIDIS =
+  "Podés dejarlo sin vincular y resolverlo después desde Escenas — elegí “No lo sé todavía” para poder crear el video sin resolverlo ahora.";
 
 /**
  * Resuelve un campo pendiente (Personaje/Locación/Plano) — lista de radios
@@ -226,9 +235,13 @@ const QUE_PASA_SI_NO_DECIDIS = "Podés dejarlo sin vincular y resolverlo despué
  * de error: el rojo queda solo para errores bloqueantes reales del CBD y
  * para Producción duplicada, en `RevisionBlueprint`.
  *
- * `onCrearNuevo`, si se pasa, agrega la opción "Crear nuevo" — hoy solo
- * tiene sentido para Personaje (Locación necesita una foto real y Plano
- * todavía no tiene administración propia, ver `getPlanos`).
+ * `onCrearNuevo`, si se pasa, agrega la opción "Crear nuevo" — hoy tiene
+ * sentido para Personaje y Locación (PREPARACION-FIX-1, FIX 4: una
+ * Locación creada así solo tiene nombre, sin foto — se completa después
+ * desde Activos). Plano todavía no tiene administración propia (ver
+ * `getPlanos`), así que no lo recibe. `etiquetaCrearNuevo` es la frase que
+ * completa "Crear ___: nombre" ("nuevo Personaje" / "nueva Locación") —
+ * el componente en sí es agnóstico al tipo de campo.
  *
  * `soloEstado` (UX-MIGRATION-5): true cuando este campo ya se resuelve en
  * el bloque consolidado "Antes de continuar" (ver `agruparPendientes`) —
@@ -239,11 +252,13 @@ export function SelectorResolucion({
   campo,
   onDecidir,
   onCrearNuevo,
+  etiquetaCrearNuevo = "nuevo Personaje",
   soloEstado = false,
 }: {
   campo: Campo;
   onDecidir: (valor: string) => void;
   onCrearNuevo?: (nombre: string) => Promise<{ id: string }>;
+  etiquetaCrearNuevo?: string;
   soloEstado?: boolean;
 }) {
   const [creando, setCreando] = useState(false);
@@ -326,7 +341,7 @@ export function SelectorResolucion({
         {onCrearNuevo ? (
           <label className="flex items-center gap-1.5 text-[12.5px] text-text">
             <input type="radio" checked={false} onChange={crearNuevo} disabled={creando} />
-            {creando ? "Creando…" : `Crear nuevo Personaje: “${campo.nombre}”`}
+            {creando ? "Creando…" : `Crear ${etiquetaCrearNuevo}: “${campo.nombre}”`}
           </label>
         ) : null}
         <label className="flex items-center gap-1.5 text-[12.5px] text-text">

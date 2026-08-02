@@ -43,6 +43,7 @@ export function HoyScreen({
   onAnalizarBiblioteca,
   onConfirmar,
   onCrearPersonaje,
+  onCrearLocacion,
   onGenerarContexto,
   onGenerarBiblioteca,
 }: {
@@ -57,6 +58,7 @@ export function HoyScreen({
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
   onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
+  onCrearLocacion: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onGenerarContexto: (proyectoId: string) => Promise<string>;
   /** Locaciones/Planos reales de la Marca activa, para la sección
    * "Biblioteca disponible" del prompt (UX Migration 2.5). */
@@ -307,6 +309,7 @@ export function HoyScreen({
           onAnalizarBiblioteca={onAnalizarBiblioteca}
           onConfirmar={onConfirmar}
           onCrearPersonaje={onCrearPersonaje}
+          onCrearLocacion={onCrearLocacion}
         />
       ) : null}
     </main>

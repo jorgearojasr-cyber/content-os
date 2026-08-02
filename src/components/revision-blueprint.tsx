@@ -66,6 +66,7 @@ export function RevisionBlueprint({
   onAnalizarBiblioteca,
   onConfirmar,
   onCrearPersonaje,
+  onCrearLocacion,
   onCerrar,
 }: {
   textoInicial: string;
@@ -79,6 +80,7 @@ export function RevisionBlueprint({
     datos: DatosImportacionBlueprint,
   ) => Promise<{ produccionId: string }>;
   onCrearPersonaje: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
+  onCrearLocacion: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
   onCerrar: () => void;
 }) {
   const router = useRouter();
@@ -128,6 +130,15 @@ export function RevisionBlueprint({
     const { id } = await onCrearPersonaje(proyectoElegidoId, nombre);
     setAnalisisBiblioteca((prev) =>
       prev ? { ...prev, personajesDisponibles: [...prev.personajesDisponibles, { id, nombre }] } : prev,
+    );
+    return { id };
+  }
+
+  async function crearLocacionYResolver(nombre: string): Promise<{ id: string }> {
+    if (!proyectoElegidoId) throw new Error("Todavía no se eligió un Proyecto.");
+    const { id } = await onCrearLocacion(proyectoElegidoId, nombre);
+    setAnalisisBiblioteca((prev) =>
+      prev ? { ...prev, locacionesDisponibles: [...prev.locacionesDisponibles, { id, nombre }] } : prev,
     );
     return { id };
   }
@@ -191,6 +202,17 @@ export function RevisionBlueprint({
         return { ...e, [tipo]: { ...actual, decision } };
       }),
     );
+  }
+
+  // PREPARACION-FIX-1, FIX 3: "Crear video" deshabilitado por decisiones
+  // pendientes debe llevar directo a resolverlas — todas viven en el
+  // bloque consolidado "Antes de continuar" (ver `agruparPendientes`), así
+  // que alcanza con desplazarse ahí y enfocar el primer control.
+  function irAPrimeraPendiente() {
+    const bloque = document.getElementById("antes-de-continuar");
+    if (!bloque) return;
+    bloque.scrollIntoView({ behavior: "smooth", block: "start" });
+    bloque.querySelector<HTMLElement>("input, button")?.focus();
   }
 
   async function handleConfirmar() {
@@ -454,7 +476,7 @@ export function RevisionBlueprint({
             ) : null}
 
             {pendientesConsolidados.length > 0 ? (
-              <div className="rounded-xl border border-accent/30 bg-accent-soft p-3">
+              <div id="antes-de-continuar" className="rounded-xl border border-accent/30 bg-accent-soft p-3">
                 <p className="mb-2 text-[13px] font-medium text-text">Antes de continuar</p>
                 <div className="space-y-3">
                   {pendientesConsolidados.map(({ tipo, campo, ocurrencias }) => (
@@ -465,7 +487,14 @@ export function RevisionBlueprint({
                       </span>
                       <SelectorResolucion
                         campo={campo}
-                        onCrearNuevo={tipo === "personaje" ? crearPersonajeYResolver : undefined}
+                        onCrearNuevo={
+                          tipo === "personaje"
+                            ? crearPersonajeYResolver
+                            : tipo === "locacion"
+                              ? crearLocacionYResolver
+                              : undefined
+                        }
+                        etiquetaCrearNuevo={tipo === "locacion" ? "nueva Locación" : "nuevo Personaje"}
                         onDecidir={(v) => decidirPorNombre(tipo, campo.nombre, v)}
                       />
                     </div>
@@ -504,6 +533,8 @@ export function RevisionBlueprint({
                         <span className="text-[11.5px] text-text-muted">Locación: </span>
                         <SelectorResolucion
                           campo={e.locacion}
+                          onCrearNuevo={crearLocacionYResolver}
+                          etiquetaCrearNuevo="nueva Locación"
                           onDecidir={(v) => decidirPorNombre("locacion", e.locacion!.nombre, v)}
                           soloEstado={!e.locacion.resuelto && !e.locacion.autoResuelto}
                         />
@@ -535,13 +566,32 @@ export function RevisionBlueprint({
 
       {etapa === "revision" ? (
         <div className="sticky bottom-0 border-t border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
-          <div className="mx-auto flex max-w-[720px] justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={volverAPegar}>
-              Volver a pegar
-            </Button>
-            <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
-              {confirmando ? "Creando…" : "Crear video"}
-            </Button>
+          <div className="mx-auto max-w-[720px]">
+            {pendientesConsolidados.length > 0 ? (
+              <p className="mb-2 text-[12.5px] text-text-muted">
+                Faltan {pendientesConsolidados.length}{" "}
+                {plural(pendientesConsolidados.length, "decisión", "decisiones")} antes de crear el video:{" "}
+                {pendientesConsolidados
+                  .map((p) => `${ETIQUETA_TIPO_PENDIENTE[p.tipo]} "${p.campo.nombre}"`)
+                  .join(", ")}
+                .{" "}
+                <button
+                  type="button"
+                  onClick={irAPrimeraPendiente}
+                  className="text-accent underline hover:no-underline"
+                >
+                  Ir a la primera pendiente ↑
+                </button>
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={volverAPegar}>
+                Volver a pegar
+              </Button>
+              <Button type="button" onClick={handleConfirmar} disabled={confirmarDeshabilitado}>
+                {confirmando ? "Creando…" : "Crear video"}
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -2173,15 +2173,30 @@ export async function crearProyectoDesdeImportador(nombre: string): Promise<{ pr
  * importador de Blueprint — "Crear nuevo" en `SelectorResolucion` cuando
  * ninguna sugerencia por similitud coincide (UX Migration 1.2). Reusa
  * `createPersonaje` con el resto de campos en blanco; el usuario puede
- * completarlo después en Personajes. Solo aplica a Personaje: Locación es
- * un Activo con foto (no se puede crear con solo un nombre) y Plano
- * todavía no tiene administración propia (ver `getPlanos`). */
+ * completarlo después en Personajes. Plano todavía no tiene administración
+ * propia (ver `getPlanos`), así que no tiene un "Crear nuevo" equivalente;
+ * Locación sí lo tiene — ver `crearLocacionDesdeImportador` abajo. */
 export async function crearPersonajeDesdeImportador(proyectoId: string, nombre: string): Promise<{ id: string }> {
   const nombreLimpio = nombre.trim();
   if (!nombreLimpio) throw new Error("El personaje necesita un nombre.");
   const formData = new FormData();
   formData.set("nombre", nombreLimpio);
   return createPersonaje(proyectoId, formData);
+}
+
+/** Crea una Locación mínima (solo nombre) desde la resolución del
+ * importador de Blueprint — mismo patrón que `crearPersonajeDesdeImportador`,
+ * "Crear nueva Locación" en `SelectorResolucion` (PREPARACION-FIX-1, FIX 4).
+ * Una Locación es un Activo de tipo "foto" (ver comentario en `activos`,
+ * schema.ts); acá se crea sin foto (`valor: ""`) — la foto real se sube
+ * después, desde Activos, igual que cualquier Activo creado sin archivo. */
+export async function crearLocacionDesdeImportador(proyectoId: string, nombre: string): Promise<{ id: string }> {
+  const nombreLimpio = nombre.trim();
+  if (!nombreLimpio) throw new Error("La locación necesita un nombre.");
+  const id = randomUUID();
+  await db.insert(activos).values({ id, proyectoId, tipo: "foto", nombre: nombreLimpio, valor: "" });
+  revalidatePath(`/proyectos/${proyectoId}/activos`);
+  return { id };
 }
 
 /** Una escena del CBD ya con sus referencias resueltas a ids reales (o
