@@ -24,32 +24,35 @@ const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
 };
 
 function formatoDuracion(segundos: number) {
-  if (segundos <= 0) return "Duración pendiente";
   const m = Math.floor(segundos / 60);
   const s = segundos % 60;
   return m > 0 ? `${m} min ${String(s).padStart(2, "0")} s` : `${s} s`;
 }
 
-/** Fila del resumen "Necesitás" — puro texto derivado de `escena`, no un
- * control editable (los controles reales siguen viviendo en la sección
- * "Dónde y con quién", más abajo). ✔ si está resuelto, ⚠ si falta. */
-function FilaResumen({ resuelto, etiqueta, valor }: { resuelto: boolean; etiqueta: string; valor: string }) {
+/** Fila del checklist "Antes de grabar" — puro texto derivado de `escena`,
+ * no un control editable (los controles reales viven detrás de "Ver
+ * detalles"). ✔ si está resuelto, ⚠ si falta — UX-MIGRATION-4B: cada fila
+ * responde únicamente "¿qué necesito preparar?", nunca se mezcla con la
+ * edición. */
+function FilaChecklist({ resuelto, etiqueta, valor }: { resuelto: boolean; etiqueta: string; valor: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[13px] ${resuelto ? "text-success" : "text-accent"}`}>
+    <p className={`flex items-center gap-1.5 text-[14px] ${resuelto ? "text-text" : "text-accent"}`}>
       <span aria-hidden>{resuelto ? "✔" : "⚠"}</span>
       {resuelto ? valor : `Falta ${etiqueta}`}
-    </span>
+    </p>
   );
 }
 
-/** Nivel 1 + Nivel 2 de UX-PREP-4B.1 — `recomendacionBase` ya viene
- * resuelta sin IA (recomendaciones-audiovisuales.ts), visible apenas se
- * abre la escena. "Explicar esta recomendación" es la única forma de
- * disparar IA acá — nunca se llama sola. */
+/** Nivel 1 + Nivel 2 de UX-PREP-4B.1, con la redacción de UX-MIGRATION-4B:
+ * "Usa un {plano}." es la instrucción; `recomendacionBase` (sin IA) es el
+ * porqué. "Explicar esta recomendación" es la única forma de disparar IA
+ * acá — nunca se llama sola, nunca al abrir la escena. */
 function RecomendacionPlano({
+  planoNombre,
   recomendacionBase,
   onExplicar,
 }: {
+  planoNombre: string;
   recomendacionBase: string;
   onExplicar: () => Promise<string>;
 }) {
@@ -70,38 +73,38 @@ function RecomendacionPlano({
   }
 
   return (
-    <div className="w-full text-[12px] text-text-muted">
-      <span>{recomendacionBase}</span>{" "}
+    <div>
+      <p className="text-[15px] text-text">Usa un {planoNombre.toLowerCase()}.</p>
+      <p className="mt-1 text-[13px] text-text-muted">{recomendacionBase}</p>
       {!explicacion ? (
         <button
           type="button"
           onClick={explicar}
           disabled={cargando}
-          className="text-accent underline hover:text-accent/80"
+          className="mt-2 text-[12.5px] text-accent underline hover:text-accent/80"
         >
           {cargando ? "Pensando…" : "Explicar esta recomendación"}
         </button>
-      ) : null}
-      {explicacion ? <p className="mt-1 text-[12.5px] text-text">{explicacion}</p> : null}
-      {error ? <p className="mt-1 text-danger">{error}</p> : null}
+      ) : (
+        <p className="mt-2 text-[13.5px] text-text">{explicacion}</p>
+      )}
+      {error ? <p className="mt-1 text-[12.5px] text-danger">{error}</p> : null}
     </div>
   );
 }
 
 /**
- * Pantalla de grabación del Copiloto (UX Migration 3, jerarquía visual
- * rediseñada en UX-MIGRATION-3D) — mismos campos y la misma acción de
- * guardado que `EscenaPanel` (Modo Plan), pero con identidad visual
- * propia: un encabezado que domina la pantalla, un resumen de contexto de
- * solo lectura, el guion como contenido principal, la ayuda de IA
- * separada del resto del formulario, y todo lo demás colapsado como
- * secundario. La auditoría de UX-MIGRATION-3C confirmó que la versión
- * anterior reutilizaba el mismo lenguaje visual de `EscenaPanel` sin
- * diferenciación — acá se reutilizan los mismos componentes de UI
- * (`Label`, `Input`, `Textarea`, `SeccionColapsable`) pero NUNCA con el
- * mismo peso visual entre sí; `EscenaPanel` no se toca — esta sigue
- * siendo una pantalla adicional, no un reemplazo, para no afectar Modo
- * Plan. */
+ * Pantalla de grabación del Copiloto — reorganizada en UX-MIGRATION-4B
+ * para dejar de leerse como una ficha técnica y empezar a comportarse
+ * como un director de grabación: cada elemento visible responde una de
+ * cinco preguntas (¿Qué grabo? ¿Qué digo? ¿Qué necesito? ¿Cómo lo hago
+ * mejor? ¿Ya terminé?), en ese orden, sin labels ni selects a la vista.
+ * Todo lo que no responde ninguna de esas cinco preguntas vive detrás de
+ * "Ver detalles" — mismos campos, misma acción de guardado
+ * (`updateStoryboardEscena` vía `onSave`) y el mismo cambio de estado
+ * (`onEstadoChange`) que ya existían; esta migración es exclusivamente de
+ * jerarquía visual y comportamiento, nunca de rutas, lógica ni server
+ * actions. `EscenaPanel` (Modo Plan) no se toca. */
 export function CopilotoGrabar({
   proyectoId,
   produccionId,
@@ -129,8 +132,17 @@ export function CopilotoGrabar({
   const base = `/proyectos/${proyectoId}/producciones/${produccionId}`;
   const [tipoEscena, setTipoEscena] = useState(escena.tipoEscena);
   const [personajeIds, setPersonajeIds] = useState<string[]>(escena.personajeIds);
-  const [guardando, setGuardando] = useState(false);
-  const [marcando, setMarcando] = useState(false);
+  // "¿Cómo crearás esta escena?" (pregunta 4 de 5) — decisión puramente de
+  // interfaz, no se persiste (no existe ni debe existir una columna para
+  // esto): si la escena ya trae algún prompt IA guardado, arranca en "ia"
+  // para no esconder contenido existente; si no, arranca sin elegir, y los
+  // campos de prompt quedan visualmente colapsados (nunca desmontados, así
+  // el <form> nunca pierde su valor) hasta que el usuario elige "Necesito
+  // IA".
+  const [modoCreacion, setModoCreacion] = useState<"manual" | "ia" | null>(
+    escena.promptIa.trim() || escena.promptVideoIa.trim() ? "ia" : null,
+  );
+  const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState("");
 
   const indice = escenas.findIndex((e) => e.id === escena.id);
@@ -142,92 +154,58 @@ export function CopilotoGrabar({
     setPersonajeIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }
 
-  async function marcarComoGrabada() {
-    setMarcando(true);
-    setError("");
-    try {
-      await onEstadoChange(escena.id, "GRABADA");
-      router.push(`${base}/copiloto`);
-    } catch (e) {
-      setError(explicarError(e));
-      setMarcando(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
-      {/* Encabezado dominante — el elemento más grande e importante de
-          toda la pantalla, siempre visible, nunca colapsado. */}
+      {/* 1. Qué vas a grabar — instrucción, no ficha de datos. */}
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-display text-[26px] font-normal tracking-wide text-text sm:text-[30px]">
-              Ahora toca grabar
-            </p>
-            <p className="mt-1.5 text-[15px] font-medium text-accent">
-              Escena {indice + 1} de {escenas.length}
-            </p>
-            {escena.objetivoNarrativo ? (
-              <p className="mt-2 text-[14px] text-text-muted">{escena.objetivoNarrativo}</p>
-            ) : null}
-            <p className="mt-2 text-[12.5px] text-text-muted">{formatoDuracion(escena.duracionSegundos)}</p>
-          </div>
-          <EstadoProduccionSelect escenaId={escena.id} estado={escena.estadoProduccion} onChange={onEstadoChange} />
-        </div>
+        <p className="text-[13px] font-medium text-accent">
+          Escena {indice + 1} de {escenas.length}
+        </p>
+        <p className="mt-1 text-[12.5px] text-text-muted">
+          {escena.duracionSegundos > 0 ? `Duración estimada: ${formatoDuracion(escena.duracionSegundos)}` : "Duración pendiente"}
+        </p>
+        <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-text-muted">Objetivo</p>
+        <p className="mt-1 text-[18px] leading-snug text-text">
+          {escena.objetivoNarrativo || "Sin objetivo narrativo todavía."}
+        </p>
       </Card>
 
-      {/* Resumen "Necesitás" — de solo lectura, no son inputs. Los
-          controles reales están en "Dónde y con quién", más abajo. La
-          fila de Personajes solo aparece si el Proyecto tiene al menos
-          uno definido — si no hay ninguno, no hay nada que marcar como
-          faltante (UX-MIGRATION-3C, Causa B). */}
-      <Card className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <p className="w-full text-[11px] font-medium uppercase tracking-wide text-text-muted">Necesitás</p>
-        <FilaResumen resuelto={!!planoActual} etiqueta="Plano" valor={planoActual?.nombre ?? ""} />
-        {recomendacionBase ? (
-          <RecomendacionPlano
-            recomendacionBase={recomendacionBase}
-            onExplicar={() =>
-              onExplicarRecomendacion({
-                recomendacionBase,
-                tipo: tipoEscena,
-                objetivoNarrativo: escena.objetivoNarrativo,
-                textoHablado: escena.textoHablado,
-                textoPantalla: escena.textoPantalla,
-                planoNombre: planoActual!.nombre,
-                locacionNombre: locacionActual?.nombre ?? "",
-                personajesNombres: personajeIds
-                  .map((id) => personajes.find((p) => p.id === id)?.nombre)
-                  .filter((n): n is string => Boolean(n)),
-              })
-            }
-          />
-        ) : null}
-        <FilaResumen resuelto={!!locacionActual} etiqueta="Locación" valor={locacionActual?.nombre ?? ""} />
-        {personajes.length > 0 ? (
-          <FilaResumen
-            resuelto={personajeIds.length > 0}
-            etiqueta="Personajes"
-            valor={personajeIds
-              .map((id) => personajes.find((p) => p.id === id)?.nombre)
-              .filter(Boolean)
-              .join(", ")}
-          />
-        ) : null}
-      </Card>
+      {/* Navegación entre escenas — deliberadamente chica y separada del
+          flujo "qué hacer con ESTA escena", para que el botón final siga
+          siendo lo último y más dominante de la pantalla. */}
+      <div className="flex flex-wrap items-center gap-3 px-1 text-[12.5px] text-text-muted">
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            if (e.target.value) router.push(`${base}/copiloto/${e.target.value}`);
+          }}
+          className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-text"
+        >
+          <option value="">Elegir otra escena…</option>
+          {escenas.map((e) => (
+            <option key={e.id} value={e.id}>
+              #{e.numero} — {e.objetivoNarrativo || "Sin objetivo todavía"}
+            </option>
+          ))}
+        </select>
+        <Link href={base} className="hover:text-accent">
+          Ver todas las escenas
+        </Link>
+      </div>
 
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
       <form
         action={async (formData) => {
-          setGuardando(true);
+          setProcesando(true);
           setError("");
           try {
             await onSave(escena.id, formData);
+            await onEstadoChange(escena.id, "GRABADA");
+            router.push(`${base}/copiloto`);
           } catch (e) {
             setError(explicarError(e));
-          } finally {
-            setGuardando(false);
+            setProcesando(false);
           }
         }}
         className="space-y-4"
@@ -237,33 +215,122 @@ export function CopilotoGrabar({
           <input key={id} type="hidden" name="personajeIds" value={id} />
         ))}
 
-        {/* Tu guion — el contenido principal de la pantalla, siempre
-            visible, nunca dentro de un acordeón. */}
+        {/* 2. Qué debes decir — el libreto, no un textarea de formulario. */}
         <Card>
-          <Label htmlFor="textoHablado">Tu guion para esta escena</Label>
-          <Textarea
+          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Guion</p>
+          <textarea
             id="textoHablado"
             name="textoHablado"
             defaultValue={escena.textoHablado}
-            className="min-h-[140px] text-[16px]"
             placeholder="Lo que vas a decir frente a cámara..."
+            className="mt-2 min-h-[130px] w-full resize-none border-none bg-transparent p-0 font-display text-[19px] leading-relaxed text-text placeholder:text-text-muted/60 focus:outline-none focus:ring-0"
           />
         </Card>
 
-        {/* Ayuda de IA — visible, pero claramente separada del resto del
-            formulario (fondo e borde propios, no `Card`, para no
-            depender del orden de las clases de Tailwind): es apoyo para
-            producir, no un campo obligatorio. */}
-        <div className="rounded-2xl border border-dashed border-accent/30 bg-accent-soft p-5 sm:p-6">
-          <p className="text-[12.5px] font-medium text-text">Ayuda para generar con IA</p>
-          <p className="mt-0.5 text-[11.5px] text-text-muted">Opcional — solo si vas a apoyarte en imagen o video generados.</p>
-          <Label htmlFor="promptIa">Prompt IA (imagen)</Label>
-          <Textarea id="promptIa" name="promptIa" defaultValue={escena.promptIa} />
-          <Label htmlFor="promptVideoIa">Prompt IA (video)</Label>
-          <Textarea id="promptVideoIa" name="promptVideoIa" defaultValue={escena.promptVideoIa} />
-        </div>
+        {/* 3. Qué necesitas preparar — checklist resumido, no tres selects. */}
+        <Card>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Antes de grabar</p>
+          <div className="mt-2 space-y-1.5">
+            <FilaChecklist resuelto={!!planoActual} etiqueta="elegir plano" valor={planoActual?.nombre ?? ""} />
+            <FilaChecklist
+              resuelto={!!locacionActual}
+              etiqueta="elegir locación"
+              valor={locacionActual?.nombre ?? ""}
+            />
+            {personajes.length > 0 ? (
+              <FilaChecklist
+                resuelto={personajeIds.length > 0}
+                etiqueta="elegir personajes"
+                valor={personajeIds
+                  .map((id) => personajes.find((p) => p.id === id)?.nombre)
+                  .filter(Boolean)
+                  .join(", ")}
+              />
+            ) : null}
+            <FilaChecklist
+              resuelto={escena.duracionSegundos > 0}
+              etiqueta="estimar duración"
+              valor={`Duración estimada: ${formatoDuracion(escena.duracionSegundos)}`}
+            />
+          </div>
+        </Card>
 
-        <SeccionColapsable titulo="Dónde y con quién" tieneContenido={true}>
+        {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA) siempre visible;
+            Nivel 2 (IA) solo bajo demanda, ver RecomendacionPlano. */}
+        {recomendacionBase && planoActual ? (
+          <Card>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Recomendación</p>
+            <div className="mt-2">
+              <RecomendacionPlano
+                planoNombre={planoActual.nombre}
+                recomendacionBase={recomendacionBase}
+                onExplicar={() =>
+                  onExplicarRecomendacion({
+                    recomendacionBase,
+                    tipo: tipoEscena,
+                    objetivoNarrativo: escena.objetivoNarrativo,
+                    textoHablado: escena.textoHablado,
+                    textoPantalla: escena.textoPantalla,
+                    planoNombre: planoActual.nombre,
+                    locacionNombre: locacionActual?.nombre ?? "",
+                    personajesNombres: personajeIds
+                      .map((id) => personajes.find((p) => p.id === id)?.nombre)
+                      .filter((n): n is string => Boolean(n)),
+                  })
+                }
+              />
+            </div>
+          </Card>
+        ) : null}
+
+        {/* 5. ¿Necesitas IA para esta escena? — se pregunta primero; los
+            prompts nunca aparecen vacíos sin que el usuario haya elegido
+            "Necesito IA". Los campos quedan siempre montados (igual que
+            `SeccionColapsable`) para que el <form> nunca pierda su valor
+            al alternar la elección — solo cambia si son visibles. */}
+        <Card>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">¿Cómo crearás esta escena?</p>
+          <div className="mt-2 space-y-1.5">
+            <label className="flex items-center gap-2 text-[14.5px] text-text">
+              <input
+                type="radio"
+                name="modoCreacion"
+                checked={modoCreacion === "manual"}
+                onChange={() => setModoCreacion("manual")}
+              />
+              La grabaré yo.
+            </label>
+            <label className="flex items-center gap-2 text-[14.5px] text-text">
+              <input
+                type="radio"
+                name="modoCreacion"
+                checked={modoCreacion === "ia"}
+                onChange={() => setModoCreacion("ia")}
+              />
+              Necesito IA.
+            </label>
+          </div>
+          <div
+            className="overflow-hidden transition-[max-height] duration-300 ease-out"
+            style={{ maxHeight: modoCreacion === "ia" ? "1000px" : "0px" }}
+          >
+            <div className="mt-4 space-y-1 border-t border-border pt-4">
+              <Label htmlFor="promptIa">Generar prompt de imagen</Label>
+              <Textarea id="promptIa" name="promptIa" defaultValue={escena.promptIa} />
+              <Label htmlFor="promptVideoIa">Generar prompt de video</Label>
+              <Textarea id="promptVideoIa" name="promptVideoIa" defaultValue={escena.promptVideoIa} />
+            </div>
+          </div>
+        </Card>
+
+        {/* Todo lo que no responde ninguna de las 5 preguntas — incluye los
+            controles reales de edición de Plano/Locación/Personajes que el
+            checklist de arriba solo resume. Un único "Ver detalles", no
+            tres acordeones separados (eso ya se sentía como formulario). */}
+        <SeccionColapsable titulo="Ver detalles" tieneContenido={true}>
+          <Label>Estado de la producción</Label>
+          <EstadoProduccionSelect escenaId={escena.id} estado={escena.estadoProduccion} onChange={onEstadoChange} />
+
           <Label htmlFor="planoId">Plano</Label>
           <select
             id="planoId"
@@ -313,9 +380,7 @@ export function CopilotoGrabar({
           <Input id="movimientoCamara" name="movimientoCamara" defaultValue={escena.movimientoCamara} />
           <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
           <Textarea id="recursosNecesarios" name="recursosNecesarios" defaultValue={escena.recursosNecesarios} />
-        </SeccionColapsable>
 
-        <SeccionColapsable titulo="Planificación" tieneContenido={true}>
           <Label>Tipo de escena</Label>
           <div className="flex flex-wrap gap-1.5">
             {TIPOS_ESCENA_STORYBOARD.map((valor) => (
@@ -347,9 +412,7 @@ export function CopilotoGrabar({
             min={0}
             defaultValue={escena.duracionSegundos}
           />
-        </SeccionColapsable>
 
-        <SeccionColapsable titulo="Post-producción" tieneContenido={true}>
           <Label htmlFor="textoPantalla">Texto en pantalla</Label>
           <Textarea id="textoPantalla" name="textoPantalla" defaultValue={escena.textoPantalla} />
           <Label htmlFor="musica">Música</Label>
@@ -360,37 +423,14 @@ export function CopilotoGrabar({
           <Textarea name="notas" defaultValue={escena.notas} placeholder="Notas libres sobre esta escena" />
         </SeccionColapsable>
 
-        <div className="flex justify-end">
-          <Button type="submit" variant="secondary" disabled={guardando}>
-            {guardando ? "Guardando…" : "Guardar cambios"}
-          </Button>
-        </div>
-      </form>
-
-      <Card className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-[13px] text-text-muted">
-          <select
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) router.push(`${base}/copiloto/${e.target.value}`);
-            }}
-            className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-text"
-          >
-            <option value="">Elegir otra escena…</option>
-            {escenas.map((e) => (
-              <option key={e.id} value={e.id}>
-                #{e.numero} — {e.objetivoNarrativo || "Sin objetivo todavía"}
-              </option>
-            ))}
-          </select>
-          <Link href={base} className="hover:text-accent">
-            Ver todas las escenas
-          </Link>
-        </div>
-        <Button type="button" onClick={marcarComoGrabada} disabled={marcando}>
-          {marcando ? "Marcando…" : "✓ Marcar como grabada"}
+        {/* 6. Acción final — un solo botón dominante, nada debajo. Guarda
+            todo lo editado y avanza sola a la siguiente escena, mismas dos
+            server actions de siempre (onSave + onEstadoChange), ahora en
+            un solo paso para el usuario en vez de dos. */}
+        <Button type="submit" disabled={procesando} className="w-full justify-center py-4 text-[15px]">
+          {procesando ? "Guardando…" : "Marcar escena como grabada"}
         </Button>
-      </Card>
+      </form>
     </div>
   );
 }
