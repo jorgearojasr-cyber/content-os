@@ -8,6 +8,7 @@ import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
 import { explicarError } from "@/lib/errores";
 import { emocionSugeridaParaTipo, movimientoSugeridoParaPlano } from "@/lib/decision-engine";
+import { promptImagenSugerido, promptVideoSugerido } from "@/lib/escena-prompt-compiler";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
@@ -92,6 +93,7 @@ export function CopilotoGrabar({
   planos,
   locaciones,
   personajes,
+  formato,
   onSave,
   onEstadoChange,
 }: {
@@ -102,6 +104,7 @@ export function CopilotoGrabar({
   planos: Plano[];
   locaciones: Activo[];
   personajes: Personaje[];
+  formato: string;
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
 }) {
@@ -154,6 +157,24 @@ export function CopilotoGrabar({
   // vacío", pero acá nunca se pre-llena sola — se ofrece y hace falta un
   // clic para aceptarla.
   const emocionSugerida = !emocion.trim() ? emocionSugeridaParaTipo(tipoEscena) : null;
+
+  // PREPARACION-FIX-1B — Nivel C: borradores de prompt de Imagen/Video
+  // ensamblados de forma determinista (`escena-prompt-compiler.ts`), mismo
+  // criterio "solo si está vacío" que Movimiento de cámara — se calculan
+  // una sola vez a partir de los datos con los que arrancó la escena, no
+  // en cada tecla que el usuario escribe.
+  const personajesAsignados = personajes.filter((p) => escena.personajeIds.includes(p.id));
+  const promptImagenSugeridoInicial = !escena.promptIa.trim()
+    ? promptImagenSugerido({ escena, personajes: personajesAsignados, plano: planoActual, locacion: locacionActual, formato })
+    : "";
+  const [promptIa, setPromptIa] = useState(escena.promptIa || promptImagenSugeridoInicial);
+  const [promptIaEsSugerencia, setPromptIaEsSugerencia] = useState(!!promptImagenSugeridoInicial);
+
+  const promptVideoSugeridoInicial = !escena.promptVideoIa.trim()
+    ? promptVideoSugerido({ escena, personajes: personajesAsignados, plano: planoActual, locacion: locacionActual, formato })
+    : "";
+  const [promptVideoIa, setPromptVideoIa] = useState(escena.promptVideoIa || promptVideoSugeridoInicial);
+  const [promptVideoIaEsSugerencia, setPromptVideoIaEsSugerencia] = useState(!!promptVideoSugeridoInicial);
 
   function togglePersonaje(id: string) {
     setPersonajeIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -303,9 +324,37 @@ export function CopilotoGrabar({
           >
             <div className="mt-4 space-y-1 border-t border-border pt-4">
               <Label htmlFor="promptIa">Generar prompt de imagen</Label>
-              <Textarea id="promptIa" name="promptIa" defaultValue={escena.promptIa} />
+              <Textarea
+                id="promptIa"
+                name="promptIa"
+                value={promptIa}
+                onChange={(e) => {
+                  setPromptIa(e.target.value);
+                  setPromptIaEsSugerencia(false);
+                }}
+                sugerido={promptIaEsSugerencia}
+              />
+              {promptIaEsSugerencia ? (
+                <p className="mt-1 text-[12px] text-text-muted">
+                  💡 Borrador armado con los datos de la escena — editable.
+                </p>
+              ) : null}
               <Label htmlFor="promptVideoIa">Generar prompt de video</Label>
-              <Textarea id="promptVideoIa" name="promptVideoIa" defaultValue={escena.promptVideoIa} />
+              <Textarea
+                id="promptVideoIa"
+                name="promptVideoIa"
+                value={promptVideoIa}
+                onChange={(e) => {
+                  setPromptVideoIa(e.target.value);
+                  setPromptVideoIaEsSugerencia(false);
+                }}
+                sugerido={promptVideoIaEsSugerencia}
+              />
+              {promptVideoIaEsSugerencia ? (
+                <p className="mt-1 text-[12px] text-text-muted">
+                  💡 Borrador armado con los datos de la escena — editable.
+                </p>
+              ) : null}
             </div>
           </div>
         </Card>

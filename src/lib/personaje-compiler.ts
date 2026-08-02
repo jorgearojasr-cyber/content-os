@@ -24,9 +24,13 @@ const chips = (valor: string): string[] =>
     .map((c) => c.trim())
     .filter(Boolean);
 
-const linea = (etiqueta: string, valor: string): string => (valor.trim() ? `${etiqueta}: ${valor.trim()}` : "");
+/** Exportados para que otros compiladores deterministas (ver
+ * `escena-prompt-compiler.ts`) arment sus propios bloques con el mismo
+ * formato "Etiqueta: valor" en vez de reimplementar el mismo helper de una
+ * línea en cada archivo. */
+export const linea = (etiqueta: string, valor: string): string => (valor.trim() ? `${etiqueta}: ${valor.trim()}` : "");
 
-const unir = (...lineas: string[]): string => lineas.filter((l) => l.length > 0).join("\n");
+export const unir = (...lineas: string[]): string => lineas.filter((l) => l.length > 0).join("\n");
 
 function bloqueInvariables(personaje: Personaje): string {
   const items = chips(personaje.elementosInvariables);

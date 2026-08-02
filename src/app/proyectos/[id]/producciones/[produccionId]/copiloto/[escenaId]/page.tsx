@@ -41,6 +41,7 @@ export default async function CopilotoGrabarPage({
       planos={planos}
       locaciones={locaciones}
       personajes={personajes}
+      formato={produccion.formato}
       onSave={boundSave}
       onEstadoChange={boundEstado}
     />

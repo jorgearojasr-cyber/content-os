@@ -53,11 +53,20 @@ export function Input({
   );
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+/** `sugerido` — mismo tratamiento ámbar que `Input` (ver comentario
+ * arriba), extendido a Textarea para los prompts de Imagen/Video
+ * pre-armados por el compilador determinista de escena. */
+export function Textarea({
+  sugerido,
+  className = "",
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { sugerido?: boolean }) {
   return (
     <textarea
       {...props}
-      className={`min-h-[84px] w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text placeholder:text-text-muted/60 ${props.className ?? ""}`}
+      className={`min-h-[84px] w-full rounded-xl border px-3.5 py-3 text-[14.5px] text-text placeholder:text-text-muted/60 ${
+        sugerido ? "border-accent bg-accent-soft" : "border-border bg-surface-2"
+      } ${className}`}
     />
   );
 }
