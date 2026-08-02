@@ -3,105 +3,61 @@ import { construirPrompt } from "./blueprint-prompt";
 import { IDENTIDAD_SIN_CONTENIDO } from "./identity-compiler";
 
 /**
- * Copia literal de `construirPrompt` tal como existía en el commit
- * 8ea1be5 (UX Migration 2.3, justo antes de la reorganización en cuatro
- * partes de UX-MIGRATION-2.4 y de la extracción a este archivo) — pegada
- * directamente desde
- * `git show 8ea1be5:src/components/contexto-para-chatgpt.tsx`, no
- * retipeada de memoria. Sirve como referencia dorada: la migración 2.4 es
- * puramente una reorganización de CÓMO se arma el prompt, así que su
- * salida tiene que ser byte-a-byte idéntica a esta función para cualquier
- * input, para siempre (no solo hoy).
+ * Nota histórica: entre UX-MIGRATION-2.4 y UX-MIGRATION-4A, este archivo
+ * mantuvo una copia literal de `construirPrompt` tal como existía en el
+ * commit 8ea1be5 (justo antes de la reorganización en cuatro partes) y
+ * probaba byte-identidad total contra ella — porque durante ese período
+ * cada migración prometía explícitamente no cambiar el contenido del
+ * prompt, solo cómo se armaba internamente.
+ *
+ * Fix 2 (post UX-MIGRATION-4) es la primera migración que cambia el
+ * contenido de `FORMATO_CBD` a propósito — reincorpora "Recursos
+ * necesarios", "Música" y "Transición" como campos opcionales, según el
+ * Principio acordado ("ayuda a escribir mejor guion / grabar mejor la
+ * escena / producir mejor el video"). Esa garantía de byte-identidad total
+ * ya no aplica y se retira acá — las pruebas de abajo verifican
+ * puntualmente que el contenido nuevo está presente y bien ubicado, en
+ * vez de mantener una copia paralela del prompt entero que hay que
+ * actualizar a mano cada vez que el contenido cambia legítimamente.
  */
-const FORMATO_CBD_ANTIGUO = `# Creative Blueprint v1
+describe("construirPrompt — Fix 2: campos opcionales (Recursos necesarios / Música / Transición)", () => {
+  const idea = "Un video mostrando cómo armamos el importador de Blueprint";
+  const contexto = "Marca: OBRABIEN.\nTono: cercano, directo.\nPúblico: dueños de PyMEs de construcción.";
 
-## Contexto
-[Un párrafo breve: por qué esta idea encaja con la marca, para quién es.]
+  it("incluye las tres líneas opcionales nuevas, con su instrucción de cuándo usarlas", () => {
+    const prompt = construirPrompt(idea, contexto);
+    expect(prompt).toContain("Recursos necesarios: [opcional — solo si hay algo concreto que preparar antes de grabar]");
+    expect(prompt).toContain("Música: [opcional — solo si tenés una sugerencia real de estilo o canción]");
+    expect(prompt).toContain(
+      "Transición: [opcional — solo si conviene una transición específica hacia la siguiente escena]",
+    );
+  });
 
-## Producción
-Título: ...
-Objetivo general: ...
+  it("las tres líneas van después de 'Texto en pantalla' y antes de '### Escena 2', dentro de la Escena 1", () => {
+    const prompt = construirPrompt(idea, contexto);
+    const posTextoPantalla = prompt.indexOf("Texto en pantalla: ...");
+    const posRecursos = prompt.indexOf("Recursos necesarios: [opcional");
+    const posMusica = prompt.indexOf("Música: [opcional");
+    const posTransicion = prompt.indexOf("Transición: [opcional");
+    const posEscena2 = prompt.indexOf("### Escena 2");
 
-## Escenas
+    expect(posTextoPantalla).toBeGreaterThan(-1);
+    expect(posRecursos).toBeGreaterThan(posTextoPantalla);
+    expect(posMusica).toBeGreaterThan(posRecursos);
+    expect(posTransicion).toBeGreaterThan(posMusica);
+    expect(posEscena2).toBeGreaterThan(posTransicion);
+  });
 
-### Escena 1
-Tipo: [Gancho | Problema | Descubrimiento | Solución | CTA | B-roll | Transición | Otra]
-Objetivo narrativo: ...
-Emoción: [opcional]
-Personajes:
-- ...
-Locación: ...
-Plano: ...
-Texto hablado: ...
-Texto en pantalla: ...
+  it("incluye la instrucción de omitir la línea entera en vez de dejarla vacía o inventar contenido", () => {
+    const prompt = construirPrompt(idea, contexto);
+    expect(prompt).toContain(
+      '"Recursos necesarios", "Música" y "Transición" son opcionales: agregalas solo cuando tengas una sugerencia concreta que ayude a preparar, grabar o producir mejor la escena — si no aportan nada real, omití la línea entera, nunca la dejes vacía ni inventes algo genérico.',
+    );
+  });
 
-### Escena 2
-[repetir la misma estructura por cada escena que necesite el video]`;
-
-function construirPromptAntiguo(idea: string, contexto: string): string {
-  const hayContexto = contexto.trim().length > 0 && contexto !== IDENTIDAD_SIN_CONTENIDO;
-  const bloqueMarca = hayContexto
-    ? contexto
-    : "Todavía no tenemos información cargada sobre esta marca — generá el guion apoyándote solamente en la idea de arriba, con un tono neutro y profesional.";
-
-  return `Tu idea:
-"${idea}"
-
-Usando esta idea y el siguiente contexto de marca, generá SOLO la parte narrativa de un Creative Blueprint Document para un video corto: contexto breve, título, objetivo general, y el guion escena por escena.
-
-Para Personajes, Locaciones y Planos utilizá nombres narrativos naturales (ej.: Presentador, Cliente, Oficina, Taller, Primer plano). No intentes adivinar los nombres exactos de mi Biblioteca — Content OS los va a resolver durante la importación.
-
-${bloqueMarca}
-
----
-
-IMPORTANTE: tu respuesta la va a leer un programa (un parser), no una persona — por eso el formato de abajo es obligatorio al pie de la letra, no una sugerencia de estilo:
-
-- Completá ÚNICAMENTE la plantilla de abajo. No la resumas, no la reescribas como si fuera un documento o un posteo, no agregues introducción ni comentarios fuera de ella.
-- Los encabezados Markdown (##, ###) tienen que quedar EXACTAMENTE iguales — mismo texto, mismos símbolos "#", mismo orden. Nunca los conviertas en texto plano ni en negrita.
-- Cada etiqueta (ej. "Tipo:", "Texto hablado:") va seguida del valor en la MISMA línea, después de los dos puntos — nunca dejes la etiqueta sola y el contenido en la línea siguiente, aunque el texto sea largo.
-- Las listas (como "Personajes:") llevan un guion y un espacio ("- ") antes de cada ítem, uno por línea — nunca el nombre suelto en su propia línea.
-- Agregá tantos bloques "### Escena N" como necesite el video, siguiendo exactamente la misma estructura de la Escena 1.
-
-Plantilla a completar:
-
-${FORMATO_CBD_ANTIGUO}`;
-}
-
-describe("construirPrompt — UX-MIGRATION-2.4 byte-identidad", () => {
-  const casos: { nombre: string; idea: string; contexto: string }[] = [
-    {
-      nombre: "con contexto de marca real",
-      idea: "Un video mostrando cómo armamos el importador de Blueprint",
-      contexto: "Marca: OBRABIEN.\nTono: cercano, directo.\nPúblico: dueños de PyMEs de construcción.",
-    },
-    {
-      nombre: "sin contexto de marca (IDENTIDAD_SIN_CONTENIDO)",
-      idea: "Idea sin marca todavía",
-      contexto: IDENTIDAD_SIN_CONTENIDO,
-    },
-    {
-      nombre: "con contexto en blanco (solo espacios)",
-      idea: "Otra idea",
-      contexto: "   ",
-    },
-    {
-      nombre: "con caracteres especiales en la idea (comillas, saltos de línea, backticks)",
-      idea: 'Idea con "comillas", backticks `raros`, y\nun salto de línea',
-      contexto: "Contexto con ${interpolación} falsa y backticks `también`.",
-    },
-    {
-      nombre: "con idea vacía",
-      idea: "",
-      contexto: "Contexto normal",
-    },
-  ];
-
-  for (const { nombre, idea, contexto } of casos) {
-    it(`es idéntico al prompt pre-2.4, carácter por carácter — ${nombre}`, () => {
-      expect(construirPrompt(idea, contexto)).toBe(construirPromptAntiguo(idea, contexto));
-    });
-  }
+  it("el resultado es estable para el mismo input (sin aleatoriedad ni dependencia de fecha/hora)", () => {
+    expect(construirPrompt(idea, contexto)).toBe(construirPrompt(idea, contexto));
+  });
 });
 
 describe("construirPrompt — UX-MIGRATION-2.5 Biblioteca disponible", () => {
@@ -115,9 +71,8 @@ describe("construirPrompt — UX-MIGRATION-2.5 Biblioteca disponible", () => {
     "No inventes nuevos nombres cuando alguno existente sirva para la escena.\n" +
     'Si realmente ninguno aplica, escribí "Sin asignar".';
 
-  it("con locaciones=[] y planos=[] explícitos es idéntico al prompt pre-2.5 (sin argumentos)", () => {
+  it("con locaciones=[] y planos=[] explícitos es idéntico al prompt sin argumentos (default)", () => {
     expect(construirPrompt(idea, contexto, [], [])).toBe(construirPrompt(idea, contexto));
-    expect(construirPrompt(idea, contexto, [], [])).toBe(construirPromptAntiguo(idea, contexto));
   });
 
   it("con Locaciones pero sin Planos, agrega solo la lista de Locaciones", () => {
@@ -164,5 +119,16 @@ describe("construirPrompt — UX-MIGRATION-2.5 Biblioteca disponible", () => {
   it("sin Locaciones ni Planos, no agrega la sección Biblioteca disponible", () => {
     const prompt = construirPrompt(idea, contexto, [], []);
     expect(prompt).not.toContain("Biblioteca disponible");
+  });
+});
+
+describe("construirPrompt — IDENTIDAD_SIN_CONTENIDO sigue funcionando (sin marca cargada)", () => {
+  it("usa el texto de reemplazo cuando no hay Identidad, y no incluye Biblioteca disponible sin datos", () => {
+    const prompt = construirPrompt("Idea sin marca todavía", IDENTIDAD_SIN_CONTENIDO);
+    expect(prompt).toContain(
+      "Todavía no tenemos información cargada sobre esta marca — generá el guion apoyándote solamente en la idea de arriba, con un tono neutro y profesional.",
+    );
+    expect(prompt).not.toContain("Biblioteca disponible");
+    expect(prompt).toContain("Recursos necesarios: [opcional");
   });
 });

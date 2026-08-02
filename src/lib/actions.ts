@@ -67,6 +67,7 @@ import type {
 } from "./types";
 import { parsearBlueprint } from "./blueprint-parser";
 import type { BibliotecaConocida, ProduccionCBD, RecursosGlobalesCBD, ResultadoParseoCBD } from "./blueprint-parser";
+import { estimarDuracionSegundos } from "./estimacion-duracion";
 
 const PAPELERA_RETENCION_DIAS = 7;
 
@@ -2251,7 +2252,10 @@ export async function confirmarImportacionBlueprint(
       produccionId,
       numero: i + 1,
       orden: i + 1,
-      duracionSegundos: e.duracionEstimada ?? 0,
+      // Fix 2 (post UX-MIGRATION-4): la estimación por palabras/pausas/tipo
+      // solo reemplaza la ausencia de dato — una Duración estimada
+      // explícita en el CBD nunca se toca (ver estimacion-duracion.ts).
+      duracionSegundos: e.duracionEstimada ?? estimarDuracionSegundos(e.textoHablado, e.tipo as TipoEscenaStoryboard),
       tipoEscena: e.tipo,
       objetivoNarrativo: e.objetivoNarrativo,
       emocion: e.emocion,

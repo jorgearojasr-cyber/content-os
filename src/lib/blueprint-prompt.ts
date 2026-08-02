@@ -9,7 +9,17 @@ import { IDENTIDAD_SIN_CONTENIDO } from "./identity-compiler";
  * ver la instrucción en `construirBloqueIdea`. La plantilla completa (con
  * `## Contexto`) volvió a incluirse literalmente en UX Migration 2.3 —
  * ver ese commit para el diagnóstico exacto de por qué ChatGPT dejaba de
- * respetarla. */
+ * respetarla.
+ *
+ * "Recursos necesarios", "Música" y "Transición" (Fix 2, post
+ * UX-MIGRATION-4) son los primeros campos que se agregan de vuelta a esta
+ * plantilla desde 2.3 — reincorporados porque cumplen el Principio
+ * acordado (ayudan a grabar o producir mejor la escena), siempre
+ * opcionales y nunca forzados a aparecer vacíos: ver la instrucción
+ * correspondiente en `construirNucleoCBD`. El parser ya reconocía estas
+ * tres etiquetas de antes (`CAMPOS_ESCENA` en blueprint-parser.ts) — este
+ * cambio es puramente de qué le pide el prompt a ChatGPT, sin tocar el
+ * parser. */
 const FORMATO_CBD = `# Creative Blueprint v1
 
 ## Contexto
@@ -31,6 +41,9 @@ Locación: ...
 Plano: ...
 Texto hablado: ...
 Texto en pantalla: ...
+Recursos necesarios: [opcional — solo si hay algo concreto que preparar antes de grabar]
+Música: [opcional — solo si tenés una sugerencia real de estilo o canción]
+Transición: [opcional — solo si conviene una transición específica hacia la siguiente escena]
 
 ### Escena 2
 [repetir la misma estructura por cada escena que necesite el video]`;
@@ -116,6 +129,7 @@ function construirNucleoCBD(): string {
 - Los encabezados Markdown (##, ###) tienen que quedar EXACTAMENTE iguales — mismo texto, mismos símbolos "#", mismo orden. Nunca los conviertas en texto plano ni en negrita.
 - Cada etiqueta (ej. "Tipo:", "Texto hablado:") va seguida del valor en la MISMA línea, después de los dos puntos — nunca dejes la etiqueta sola y el contenido en la línea siguiente, aunque el texto sea largo.
 - Las listas (como "Personajes:") llevan un guion y un espacio ("- ") antes de cada ítem, uno por línea — nunca el nombre suelto en su propia línea.
+- "Recursos necesarios", "Música" y "Transición" son opcionales: agregalas solo cuando tengas una sugerencia concreta que ayude a preparar, grabar o producir mejor la escena — si no aportan nada real, omití la línea entera, nunca la dejes vacía ni inventes algo genérico.
 - Agregá tantos bloques "### Escena N" como necesite el video, siguiendo exactamente la misma estructura de la Escena 1.
 
 Plantilla a completar:
