@@ -32,6 +32,7 @@ import type {
   PlanEdicion,
 } from "./ai";
 import { extraerPalabrasClave, rankearResultados, extraerFragmento } from "./reutilizacion";
+import { explicarError } from "./errores";
 import { generarImagenIA } from "./imagen-provider";
 import { guardarArchivoSubido, eliminarArchivoSubido } from "./storage";
 import {
@@ -1148,6 +1149,17 @@ export async function generarImagenParaEscena(
   return imagenGeneradaUrl;
 }
 
+/** Resultado de generar un Plan de Edición — nunca se deja escapar una
+ * excepción cruda de estas server actions (ver `generarPlanEdicionAction` /
+ * `generarPlanEdicionProduccionAction`): Next.js reemplaza en producción el
+ * mensaje de cualquier error que atraviese el límite de una Server Action
+ * por uno genérico ("A digest property is included..."), sin importar
+ * cuán claro sea el mensaje en español que arma `explicarError` — incluida
+ * la falta de crédito de la API de Anthropic, un caso esperable, no un bug.
+ * Devolver el error como dato normal (`{ ok: false, error }`) en vez de
+ * lanzarlo evita ese límite: el mensaje real siempre le llega al usuario. */
+export type ResultadoPlanEdicion = { ok: true; plan: PlanEdicion } | { ok: false; error: string };
+
 /**
  * DIRECTOR DE EDICIÓN: analiza una pieza de video ya generada y guarda un
  * plan de edición profesional (ver `generarPlanEdicion` en ai.ts) — nunca
@@ -1159,43 +1171,47 @@ export async function generarPlanEdicionAction(
   proyectoId: string,
   bloqueId: string,
   regenerar = false,
-): Promise<PlanEdicion> {
-  const bloque = await getBloque(proyectoId, bloqueId);
-  if (!bloque) throw new Error("El bloque ya no existe.");
+): Promise<ResultadoPlanEdicion> {
+  try {
+    const bloque = await getBloque(proyectoId, bloqueId);
+    if (!bloque) throw new Error("El bloque ya no existe.");
 
-  const planExistente = parsePlanEdicion(bloque.planEdicionJson);
-  if (planExistente && !regenerar) return planExistente;
+    const planExistente = parsePlanEdicion(bloque.planEdicionJson);
+    if (planExistente && !regenerar) return { ok: true, plan: planExistente };
 
-  const escenas = parseEscenas(bloque.escenasJson);
-  if (escenas.length === 0) {
-    throw new Error("Esta pieza no tiene escenas para generar un plan de edición.");
+    const escenas = parseEscenas(bloque.escenasJson);
+    if (escenas.length === 0) {
+      throw new Error("Esta pieza no tiene escenas para generar un plan de edición.");
+    }
+
+    const plan = await generarPlanEdicion({
+      formato: bloque.formato,
+      identidadCompilada: bloque.identidadCompilada,
+      texto: bloque.texto,
+      // Carrusel/Imagen de varias láminas (sin duración de video real): el
+      // Director de Edición ofrece un plan de CONVERSIÓN a video, no
+      // indicaciones sobre metraje ya filmado.
+      esConversionAVideo: esConversionAVideo(escenas),
+      escenas: escenas.map((e) => ({
+        numero: e.numero,
+        duracionSegundos: e.duracionSegundos,
+        descripcion: e.descripcion,
+        guionHablado: e.guionHablado,
+        textoEnPantalla: e.textoEnPantalla,
+      })),
+    });
+
+    await db
+      .update(bloques)
+      .set({ planEdicionJson: plan })
+      .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
+
+    revalidatePath(`/proyectos/${proyectoId}/biblioteca/${bloqueId}/editar`);
+
+    return { ok: true, plan };
+  } catch (e) {
+    return { ok: false, error: explicarError(e) };
   }
-
-  const plan = await generarPlanEdicion({
-    formato: bloque.formato,
-    identidadCompilada: bloque.identidadCompilada,
-    texto: bloque.texto,
-    // Carrusel/Imagen de varias láminas (sin duración de video real): el
-    // Director de Edición ofrece un plan de CONVERSIÓN a video, no
-    // indicaciones sobre metraje ya filmado.
-    esConversionAVideo: esConversionAVideo(escenas),
-    escenas: escenas.map((e) => ({
-      numero: e.numero,
-      duracionSegundos: e.duracionSegundos,
-      descripcion: e.descripcion,
-      guionHablado: e.guionHablado,
-      textoEnPantalla: e.textoEnPantalla,
-    })),
-  });
-
-  await db
-    .update(bloques)
-    .set({ planEdicionJson: plan })
-    .where(and(eq(bloques.id, bloqueId), eq(bloques.proyectoId, proyectoId)));
-
-  revalidatePath(`/proyectos/${proyectoId}/biblioteca/${bloqueId}/editar`);
-
-  return plan;
 }
 
 export async function renombrarBloque(proyectoId: string, bloqueId: string, formData: FormData) {
@@ -2561,62 +2577,66 @@ export async function generarPlanEdicionProduccionAction(
   proyectoId: string,
   produccionId: string,
   regenerar = false,
-): Promise<PlanEdicion> {
-  const produccion = await getProduccion(produccionId);
-  if (!produccion || produccion.proyectoId !== proyectoId) throw new Error("La producción ya no existe.");
+): Promise<ResultadoPlanEdicion> {
+  try {
+    const produccion = await getProduccion(produccionId);
+    if (!produccion || produccion.proyectoId !== proyectoId) throw new Error("La producción ya no existe.");
 
-  const planExistente = parsePlanEdicion(produccion.planEdicionJson);
-  if (planExistente && !regenerar) return planExistente;
+    const planExistente = parsePlanEdicion(produccion.planEdicionJson);
+    if (planExistente && !regenerar) return { ok: true, plan: planExistente };
 
-  const escenas = await getStoryboardEscenas(produccionId);
-  if (escenas.length === 0) {
-    throw new Error("Esta producción no tiene escenas para generar un plan de edición.");
+    const escenas = await getStoryboardEscenas(produccionId);
+    if (escenas.length === 0) {
+      throw new Error("Esta producción no tiene escenas para generar un plan de edición.");
+    }
+
+    const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
+      getIdentidad(proyectoId),
+      getPersonajes(proyectoId),
+      getPersonajesDelEstudio(),
+      getActivos(proyectoId),
+    ]);
+    const personajes = [...personajesProyecto, ...personajesEstudio];
+    const activosVisuales = activosProyecto
+      .filter((a) => a.tipo === "foto")
+      .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
+    const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, activosVisuales }) : "";
+
+    const texto = [produccion.ideaCentral, produccion.objetivoGeneral, ...escenas.map((e) => e.textoHablado)]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const plan = await generarPlanEdicion({
+      formato: produccion.formato,
+      identidadCompilada,
+      texto,
+      // Una Producción es siempre un video real por definición en este
+      // sistema (a diferencia de un Bloque, que puede ser un Carrusel
+      // convertido a video) — nunca es un caso de conversión.
+      esConversionAVideo: false,
+      escenas: escenas.map((e) => ({
+        numero: e.numero,
+        duracionSegundos: e.duracionSegundos,
+        // `accion` no se completa desde ningún formulario del storyboard hoy
+        // (campo legado, siempre vacío) — `objetivoNarrativo` es el campo
+        // real que describe qué pasa en la escena.
+        descripcion: e.objetivoNarrativo,
+        guionHablado: e.textoHablado,
+        textoEnPantalla: e.textoPantalla,
+      })),
+    });
+
+    await db
+      .update(producciones)
+      .set({ planEdicionJson: plan, updatedAt: sql`now()` })
+      .where(and(eq(producciones.id, produccionId), eq(producciones.proyectoId, proyectoId)));
+
+    revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
+
+    return { ok: true, plan };
+  } catch (e) {
+    return { ok: false, error: explicarError(e) };
   }
-
-  const [identidad, personajesProyecto, personajesEstudio, activosProyecto] = await Promise.all([
-    getIdentidad(proyectoId),
-    getPersonajes(proyectoId),
-    getPersonajesDelEstudio(),
-    getActivos(proyectoId),
-  ]);
-  const personajes = [...personajesProyecto, ...personajesEstudio];
-  const activosVisuales = activosProyecto
-    .filter((a) => a.tipo === "foto")
-    .map((a) => ({ etiqueta: a.nombre, url: a.valor }));
-  const identidadCompilada = identidad ? compileIdentity(identidad, { personajes, activosVisuales }) : "";
-
-  const texto = [produccion.ideaCentral, produccion.objetivoGeneral, ...escenas.map((e) => e.textoHablado)]
-    .filter(Boolean)
-    .join("\n\n");
-
-  const plan = await generarPlanEdicion({
-    formato: produccion.formato,
-    identidadCompilada,
-    texto,
-    // Una Producción es siempre un video real por definición en este
-    // sistema (a diferencia de un Bloque, que puede ser un Carrusel
-    // convertido a video) — nunca es un caso de conversión.
-    esConversionAVideo: false,
-    escenas: escenas.map((e) => ({
-      numero: e.numero,
-      duracionSegundos: e.duracionSegundos,
-      // `accion` no se completa desde ningún formulario del storyboard hoy
-      // (campo legado, siempre vacío) — `objetivoNarrativo` es el campo
-      // real que describe qué pasa en la escena.
-      descripcion: e.objetivoNarrativo,
-      guionHablado: e.textoHablado,
-      textoEnPantalla: e.textoPantalla,
-    })),
-  });
-
-  await db
-    .update(producciones)
-    .set({ planEdicionJson: plan, updatedAt: sql`now()` })
-    .where(and(eq(producciones.id, produccionId), eq(producciones.proyectoId, proyectoId)));
-
-  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/copiloto`);
-
-  return plan;
 }
 
 /**

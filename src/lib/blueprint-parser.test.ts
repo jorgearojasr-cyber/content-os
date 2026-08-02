@@ -335,6 +335,85 @@ describe("parsearBlueprint — CBD 3, segunda ronda (línea en blanco en lista)"
   });
 });
 
+// Simula exactamente lo que produce copiar un guion ya renderizado desde
+// ChatGPT al portapapeles: los "#"/"##"/"###" de Markdown desaparecen
+// porque el navegador copia el texto visible, no el Markdown fuente.
+function quitarHashes(texto: string): string {
+  return texto
+    .split("\n")
+    .map((l) => l.replace(/^#{1,6}\s*/, ""))
+    .join("\n");
+}
+
+const CBD_1_FELIZ_SIN_HASH = quitarHashes(CBD_1_FELIZ);
+
+describe("parsearBlueprint — CBD sin '#' (Bug 1: ChatGPT renderizado pegado sin Markdown)", () => {
+  it("parsea las mismas 4 escenas, sin errores ni advertencias, igual que con '#'", () => {
+    const resultado = parsearBlueprint(CBD_1_FELIZ_SIN_HASH, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.advertencias).toEqual([]);
+    expect(resultado.escenas).toHaveLength(4);
+    expect(resultado.escenas.map((e) => e.tipo)).toEqual(["GANCHO", "PROBLEMA", "SOLUCION", "CTA"]);
+  });
+
+  it("Producción, Contexto y Recursos globales se parsean igual sin '#'", () => {
+    const resultado = parsearBlueprint(CBD_1_FELIZ_SIN_HASH, BIBLIOTECA);
+    expect(resultado.produccion).toMatchObject({ titulo: "Cómo nivelar un piso", proyecto: "OBRABIEN" });
+    expect(resultado.contexto).toContain("Plataforma: TikTok");
+    expect(resultado.recursosGlobales).toMatchObject({ musicaPrincipal: "Instrumental suave, sin letra" });
+  });
+
+  it("cada escena trae Personajes, Locación, Plano y Texto hablado correctos sin '#'", () => {
+    const resultado = parsearBlueprint(CBD_1_FELIZ_SIN_HASH, BIBLIOTECA);
+    expect(resultado.escenas[0]).toMatchObject({
+      personajes: ["Don José"],
+      locacion: "Obra",
+      plano: "Primer plano",
+      textoHablado: "¿Sabías que un piso mal nivelado te puede costar caro?",
+    });
+  });
+
+  it("la forma CON '#' sigue funcionando exactamente igual (no regresiona)", () => {
+    const resultado = parsearBlueprint(CBD_1_FELIZ, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.escenas).toHaveLength(4);
+  });
+});
+
+describe("parsearBlueprint — palabras de encabezado dentro de contenido (Bug 1: sin falsos positivos)", () => {
+  const CBD_FALSOS_POSITIVOS = quitarHashes(`# Creative Blueprint v1
+
+Autor: ChatGPT
+Fecha: 2026-07-31
+
+## Producción
+
+Título: Prueba de falsos positivos
+Proyecto: OBRABIEN
+Objetivo del espectador:
+- Entienda el Contexto del proyecto
+- Producción
+
+## Escenas
+
+### Escena 1
+
+Tipo: Gancho
+Objetivo narrativo: Probar que las palabras dentro de texto no se confunden con encabezados.
+Texto hablado: Primero quiero hablar del Contexto en el que vivimos, y después de la Producción completa de este video sobre una escena real.
+`);
+
+  it('"Contexto" y "Producción" dentro de un texto hablado o de un ítem de lista no se interpretan como encabezados', () => {
+    const resultado = parsearBlueprint(CBD_FALSOS_POSITIVOS, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe("Prueba de falsos positivos");
+    expect(resultado.produccion?.objetivoEspectador).toEqual(["Entienda el Contexto del proyecto", "Producción"]);
+    expect(resultado.escenas).toHaveLength(1);
+    expect(resultado.escenas[0].textoHablado).toContain("Contexto en el que vivimos");
+    expect(resultado.escenas[0].textoHablado).toContain("Producción completa");
+  });
+});
+
 describe("parsearBlueprint — casos de error explícitos", () => {
   it("rechaza un CBD sin encabezado de versión, sin lanzar excepción", () => {
     const texto = `## Producción\n\nTítulo: Algo\n\n## Escenas\n\n### Escena 1\n\nTipo: Gancho\nObjetivo narrativo: Probar.\n`;

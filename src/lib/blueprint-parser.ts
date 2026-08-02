@@ -1,5 +1,6 @@
 import { TIPOS_ESCENA_STORYBOARD } from "./types";
 import type { TipoEscenaStoryboard } from "./types";
+import { normalizarTexto } from "./similitud";
 
 /**
  * Parser determinístico del Creative Blueprint Document (CBD) v1 — función
@@ -148,6 +149,57 @@ const ETIQUETAS_TIPO_ESCENA_CBD = [
   "Otra",
 ] as const;
 
+/** Los 4 nombres de sección de nivel superior — la única lista contra la
+ * que se reconoce un encabezado de sección sin "##" (ver
+ * `tituloSiEncabezadoSeccion`). */
+const ENCABEZADOS_SECCION = ["Contexto", "Producción", "Recursos globales", "Escenas"];
+
+/** Quita un prefijo Markdown de encabezado ("#", "##", "###"...) si está
+ * presente, junto con el espacio que lo sigue. ChatGPT muestra los
+ * encabezados del Creative Blueprint como texto renderizado (título,
+ * subtítulo) — copiar ese resultado al portapapeles trae el texto pero
+ * pierde los "#" originales, así que el parser tiene que reconocer el
+ * mismo encabezado con o sin marcador. */
+function quitarMarcadorEncabezado(linea: string): string {
+  return linea.replace(/^#{1,6}\s*/, "");
+}
+
+/** True si la línea (ya trimeada) es, ella sola, uno de los 4 encabezados
+ * de sección conocidos — comparando case/tilde-insensitive y sin importar
+ * si trae "##" adelante. Devuelve el título CANÓNICO (para que el resto
+ * del parser siga comparando con `===` sin duplicar la normalización) o
+ * `null` si la línea no es un encabezado de sección en esta posición.
+ *
+ * Con "##" el marcador es una señal sintáctica inequívoca — nada más en el
+ * documento empieza así — así que cualquier título cuenta como límite de
+ * sección, conocido o no (forward-compat, igual que antes de este fix).
+ * Sin "##" no hay ninguna señal sintáctica: la única forma segura de
+ * reconocer el encabezado sin abrir falsos positivos dentro de un párrafo,
+ * un texto hablado o un ítem de lista es exigir que la línea completa
+ * coincida exacto (normalizada) con uno de los 4 nombres conocidos. */
+function tituloSiEncabezadoSeccion(linea: string): string | null {
+  const lineaTrim = linea.trim();
+  const tieneMarcador = lineaTrim.startsWith("## ");
+  const contenido = tieneMarcador ? lineaTrim.slice(3).trim() : lineaTrim;
+  const normalizado = normalizarTexto(contenido);
+  const conocido = ENCABEZADOS_SECCION.find((e) => normalizarTexto(e) === normalizado);
+  if (conocido) return conocido;
+  return tieneMarcador ? contenido : null;
+}
+
+/** Misma idea que `tituloSiEncabezadoSeccion` pero para "### Escena N"
+ * dentro de la sección Escenas. Acá no hay una lista fija de títulos
+ * posibles (el número y el texto después varían) — sin "###", la única
+ * señal segura es que la línea completa empiece con la palabra "Escena"
+ * (case/tilde-insensitive, como palabra completa: no matchea "Escenas"). */
+function tituloSiEncabezadoEscena(linea: string): string | null {
+  const lineaTrim = linea.trim();
+  const tieneMarcador = lineaTrim.startsWith("### ");
+  const contenido = tieneMarcador ? lineaTrim.slice(4).trim() : lineaTrim;
+  if (tieneMarcador) return contenido;
+  return /^escena\b/i.test(normalizarTexto(contenido)) ? contenido : null;
+}
+
 /** Parsea un bloque de líneas contra una lista fija de campos. Etiquetas
  * no reconocidas se ignoran (forward-compat). El candidato con la
  * etiqueta más larga gana si dos etiquetas coincidieran como prefijo una
@@ -198,16 +250,24 @@ function parsearBloque(lineas: string[], campos: DefinicionCampo[]): Record<stri
   return resultado;
 }
 
-/** Divide líneas en bloques cada vez que aparece una línea con el prefijo
- * dado (ej. "## " o "### ") — usado tanto para secciones como para
- * escenas dentro de la sección Escenas. */
-function dividirPorEncabezado(lineas: string[], prefijo: string): { titulo: string; lineas: string[] }[] {
+/** Divide líneas en bloques cada vez que una línea es reconocida como
+ * encabezado por `esEncabezado` — usado tanto para secciones
+ * (`tituloSiEncabezadoSeccion`) como para escenas dentro de la sección
+ * Escenas (`tituloSiEncabezadoEscena`). `esEncabezado` devuelve el título
+ * del bloque que arranca ahí, o `null` si la línea no cuenta como
+ * encabezado en esta posición — nunca dentro de un párrafo, texto hablado
+ * o ítem de lista. */
+function dividirPorEncabezado(
+  lineas: string[],
+  esEncabezado: (linea: string) => string | null,
+): { titulo: string; lineas: string[] }[] {
   const bloques: { titulo: string; lineas: string[] }[] = [];
   let actual: { titulo: string; lineas: string[] } | null = null;
   for (const linea of lineas) {
-    if (linea.startsWith(prefijo)) {
+    const titulo = esEncabezado(linea);
+    if (titulo !== null) {
       if (actual) bloques.push(actual);
-      actual = { titulo: linea.slice(prefijo.length).trim(), lineas: [] };
+      actual = { titulo, lineas: [] };
     } else if (actual) {
       actual.lineas.push(linea);
     }
@@ -307,7 +367,7 @@ const RESULTADO_VACIO: Omit<ResultadoParseoCBD, "version" | "errores"> = {
   advertencias: [],
 };
 
-const PATRON_ENCABEZADO_VERSION = /^# Creative Blueprint v(\d+)(?:\.\d+)?$/;
+const PATRON_ENCABEZADO_VERSION = /^creative blueprint v(\d+)(?:\.\d+)?$/i;
 
 /** Señal aislada de "este texto tiene indicio de estructura de Blueprint" —
  * la misma condición exacta que `parsearBlueprint` usa como primer chequeo
@@ -321,7 +381,8 @@ const PATRON_ENCABEZADO_VERSION = /^# Creative Blueprint v(\d+)(?:\.\d+)?$/;
 export function tieneEstructuraDeBlueprint(textoCrudo: string): boolean {
   const lineas = textoCrudo.split(/\r?\n/);
   const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");
-  const primeraLinea = indicePrimeraLinea === -1 ? "" : lineas[indicePrimeraLinea].trim();
+  const primeraLinea =
+    indicePrimeraLinea === -1 ? "" : quitarMarcadorEncabezado(lineas[indicePrimeraLinea].trim());
   return PATRON_ENCABEZADO_VERSION.test(primeraLinea);
 }
 
@@ -330,11 +391,14 @@ export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConoc
   const lineas = textoCrudo.split(/\r?\n/);
 
   const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");
-  const primeraLinea = indicePrimeraLinea === -1 ? "" : lineas[indicePrimeraLinea].trim();
+  const primeraLinea =
+    indicePrimeraLinea === -1 ? "" : quitarMarcadorEncabezado(lineas[indicePrimeraLinea].trim());
   const matchVersion = primeraLinea.match(PATRON_ENCABEZADO_VERSION);
 
   if (!matchVersion) {
-    errores.push('Falta el encabezado de versión — la primera línea debe ser "# Creative Blueprint v1".');
+    errores.push(
+      'Falta el encabezado de versión — la primera línea debe ser "Creative Blueprint v1" (con o sin "#" adelante).',
+    );
     return { version: null, errores, ...RESULTADO_VACIO };
   }
 
@@ -345,7 +409,7 @@ export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConoc
   }
 
   const resto = lineas.slice(indicePrimeraLinea + 1);
-  const indicePrimeraSeccion = resto.findIndex((l) => l.startsWith("## "));
+  const indicePrimeraSeccion = resto.findIndex((l) => tituloSiEncabezadoSeccion(l) !== null);
   const lineasEncabezado = indicePrimeraSeccion === -1 ? resto : resto.slice(0, indicePrimeraSeccion);
   const lineasSecciones = indicePrimeraSeccion === -1 ? [] : resto.slice(indicePrimeraSeccion);
 
@@ -357,7 +421,7 @@ export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConoc
     conversacion: (camposEncabezado.conversacion as string) ?? "",
   };
 
-  const secciones = dividirPorEncabezado(lineasSecciones, "## ");
+  const secciones = dividirPorEncabezado(lineasSecciones, tituloSiEncabezadoSeccion);
   const advertencias: string[] = [];
 
   let contexto: string | null = null;
@@ -390,7 +454,7 @@ export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConoc
         outro: (campos.outro as string) ?? "",
       };
     } else if (seccion.titulo === "Escenas") {
-      const bloquesEscena = dividirPorEncabezado(seccion.lineas, "### ");
+      const bloquesEscena = dividirPorEncabezado(seccion.lineas, tituloSiEncabezadoEscena);
       escenas = bloquesEscena.map((bloque, indice) =>
         parsearEscena(bloque, indice, errores, advertencias, biblioteca),
       );

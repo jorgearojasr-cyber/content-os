@@ -22,7 +22,8 @@ import {
   type Identidad,
   type Personaje,
 } from "@/lib/types";
-import type { EscenaRevisada, PlanEdicion } from "@/lib/ai";
+import type { EscenaRevisada } from "@/lib/ai";
+import type { ResultadoPlanEdicion } from "@/lib/actions";
 
 const DURACION_CONFIRMACION_MS = 2000;
 const POSICION_LOGO_DEFAULT: PosicionLogo = "inferior-derecha";
@@ -57,7 +58,7 @@ export function EditarBloqueConEscenas({
   escenasIniciales: Escena[];
   onUpdate: (formData: FormData) => Promise<void>;
   onGenerarImagen: (numeroEscena: number, calidad: CalidadImagen) => Promise<string>;
-  onGenerarPlanEdicion: (regenerar: boolean) => Promise<PlanEdicion>;
+  onGenerarPlanEdicion: (regenerar: boolean) => Promise<ResultadoPlanEdicion>;
   /** Sin `contexto` pre-aplicado (a diferencia de antes) — se arma acá con
    * los toggles EN VIVO y se pasa en cada llamada, igual que ya hace Crear
    * (ver revisarEscena() abajo y ResultadoTabs). */

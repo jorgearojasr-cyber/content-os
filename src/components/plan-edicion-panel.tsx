@@ -5,6 +5,7 @@ import { Button, Card, SectionTitle } from "@/components/ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
 import type { PlanEdicion } from "@/lib/ai";
+import type { ResultadoPlanEdicion } from "@/lib/actions";
 
 type ClaveCriterio = Exclude<keyof PlanEdicion["evaluacionFinal"], "recomendaciones">;
 
@@ -111,7 +112,7 @@ export function PlanEdicionPanel({
    * video real) — ajusta textos a "convertir en video" en vez de asumir
    * metraje ya filmado. */
   esConversion: boolean;
-  onGenerar: (regenerar: boolean) => Promise<PlanEdicion>;
+  onGenerar: (regenerar: boolean) => Promise<ResultadoPlanEdicion>;
 }) {
   const [plan, setPlan] = useState(planInicial);
   const [cargando, setCargando] = useState(false);
@@ -125,7 +126,12 @@ export function PlanEdicionPanel({
     setCargando(true);
     setError("");
     try {
-      setPlan(await onGenerar(regenerar));
+      const resultado = await onGenerar(regenerar);
+      if (resultado.ok) {
+        setPlan(resultado.plan);
+      } else {
+        setError(resultado.error);
+      }
     } catch (e) {
       setError(explicarError(e));
     } finally {
