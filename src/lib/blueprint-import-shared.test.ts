@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { faltanDecisiones, resolverCampo, type EscenaEnRevision } from "./blueprint-import-shared";
+import { agruparPendientes, faltanDecisiones, resolverCampo, type EscenaEnRevision } from "./blueprint-import-shared";
 import type { EscenaCBD } from "./blueprint-parser";
 
 const cbdVacio: EscenaCBD = {
@@ -127,5 +127,84 @@ describe("faltanDecisiones — auto-resueltos y decisiones explícitas nunca blo
       },
     ];
     expect(faltanDecisiones(escenas)).toBe(false);
+  });
+});
+
+describe("agruparPendientes — UX-MIGRATION-5 consolidación por nombre", () => {
+  it("el mismo Personaje pendiente en 2+ escenas produce una sola tarjeta, con las ocurrencias contadas", () => {
+    const personaje = () => resolverCampo("Don José", []); // sin candidatas -> pendiente
+    const escenas: EscenaEnRevision[] = [
+      { cbd: cbdVacio, personajes: [personaje()], locacion: null, plano: null },
+      { cbd: cbdVacio, personajes: [personaje()], locacion: null, plano: null },
+      { cbd: cbdVacio, personajes: [personaje()], locacion: null, plano: null },
+    ];
+    const pendientes = agruparPendientes(escenas);
+    expect(pendientes).toHaveLength(1);
+    expect(pendientes[0]).toMatchObject({ tipo: "personaje", ocurrencias: 3 });
+    expect(pendientes[0].campo.nombre).toBe("Don José");
+  });
+
+  it("agrupa sin importar mayúsculas/tildes — mismo nombre normalizado, una sola tarjeta", () => {
+    const escenas: EscenaEnRevision[] = [
+      { cbd: cbdVacio, personajes: [], locacion: resolverCampo("Oficina", []), plano: null },
+      { cbd: cbdVacio, personajes: [], locacion: resolverCampo("OFICINA", []), plano: null },
+      { cbd: cbdVacio, personajes: [], locacion: resolverCampo("oficína", []), plano: null },
+    ];
+    const pendientes = agruparPendientes(escenas);
+    expect(pendientes).toHaveLength(1);
+    expect(pendientes[0].ocurrencias).toBe(3);
+  });
+
+  it("plano, locación y personajes distintos no se mezclan aunque compartan nombre normalizado", () => {
+    const escenas: EscenaEnRevision[] = [
+      {
+        cbd: cbdVacio,
+        personajes: [resolverCampo("Estudio", [])],
+        locacion: resolverCampo("Estudio", []),
+        plano: resolverCampo("Estudio", []),
+      },
+    ];
+    const pendientes = agruparPendientes(escenas);
+    expect(pendientes).toHaveLength(3);
+    expect(pendientes.map((p) => p.tipo).sort()).toEqual(["locacion", "personaje", "plano"]);
+  });
+
+  it("excluye resueltos, auto-resueltos (4A) y ya decididos — solo lo genuinamente pendiente entra", () => {
+    const resuelto = resolverCampo("Oficina", [{ id: "1", nombre: "Oficina" }]); // resuelto: true
+    const autoResuelto = resolverCampo("Presentador", [{ id: "1", nombre: "Presentadr" }]); // autoResuelto
+    const yaDecidido = resolverCampo("Piso", []);
+    if (yaDecidido.resuelto) throw new Error("unreachable");
+    const decidido = { ...yaDecidido, decision: null }; // usuario ya eligió "sin vincular"
+    const genuinoPendiente = resolverCampo("Cocina", []);
+
+    const escenas: EscenaEnRevision[] = [
+      {
+        cbd: cbdVacio,
+        personajes: [autoResuelto],
+        locacion: resuelto,
+        plano: decidido,
+      },
+      {
+        cbd: cbdVacio,
+        personajes: [genuinoPendiente],
+        locacion: null,
+        plano: null,
+      },
+    ];
+    const pendientes = agruparPendientes(escenas);
+    expect(pendientes).toHaveLength(1);
+    expect(pendientes[0].campo.nombre).toBe("Cocina");
+  });
+
+  it("lista vacía cuando no queda nada genuinamente pendiente", () => {
+    const escenas: EscenaEnRevision[] = [
+      {
+        cbd: cbdVacio,
+        personajes: [resolverCampo("Presentador", [{ id: "1", nombre: "Presentadr" }])],
+        locacion: { resuelto: true, id: "loc1", nombre: "Oficina" },
+        plano: null,
+      },
+    ];
+    expect(agruparPendientes(escenas)).toEqual([]);
   });
 });

@@ -211,13 +211,19 @@ export function PlanEdicionPanel({
 
       {error ? <p className="mb-3 text-[12.5px] text-danger">{error}</p> : null}
 
+      {/* UX-MIGRATION-5: orden de lectura, no de generación — 1) qué hacer
+          primero (Ritmo general, con más peso visual que el resto), 2)
+          escena por escena, en ese orden. Todo lo demás (B-roll, SFX,
+          Música, Color, Animaciones, Pausas, CTA) pasa a un bloque de
+          "Referencia" más chico y silencioso, para consultar cuando haga
+          falta — no para leer secuencialmente. La Evaluación final cierra,
+          como un resumen de cómo quedó. Mismos datos, mismo botón de
+          Regenerar; solo cambia el peso y el orden. */}
       <div className="space-y-5">
-        <section>
-          <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">
-            Ritmo general
-          </p>
-          <p className="mt-1 font-display text-[16px] text-text">{plan.ritmoGeneral.recomendacion}</p>
-          <p className="mt-1 text-[13.5px] text-text-muted">{plan.ritmoGeneral.porQue}</p>
+        <section className="rounded-xl border border-accent/30 bg-accent-soft p-4">
+          <p className="text-[11.5px] font-medium uppercase tracking-wide text-accent">Empezá por acá</p>
+          <p className="mt-1 font-display text-[19px] text-text">{plan.ritmoGeneral.recomendacion}</p>
+          <p className="mt-1 text-[13.5px] text-text">{plan.ritmoGeneral.porQue}</p>
         </section>
 
         <section>
@@ -247,61 +253,61 @@ export function PlanEdicionPanel({
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">B-roll</p>
-            <ul className="mt-1.5 space-y-1 text-[13px] text-text">
-              {plan.bRoll.map((b, i) => (
-                <li key={i}>• {b}</li>
-              ))}
-            </ul>
+        <section className="rounded-xl border border-border p-3.5">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            Referencia — consultá cuando haga falta
+          </p>
+          <div className="grid gap-3.5 text-[12.5px] sm:grid-cols-2">
+            <div>
+              <p className="font-medium text-text-muted">B-roll</p>
+              <ul className="mt-1 space-y-0.5 text-text-muted">
+                {plan.bRoll.map((b, i) => (
+                  <li key={i}>• {b}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-text-muted">Efectos de sonido</p>
+              <ul className="mt-1 space-y-0.5 text-text-muted">
+                {plan.efectosSonido.map((s, i) => (
+                  <li key={i}>
+                    • {s.momento}: <span className="font-mono text-[11.5px]">{s.efecto}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-text-muted">Música</p>
+              <p className="mt-1 text-text-muted">{plan.musica}</p>
+            </div>
+            <div>
+              <p className="font-medium text-text-muted">Color</p>
+              <p className="mt-1 text-text-muted">
+                {plan.color.recomendacion} — {plan.color.porQue}
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-text-muted">Animaciones</p>
+              <ul className="mt-1 space-y-0.5 text-text-muted">
+                {plan.animaciones.map((a, i) => (
+                  <li key={i}>• {a}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-text-muted">Pausas</p>
+              <ul className="mt-1 space-y-0.5 text-text-muted">
+                {plan.pausas.map((p, i) => (
+                  <li key={i}>• {p}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="font-medium text-text-muted">CTA</p>
+              <p className="mt-1 text-text-muted">{plan.evaluacionCta.analisis}</p>
+              <p className="mt-0.5 text-accent">{plan.evaluacionCta.mejoraSugerida}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">
-              Efectos de sonido
-            </p>
-            <ul className="mt-1.5 space-y-1 text-[13px] text-text">
-              {plan.efectosSonido.map((s, i) => (
-                <li key={i}>
-                  • {s.momento}: <span className="font-mono text-[12px] text-accent">{s.efecto}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">Música</p>
-            <p className="mt-1.5 text-[13px] text-text">{plan.musica}</p>
-          </div>
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">Color</p>
-            <p className="mt-1.5 text-[13px] text-text">
-              {plan.color.recomendacion} — <span className="text-text-muted">{plan.color.porQue}</span>
-            </p>
-          </div>
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">
-              Animaciones
-            </p>
-            <ul className="mt-1.5 space-y-1 text-[13px] text-text">
-              {plan.animaciones.map((a, i) => (
-                <li key={i}>• {a}</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">Pausas</p>
-            <ul className="mt-1.5 space-y-1 text-[13px] text-text">
-              {plan.pausas.map((p, i) => (
-                <li key={i}>• {p}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section>
-          <p className="text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">CTA</p>
-          <p className="mt-1.5 text-[13px] text-text">{plan.evaluacionCta.analisis}</p>
-          <p className="mt-1 text-[13px] text-accent">{plan.evaluacionCta.mejoraSugerida}</p>
         </section>
 
         <section>

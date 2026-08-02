@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { EntidadBiblioteca, AnalisisBlueprint } from "@/lib/actions";
 import type { EscenaCBD } from "@/lib/blueprint-parser";
 import { explicarError } from "./errores";
-import { similitudTexto, UMBRAL_SUGERENCIA_FUERTE, UMBRAL_SUGERENCIA_MINIMA } from "./similitud";
+import { normalizarTexto, similitudTexto, UMBRAL_SUGERENCIA_FUERTE, UMBRAL_SUGERENCIA_MINIMA } from "./similitud";
 
 /** Piezas puras usadas por `RevisionBlueprint` (UX Migration 2) — la
  * resolución de Personajes/Locación/Plano dentro de cada escena, igual
@@ -168,6 +168,43 @@ export function faltanDecisiones(escenas: EscenaEnRevision[]): boolean {
   );
 }
 
+export type TipoCampoPendiente = "plano" | "locacion" | "personaje";
+
+export type CampoPendiente = {
+  tipo: TipoCampoPendiente;
+  campo: Extract<Campo, { resuelto: false }>;
+  /** En cuántas escenas aparece este mismo nombre — solo informativo. */
+  ocurrencias: number;
+};
+
+/** UX-MIGRATION-5 — agrupa los campos genuinamente pendientes (ni
+ * resueltos, ni auto-resueltos por 4A, ni ya decididos) por nombre
+ * normalizado, sin importar en cuántas escenas aparezcan: el mismo
+ * Personaje/Locación/Plano mencionado varias veces en el mismo guion
+ * pegado se resuelve en una sola tarjeta, nunca una por escena — decidir
+ * ahí (ver `SelectorResolucion` con `soloEstado`) aplica la misma
+ * decisión a todas las apariciones. Los campos auto-resueltos no entran
+ * acá — siguen viviendo en el lugar, livianos y reversibles. */
+export function agruparPendientes(escenas: EscenaEnRevision[]): CampoPendiente[] {
+  const vistos = new Map<string, CampoPendiente>();
+
+  function agregar(tipo: TipoCampoPendiente, campo: Campo | null) {
+    if (!campo || campo.resuelto || campo.autoResuelto || campo.decision !== undefined) return;
+    const clave = `${tipo}:${normalizarTexto(campo.nombre)}`;
+    const existente = vistos.get(clave);
+    if (existente) existente.ocurrencias += 1;
+    else vistos.set(clave, { tipo, campo, ocurrencias: 1 });
+  }
+
+  for (const e of escenas) {
+    agregar("plano", e.plano);
+    agregar("locacion", e.locacion);
+    for (const c of e.personajes) agregar("personaje", c);
+  }
+
+  return [...vistos.values()];
+}
+
 /** Se muestra en todo campo genuinamente pendiente — la misma respuesta a
  * "¿qué pasa si no hago nada?" sin importar el tipo de campo, porque el
  * mecanismo es siempre el mismo: "sin vincular" no bloquea nada (UX
@@ -191,15 +228,23 @@ const QUE_PASA_SI_NO_DECIDIS = "Podés dejarlo sin vincular y resolverlo despué
  *
  * `onCrearNuevo`, si se pasa, agrega la opción "Crear nuevo" — hoy solo
  * tiene sentido para Personaje (Locación necesita una foto real y Plano
- * todavía no tiene administración propia, ver `getPlanos`). */
+ * todavía no tiene administración propia, ver `getPlanos`).
+ *
+ * `soloEstado` (UX-MIGRATION-5): true cuando este campo ya se resuelve en
+ * el bloque consolidado "Antes de continuar" (ver `agruparPendientes`) —
+ * acá solo refleja el resultado (nombre elegido, "Sin vincular", o un
+ * aviso de que falta resolverlo arriba), nunca vuelve a mostrar la
+ * tarjeta completa de decisión para el mismo nombre. */
 export function SelectorResolucion({
   campo,
   onDecidir,
   onCrearNuevo,
+  soloEstado = false,
 }: {
   campo: Campo;
   onDecidir: (valor: string) => void;
   onCrearNuevo?: (nombre: string) => Promise<{ id: string }>;
+  soloEstado?: boolean;
 }) {
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
@@ -214,6 +259,15 @@ export function SelectorResolucion({
     ? campo.candidatos!
     : (campo.sugerencias ?? []);
   const valorActual = campo.decision === undefined ? "" : campo.decision === null ? SIN_VINCULAR : campo.decision;
+
+  if (soloEstado) {
+    if (campo.decision === null) return <span className="text-text-muted">Sin vincular</span>;
+    if (campo.decision) {
+      const elegido = opciones.find((o) => o.id === campo.decision);
+      return <span className="text-text">{elegido?.nombre ?? campo.nombre}</span>;
+    }
+    return <span className="text-accent">⚠ Se resuelve arriba ↑</span>;
+  }
 
   async function crearNuevo() {
     if (!onCrearNuevo || campo.resuelto) return;
@@ -277,7 +331,7 @@ export function SelectorResolucion({
         ) : null}
         <label className="flex items-center gap-1.5 text-[12.5px] text-text">
           <input type="radio" checked={valorActual === SIN_VINCULAR} onChange={() => onDecidir(SIN_VINCULAR)} />
-          Dejar sin vincular (revisar después)
+          No lo sé todavía — lo resuelvo después
         </label>
       </div>
       {error ? <p className="mt-1 text-[12.5px] text-danger">{error}</p> : null}

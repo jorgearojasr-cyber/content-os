@@ -125,7 +125,12 @@ export async function createProyecto(formData: FormData) {
 
   revalidatePath("/proyectos");
   revalidatePath("/areas");
-  redirect(`/proyectos/${proyectoId}/crear`);
+  // UX-MIGRATION-5: Hoy selecciona por defecto el último proyecto de
+  // `getProyectos()` (ordenado por createdAt), que es justo el que se
+  // acaba de crear — llegar ahí ya lo deja elegido, sin pasar por la
+  // pestaña "Crear" del proyecto (que hoy es solo un enlace de vuelta a
+  // Hoy, un callejón sin salida para quien recién empieza).
+  redirect("/");
 }
 
 export async function updateProyecto(id: string, formData: FormData) {

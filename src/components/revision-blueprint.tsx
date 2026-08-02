@@ -7,6 +7,7 @@ import { Button, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { ResolucionMarca } from "@/components/resolucion-marca";
 import { explicarError } from "@/lib/errores";
+import { normalizarTexto } from "@/lib/similitud";
 import { FORMATOS_CONTENIDO } from "@/lib/types";
 import type {
   AnalisisBlueprint,
@@ -18,10 +19,18 @@ import {
   ETIQUETAS_TIPO_ESCENA,
   SIN_VINCULAR,
   SelectorResolucion,
+  agruparPendientes,
   construirRevision,
   faltanDecisiones,
   type EscenaEnRevision,
+  type TipoCampoPendiente,
 } from "@/lib/blueprint-import-shared";
+
+const ETIQUETA_TIPO_PENDIENTE: Record<TipoCampoPendiente, string> = {
+  plano: "Plano",
+  locacion: "Locación",
+  personaje: "Personaje",
+};
 
 function contarUnicos(valores: string[]): number {
   return new Set(valores.map((v) => v.trim().toLowerCase()).filter(Boolean)).size;
@@ -157,28 +166,28 @@ export function RevisionBlueprint({
     queueMicrotask(() => handleAnalizar(textoInicial));
   }, []);
 
-  function decidirPersonaje(escenaIndex: number, personajeIndex: number, valor: string) {
+  // UX-MIGRATION-5: una decisión se aplica a TODAS las apariciones del
+  // mismo nombre (normalizado) dentro del guion, no solo a la escena
+  // donde se tocó el radio — es lo que hace posible resolver un
+  // Personaje/Locación/Plano repetido en una sola tarjeta consolidada
+  // (ver `agruparPendientes`) en vez de una por escena. Reemplaza a los
+  // antiguos `decidirPersonaje`/`decidirCampo`, que solo tocaban un
+  // índice puntual.
+  function decidirPorNombre(tipo: "plano" | "locacion" | "personaje", nombre: string, valor: string) {
+    const clave = normalizarTexto(nombre);
+    const decision = valor === "" ? undefined : valor === SIN_VINCULAR ? null : valor;
     setEscenasRevision((prev) =>
-      prev.map((e, i) => {
-        if (i !== escenaIndex) return e;
-        return {
-          ...e,
-          personajes: e.personajes.map((c, j) => {
-            if (j !== personajeIndex || c.resuelto) return c;
-            return { ...c, decision: valor === "" ? undefined : valor === SIN_VINCULAR ? null : valor };
-          }),
-        };
-      }),
-    );
-  }
-
-  function decidirCampo(escenaIndex: number, tipo: "locacion" | "plano", valor: string) {
-    setEscenasRevision((prev) =>
-      prev.map((e, i) => {
-        if (i !== escenaIndex) return e;
+      prev.map((e) => {
+        if (tipo === "personaje") {
+          return {
+            ...e,
+            personajes: e.personajes.map((c) =>
+              !c.resuelto && normalizarTexto(c.nombre) === clave ? { ...c, decision } : c,
+            ),
+          };
+        }
         const actual = e[tipo];
-        if (!actual || actual.resuelto) return e;
-        const decision = valor === "" ? undefined : valor === SIN_VINCULAR ? null : valor;
+        if (!actual || actual.resuelto || normalizarTexto(actual.nombre) !== clave) return e;
         return { ...e, [tipo]: { ...actual, decision } };
       }),
     );
@@ -220,7 +229,11 @@ export function RevisionBlueprint({
 
       const proyectoDestino = proyectoElegidoId;
       onCerrar();
-      router.push(`/proyectos/${proyectoDestino}/producciones/${produccionId}`);
+      // UX-MIGRATION-5: el siguiente paso después de crear el video es
+      // grabar, no planificar — aterriza directo en Copiloto (que ya
+      // resuelve sola cuál es la primera escena pendiente), nunca en el
+      // tablero de Escenas.
+      router.push(`/proyectos/${proyectoDestino}/producciones/${produccionId}/copiloto`);
     } catch (e) {
       setError(explicarError(e));
       setConfirmando(false);
@@ -236,13 +249,15 @@ export function RevisionBlueprint({
   const confirmarDeshabilitado =
     !listo || faltanDecisiones(escenasRevision) || (esDuplicado && !aceptarDuplicado) || confirmando;
 
-  // Los mismatches de Personaje/Locación/Plano por escena ya se resuelven
-  // en el lugar (SelectorResolucion, dentro de cada escena) — mostrarlos
-  // otra vez en un panel de advertencias sería el panel separado que esta
-  // migración pide eliminar. Solo quedan acá las advertencias generales
+  // Los mismatches de Personaje/Locación/Plano ya no se resuelven uno por
+  // escena — UX-MIGRATION-5 los consolida en un solo bloque ("Antes de
+  // continuar", ver `agruparPendientes` + `pendientesConsolidados` abajo)
+  // cuando el mismo nombre se repite en el guion, para no preguntar lo
+  // mismo varias veces. Solo quedan acá las advertencias generales
   // (Proyecto/Duración de un CBD pegado a mano), que no son "campo por
   // resolver" sino información de contexto.
   const advertenciasGenerales = resultado?.advertencias.filter((a) => !a.startsWith("Escena en posición")) ?? [];
+  const pendientesConsolidados = agruparPendientes(escenasRevision);
 
   const etapa: "paste" | "proyecto" | "resumen" | "revision" =
     !analisisProyecto || bloqueanteProyecto
@@ -260,7 +275,7 @@ export function RevisionBlueprint({
       <div className="sticky top-0 z-10 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">
           <div>
-            <span className="font-display text-base font-normal tracking-wide text-text">Revisar guion</span>
+            <span className="font-display text-base font-normal tracking-wide text-text">Vamos a armar tu video</span>
             {proyectoElegidoNombre ? (
               <span className="ml-2 text-[12px] text-text-muted">→ {proyectoElegidoNombre}</span>
             ) : null}
@@ -438,6 +453,27 @@ export function RevisionBlueprint({
               </SeccionColapsable>
             ) : null}
 
+            {pendientesConsolidados.length > 0 ? (
+              <div className="rounded-xl border border-accent/30 bg-accent-soft p-3">
+                <p className="mb-2 text-[13px] font-medium text-text">Antes de continuar</p>
+                <div className="space-y-3">
+                  {pendientesConsolidados.map(({ tipo, campo, ocurrencias }) => (
+                    <div key={`${tipo}:${normalizarTexto(campo.nombre)}`}>
+                      <span className="text-[11.5px] text-text-muted">
+                        {ETIQUETA_TIPO_PENDIENTE[tipo]}
+                        {ocurrencias > 1 ? ` (aparece en ${ocurrencias} escenas)` : ""}:{" "}
+                      </span>
+                      <SelectorResolucion
+                        campo={campo}
+                        onCrearNuevo={tipo === "personaje" ? crearPersonajeYResolver : undefined}
+                        onDecidir={(v) => decidirPorNombre(tipo, campo.nombre, v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div>
               <p className="mb-2 text-[13px] font-medium text-text">
                 {escenasRevision.length} {plural(escenasRevision.length, "escena", "escenas")}
@@ -456,13 +492,21 @@ export function RevisionBlueprint({
                     {e.plano ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Plano: </span>
-                        <SelectorResolucion campo={e.plano} onDecidir={(v) => decidirCampo(i, "plano", v)} />
+                        <SelectorResolucion
+                          campo={e.plano}
+                          onDecidir={(v) => decidirPorNombre("plano", e.plano!.nombre, v)}
+                          soloEstado={!e.plano.resuelto && !e.plano.autoResuelto}
+                        />
                       </div>
                     ) : null}
                     {e.locacion ? (
                       <div className="mt-2">
                         <span className="text-[11.5px] text-text-muted">Locación: </span>
-                        <SelectorResolucion campo={e.locacion} onDecidir={(v) => decidirCampo(i, "locacion", v)} />
+                        <SelectorResolucion
+                          campo={e.locacion}
+                          onDecidir={(v) => decidirPorNombre("locacion", e.locacion!.nombre, v)}
+                          soloEstado={!e.locacion.resuelto && !e.locacion.autoResuelto}
+                        />
                       </div>
                     ) : null}
                     {e.personajes.length > 0 ? (
@@ -473,7 +517,8 @@ export function RevisionBlueprint({
                             key={j}
                             campo={c}
                             onCrearNuevo={crearPersonajeYResolver}
-                            onDecidir={(v) => decidirPersonaje(i, j, v)}
+                            onDecidir={(v) => decidirPorNombre("personaje", c.nombre, v)}
+                            soloEstado={!c.resuelto && !c.autoResuelto}
                           />
                         ))}
                       </div>

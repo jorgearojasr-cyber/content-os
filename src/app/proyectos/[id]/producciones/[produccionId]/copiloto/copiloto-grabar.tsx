@@ -328,7 +328,7 @@ export function CopilotoGrabar({
             checklist de arriba solo resume. Un único "Ver detalles", no
             tres acordeones separados (eso ya se sentía como formulario). */}
         <SeccionColapsable titulo="Ver detalles" tieneContenido={true}>
-          <Label>Estado de la producción</Label>
+          <Label>¿En qué etapa está?</Label>
           <EstadoProduccionSelect escenaId={escena.id} estado={escena.estadoProduccion} onChange={onEstadoChange} />
 
           <Label htmlFor="planoId">Plano</Label>
@@ -338,7 +338,7 @@ export function CopilotoGrabar({
             defaultValue={escena.planoId ?? ""}
             className="w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text"
           >
-            <option value="">Sin asignar</option>
+            <option value="">Todavía no elegiste</option>
             {planos.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
@@ -352,7 +352,7 @@ export function CopilotoGrabar({
             defaultValue={escena.locacionId ?? ""}
             className="w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text"
           >
-            <option value="">Sin asignar</option>
+            <option value="">Todavía no elegiste</option>
             {locaciones.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.nombre}
@@ -404,7 +404,7 @@ export function CopilotoGrabar({
           <Input id="emocion" name="emocion" defaultValue={escena.emocion} />
           <Label htmlFor="valorEspectador">Valor para el espectador</Label>
           <Input id="valorEspectador" name="valorEspectador" defaultValue={escena.valorEspectador} />
-          <Label htmlFor="duracionSegundos">Duración (segundos)</Label>
+          <Label htmlFor="duracionSegundos">¿Cuánto dura? (segundos)</Label>
           <Input
             id="duracionSegundos"
             name="duracionSegundos"

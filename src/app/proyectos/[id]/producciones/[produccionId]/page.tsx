@@ -11,7 +11,6 @@ import {
   getStoryboardEscenas,
   moverEscenaStoryboard,
   reordenarEscenasStoryboard,
-  updateStoryboardEscena,
 } from "@/lib/actions";
 import { Card } from "@/components/ui";
 import { ESTADOS_PRODUCCION_ESCENA } from "@/lib/types";
@@ -54,7 +53,6 @@ export default async function ProduccionDetallePage({
   const duracionTotal = escenas.reduce((acc, e) => acc + e.duracionSegundos, 0);
 
   const boundCrear = crearEscenaEnBlanco.bind(null, proyectoId, produccionId);
-  const boundSave = updateStoryboardEscena.bind(null, proyectoId, produccionId);
   const boundEstado = actualizarEstadoProduccionEscena.bind(null, proyectoId, produccionId);
   const boundMover = moverEscenaStoryboard.bind(null, proyectoId, produccionId);
   const boundReordenar = reordenarEscenasStoryboard.bind(null, proyectoId, produccionId);
@@ -87,7 +85,6 @@ export default async function ProduccionDetallePage({
         locaciones={locaciones}
         personajes={personajes}
         onCrear={boundCrear}
-        onSave={boundSave}
         onEstadoChange={boundEstado}
         onMover={boundMover}
         onReordenar={boundReordenar}

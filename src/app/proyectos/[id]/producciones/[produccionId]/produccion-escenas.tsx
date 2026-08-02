@@ -1,12 +1,12 @@
 "use client";
 
+import { useParams, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
-import { EscenaPanel } from "./escena-panel";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
 
 const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
@@ -53,7 +53,6 @@ export function ProduccionEscenas({
   locaciones,
   personajes,
   onCrear,
-  onSave,
   onEstadoChange,
   onMover,
   onReordenar,
@@ -65,13 +64,14 @@ export function ProduccionEscenas({
   locaciones: Activo[];
   personajes: Personaje[];
   onCrear: () => Promise<void>;
-  onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
   onMover: (escenaId: string, direccion: "arriba" | "abajo") => Promise<void>;
   onReordenar: (idsEnOrden: string[]) => Promise<void>;
   onDuplicar: (escenaId: string) => Promise<void>;
   onEliminar: (escenaId: string) => Promise<void>;
 }) {
+  const router = useRouter();
+  const params = useParams<{ id: string; produccionId: string }>();
   // Copia local para poder reordenar al instante durante un arrastre, sin
   // esperar el viaje al servidor — se resincroniza sola cada vez que el
   // servidor confirma un cambio (drag, flechas, duplicar, eliminar, crear).
@@ -84,7 +84,6 @@ export function ProduccionEscenas({
     setEscenas(escenasIniciales);
   }
 
-  const [escenaAbiertaId, setEscenaAbiertaId] = useState<string | null>(null);
   const [escenaAEliminarId, setEscenaAEliminarId] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
@@ -93,7 +92,14 @@ export function ProduccionEscenas({
   const [, startTransition] = useTransition();
 
   const tiempos = calcularTiempos(escenas);
-  const escenaAbierta = escenas.find((e) => e.id === escenaAbiertaId) ?? null;
+
+  // UX-MIGRATION-5: tocar una tarjeta lleva a Copiloto para esa escena —
+  // el Storyboard deja de ser una segunda forma de editar contenido
+  // (antes abría `EscenaPanel` acá mismo) y pasa a ser exclusivamente la
+  // herramienta para ordenar, mover, duplicar y eliminar.
+  function abrirEnCopiloto(escenaId: string) {
+    router.push(`/proyectos/${params.id}/producciones/${params.produccionId}/copiloto/${escenaId}`);
+  }
 
   async function handleCrear() {
     setCreando(true);
@@ -219,7 +225,7 @@ export function ProduccionEscenas({
                   arrastradaId === escena.id ? "opacity-40 shadow-lg" : ""
                 } ${destinoId === escena.id && arrastradaId && arrastradaId !== escena.id ? "ring-2 ring-accent" : ""}`}
               >
-                <div onClick={() => setEscenaAbiertaId(escena.id)}>
+                <div onClick={() => abrirEnCopiloto(escena.id)}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[11px] text-text-muted">#{escena.numero}</span>
@@ -266,18 +272,6 @@ export function ProduccionEscenas({
           })}
         </div>
       )}
-
-      {escenaAbierta ? (
-        <EscenaPanel
-          escena={escenaAbierta}
-          planos={planos}
-          locaciones={locaciones}
-          personajes={personajes}
-          onClose={() => setEscenaAbiertaId(null)}
-          onSave={onSave}
-          onEstadoChange={onEstadoChange}
-        />
-      ) : null}
 
       <ConfirmDialog
         open={escenaAEliminarId !== null}
