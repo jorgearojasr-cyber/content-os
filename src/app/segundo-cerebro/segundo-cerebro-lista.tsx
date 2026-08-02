@@ -192,7 +192,7 @@ function NotaCard({
 
       {nota.proyectoId && nota.estado !== "trabajada" ? (
         <Link
-          href={`/proyectos/${nota.proyectoId}/crear?idea=${encodeURIComponent(nota.texto)}`}
+          href={`/?idea=${encodeURIComponent(nota.texto)}&marca=${nota.proyectoId}`}
           className="mt-2.5 inline-block rounded-lg bg-accent-soft px-3 py-2 text-[12.5px] font-medium text-accent hover:opacity-80"
         >
           ✨ Convertir en contenido

@@ -38,6 +38,8 @@ type Modo = "campo" | "resolucion-marca" | "contexto-chatgpt" | "pegar-resultado
 export function HoyScreen({
   proyectos,
   produccionesEnCurso,
+  ideaInicial = "",
+  marcaInicialId = null,
   onAnalizarProyecto,
   onCrearProyecto,
   onAnalizarBiblioteca,
@@ -49,6 +51,14 @@ export function HoyScreen({
 }: {
   proyectos: EntidadBiblioteca[];
   produccionesEnCurso: ProduccionEnCurso[];
+  /** Precompleta el campo de idea al entrar desde un puente externo — ej.
+   * "Convertir en contenido" desde Ideas, o `/proyectos/[id]/crear`
+   * (MIGRATION-4C.1). Vacío = comportamiento normal, campo en blanco. */
+  ideaInicial?: string;
+  /** Preselecciona la Marca activa cuando viene de ese mismo puente — se
+   * ignora si no coincide con ninguna Marca real, y el selector cae al
+   * comportamiento por defecto (la última creada). */
+  marcaInicialId?: string | null;
   onAnalizarProyecto: (textoCrudo: string) => Promise<AnalisisProyectoBlueprint>;
   onCrearProyecto: (nombre: string) => Promise<{ proyectoId: string }>;
   onAnalizarBiblioteca: (proyectoId: string, textoCrudo: string) => Promise<AnalisisBlueprint>;
@@ -64,9 +74,13 @@ export function HoyScreen({
    * "Biblioteca disponible" del prompt (UX Migration 2.5). */
   onGenerarBiblioteca: (proyectoId: string) => Promise<{ locaciones: string[]; planos: string[] }>;
 }) {
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(ideaInicial);
   const [marcaActivaId, setMarcaActivaId] = useState<string | null>(
-    proyectos.length > 0 ? proyectos[proyectos.length - 1].id : null,
+    marcaInicialId && proyectos.some((p) => p.id === marcaInicialId)
+      ? marcaInicialId
+      : proyectos.length > 0
+        ? proyectos[proyectos.length - 1].id
+        : null,
   );
   const [modo, setModo] = useState<Modo>("campo");
   const [textoParaImportar, setTextoParaImportar] = useState<string | null>(null);

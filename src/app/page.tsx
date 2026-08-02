@@ -17,13 +17,23 @@ import { HoyScreen } from "@/components/hoy-screen";
 // 1: reemplaza al Dashboard, que tenía el mismo criterio).
 export const dynamic = "force-dynamic";
 
-export default async function RootPage() {
-  const [proyectos, produccionesEnCurso] = await Promise.all([getProyectos(), getProduccionesEnCurso()]);
+export default async function RootPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ idea?: string; marca?: string }>;
+}) {
+  const [{ idea, marca }, proyectos, produccionesEnCurso] = await Promise.all([
+    searchParams,
+    getProyectos(),
+    getProduccionesEnCurso(),
+  ]);
 
   return (
     <HoyScreen
       proyectos={proyectos.map((p) => ({ id: p.id, nombre: p.nombre }))}
       produccionesEnCurso={produccionesEnCurso}
+      ideaInicial={idea ?? ""}
+      marcaInicialId={marca ?? null}
       onAnalizarProyecto={analizarBlueprintSinProyecto}
       onCrearProyecto={crearProyectoDesdeImportador}
       onAnalizarBiblioteca={analizarBlueprint}

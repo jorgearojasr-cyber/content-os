@@ -1669,6 +1669,33 @@ export async function getBloquesParaCalendario(): Promise<
     .map((b) => ({ ...b, proyectoNombre: nombrePorProyecto.get(b.proyectoId) ?? "" }));
 }
 
+/** Producciones (de cualquier Marca) con fecha de publicación planeada —
+ * MIGRATION-4C.1: hoy solo se escribe al cerrar y publicar una Producción
+ * (`cerrarYPublicarProduccion`), así que toda fila con fecha ya pasó por
+ * ese cierre. Mismo criterio de forma que `getBloquesParaCalendario`, pero
+ * son modelos separados a propósito (ver MIGRATION-4C-AUDIT) — no se
+ * fusiona con `bloques`, solo se combinan ambas listas en el Calendario. */
+export async function getProduccionesParaCalendario(): Promise<
+  { id: string; proyectoId: string; proyectoNombre: string; titulo: string; formato: string; fechaPlanificada: string }[]
+> {
+  const [todasProducciones, todosProyectos] = await Promise.all([
+    db
+      .select({
+        id: producciones.id,
+        proyectoId: producciones.proyectoId,
+        titulo: producciones.titulo,
+        formato: producciones.formato,
+        fechaPlanificada: producciones.fechaPlanificada,
+      })
+      .from(producciones),
+    db.select().from(proyectos),
+  ]);
+  const nombrePorProyecto = new Map(todosProyectos.map((p) => [p.id, p.nombre]));
+  return todasProducciones
+    .filter((p): p is typeof p & { fechaPlanificada: string } => !!p.fechaPlanificada)
+    .map((p) => ({ ...p, proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "" }));
+}
+
 /** Asigna, reasigna o quita (`fecha` vacío) la fecha de publicación planeada
  * de una pieza — pura organización manual, no dispara nada automático. */
 export async function asignarFechaPlanificada(proyectoId: string, bloqueId: string, formData: FormData) {

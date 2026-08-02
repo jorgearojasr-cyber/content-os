@@ -74,7 +74,9 @@ export default async function BibliotecaPage({
 
   return (
     <div className="space-y-4">
-      <SectionTitle subtitle="Todo lo que has guardado para este proyecto.">Biblioteca</SectionTitle>
+      <SectionTitle subtitle="Contenido histórico guardado para esta marca — los videos nuevos se producen y publican desde Producción.">
+        Biblioteca
+      </SectionTitle>
 
       <div className="flex gap-1 overflow-x-auto rounded-[10px] border border-border bg-surface p-1">
         {TABS.map((tab) => {

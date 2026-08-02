@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { asignarFechaPlanificada } from "@/lib/actions";
 import { agruparPorSemana, nombreMes, type AnioMes, type CeldaCalendario } from "@/lib/calendario";
 import { PromptDialog } from "@/components/confirm-dialog";
@@ -15,12 +16,33 @@ export type PiezaCalendario = {
   titulo: string;
   formato: string;
   fechaPlanificada: string;
+  /** MIGRATION-4C.1: distingue de qué modelo viene, sin fusionarlos —
+   * "bloque" = Biblioteca (contenido histórico), "produccion" = el flujo
+   * activo de Producciones/Copiloto. */
+  tipo: "bloque" | "produccion";
 };
 
-/** Chip de una pieza asignada a un día — clic abre el selector de fecha
- * para reasignarla (mismo mecanismo que "Cambiar fecha planificada" en
- * Biblioteca, sin duplicar lógica: ambos llaman a `asignarFechaPlanificada`). */
-function ChipPieza({ pieza }: { pieza: PiezaCalendario }) {
+/** Chip de una Producción asignada a un día — de solo lectura acá, lleva a
+ * su propia pantalla (no hay hoy una acción para reasignar la fecha de una
+ * Producción fuera del cierre de Copiloto, así que no se inventa una). */
+function ChipProduccion({ pieza }: { pieza: PiezaCalendario }) {
+  return (
+    <Link
+      href={`/proyectos/${pieza.proyectoId}/producciones/${pieza.id}`}
+      title={`${pieza.titulo} · ${pieza.proyectoNombre} · Producción`}
+      className="flex w-full items-center gap-1 truncate rounded-md border border-accent/50 bg-surface px-1.5 py-0.5 text-left text-[10.5px] text-accent hover:bg-accent-soft"
+    >
+      <span className="shrink-0">🎬</span>
+      <span className="truncate">{pieza.titulo}</span>
+    </Link>
+  );
+}
+
+/** Chip de un Bloque de Biblioteca asignado a un día — clic abre el
+ * selector de fecha para reasignarla (mismo mecanismo que "Cambiar fecha
+ * planificada" en Biblioteca, sin duplicar lógica: ambos llaman a
+ * `asignarFechaPlanificada`). */
+function ChipBloque({ pieza }: { pieza: PiezaCalendario }) {
   const [reasignando, setReasignando] = useState(false);
 
   return (
@@ -28,7 +50,7 @@ function ChipPieza({ pieza }: { pieza: PiezaCalendario }) {
       <button
         type="button"
         onClick={() => setReasignando(true)}
-        title={`${pieza.titulo} · ${pieza.proyectoNombre}`}
+        title={`${pieza.titulo} · ${pieza.proyectoNombre} · Bloque (Biblioteca)`}
         className="flex w-full items-center gap-1 truncate rounded-md bg-accent-soft px-1.5 py-0.5 text-left text-[10.5px] text-accent hover:opacity-80"
       >
         <span className="shrink-0">{iconoFormato(pieza.formato)}</span>
@@ -48,6 +70,10 @@ function ChipPieza({ pieza }: { pieza: PiezaCalendario }) {
       />
     </>
   );
+}
+
+function ChipPieza({ pieza }: { pieza: PiezaCalendario }) {
+  return pieza.tipo === "produccion" ? <ChipProduccion pieza={pieza} /> : <ChipBloque pieza={pieza} />;
 }
 
 export function CalendarioMes({

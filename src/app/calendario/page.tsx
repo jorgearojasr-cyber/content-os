@@ -1,4 +1,4 @@
-import { getBloquesParaCalendario } from "@/lib/actions";
+import { getBloquesParaCalendario, getProduccionesParaCalendario } from "@/lib/actions";
 import { generarCeldasMes, mesActualChile, mesAnterior, mesSiguiente, type AnioMes } from "@/lib/calendario";
 import { CalendarioMes, type PiezaCalendario } from "./calendario-mes";
 
@@ -27,10 +27,19 @@ export default async function CalendarioPage({
   const actual = mesActualChile();
   const anioMes = parseAnioMes(mesParam) ?? actual;
 
-  const [celdas, piezas] = await Promise.all([
+  const [celdas, bloques, producciones] = await Promise.all([
     Promise.resolve(generarCeldasMes(anioMes)),
     getBloquesParaCalendario(),
+    getProduccionesParaCalendario(),
   ]);
+
+  // MIGRATION-4C-AUDIT confirmó que Producciones y Bloques son modelos
+  // separados a propósito (Camino A) — acá solo se combinan las dos listas
+  // para la vista, sin tocar ninguna tabla ni crear una relación nueva.
+  const piezas: PiezaCalendario[] = [
+    ...bloques.map((b) => ({ ...b, tipo: "bloque" as const })),
+    ...producciones.map((p) => ({ ...p, tipo: "produccion" as const })),
+  ];
 
   const piezasPorFecha: Record<string, PiezaCalendario[]> = {};
   for (const p of piezas) {
@@ -45,7 +54,13 @@ export default async function CalendarioPage({
         </div>
         <h1 className="font-display text-2xl font-normal tracking-wide">Calendario</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Piezas de Biblioteca (de cualquier proyecto) con una fecha de publicación planeada.
+          Producciones y piezas de Biblioteca (de cualquier Marca) con una fecha de publicación
+          planeada.
+        </p>
+        <p className="mt-2 text-[11.5px] text-text-muted">
+          <span className="text-accent">🎬 Producción</span> — el video se produjo con el flujo
+          actual (Copiloto). <span className="text-accent">Con ícono de formato</span> — Bloque de
+          Biblioteca, contenido histórico guardado antes de ese flujo.
         </p>
       </header>
 
