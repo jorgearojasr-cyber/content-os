@@ -195,7 +195,14 @@ export function PlanEdicionPanel({
           Regenerar; solo cambia el peso y el orden. La "Evaluación final"
           (Gancho/Claridad/Retención/...) se retiró en PHASE-2-IMPLEMENTACION-1
           — duplicaba el juicio que el Director Creativo IA ya hace en
-          Revisión; ese veredicto se leerá acá en una fase posterior. */}
+          Revisión; ese veredicto se leerá acá en una fase posterior.
+
+          Cambio técnico obligatorio derivado del nuevo schema. No
+          corresponde a un cambio de experiencia de usuario — este archivo
+          es la única pantalla tocada por PHASE-2-IMPLEMENTACION-1, y solo
+          porque `PlanEdicion["evaluacionFinal"]` dejó de existir en el tipo:
+          sin quitar este bloque, `tsc`/`next build` no compilan. Ningún
+          otro texto, botón o sección de este panel cambió. */}
       <div className="space-y-5">
         <section className="rounded-xl border border-accent/30 bg-accent-soft p-4">
           <p className="text-[11.5px] font-medium uppercase tracking-wide text-accent">Empezá por acá</p>
