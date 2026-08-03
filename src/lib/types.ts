@@ -1,4 +1,5 @@
 import type { PlanEdicion } from "./ai";
+import type { AnalisisDirectorCreativo } from "./director-creativo";
 
 export type Proyecto = {
   id: string;
@@ -698,6 +699,14 @@ export function parsePlanEdicion(json: unknown): PlanEdicion | null {
   return json && typeof json === "object" ? (json as PlanEdicion) : null;
 }
 
+/** Adapta `analisisDirectorCreativoJson` (columna `jsonb`, nullable) al tipo
+ * `AnalisisDirectorCreativo`; `null` si todavía no se pidió ningún análisis
+ * o el valor no tiene forma de objeto. Ninguna pantalla la usa todavía
+ * (PHASE-2-IMPLEMENTACION-1 es solo infraestructura). */
+export function parseAnalisisDirectorCreativo(json: unknown): AnalisisDirectorCreativo | null {
+  return json && typeof json === "object" ? (json as AnalisisDirectorCreativo) : null;
+}
+
 /** Arma el bloque de texto plano (sin el encabezado `## Escenas`) a partir
  * del arreglo de escenas — usado tanto al generar como al editar, para que
  * el `texto` guardado siempre derive de la misma lógica. */
@@ -1033,6 +1042,14 @@ export type TipoEscenaStoryboard = (typeof TIPOS_ESCENA_STORYBOARD)[number];
 export const ESTADOS_PRODUCCION_ESCENA = ["BORRADOR", "GRABADA", "EDITADA", "PUBLICADA"] as const;
 export type EstadoProduccionEscena = (typeof ESTADOS_PRODUCCION_ESCENA)[number];
 
+/** Vigencia del análisis del Director Creativo IA (PHASE-2-DIRECTOR-CREATIVO-SCHEMA,
+ * contrato congelado) — "vigente" mientras el CBD/guion no cambió desde que
+ * se generó; "desactualizado" en cuanto el usuario edita el guion después.
+ * Nunca se borra ni se recalcula sola: la UI que la consuma debe ofrecer
+ * "Volver a analizar" (todavía no implementado — ver PHASE-2-IMPLEMENTACION-1). */
+export const ESTADOS_ANALISIS_DIRECTOR_CREATIVO = ["vigente", "desactualizado"] as const;
+export type EstadoAnalisisDirectorCreativo = (typeof ESTADOS_ANALISIS_DIRECTOR_CREATIVO)[number];
+
 /**
  * Producción (Fase 3.4): un video/pieza específico dentro de un Proyecto
  * (marca) — dueño de su propio storyboard, aislado del de cualquier otro
@@ -1066,6 +1083,15 @@ export type Produccion = {
    * `null` = sin asignar. Análoga a `Bloque.fechaPlanificada`, pero a nivel
    * Producción (Bloque no tiene relación con Producción). */
   fechaPlanificada: string | null;
+  /** Análisis del Director Creativo IA (ver `src/lib/director-creativo.ts` y
+   * PHASE-2-DIRECTOR-CREATIVO-SCHEMA) — `null` = todavía no se pidió.
+   * Agregado en PHASE-2-IMPLEMENTACION-1, sin pantalla que lo consuma
+   * todavía. Usar `parseAnalisisDirectorCreativo()` en vez de castear a mano. */
+  analisisDirectorCreativoJson: unknown;
+  /** Una de ESTADOS_ANALISIS_DIRECTOR_CREATIVO, o `null` si nunca se pidió
+   * opinión. Vive deliberadamente separada de `analisisDirectorCreativoJson`
+   * — nunca se mezclan (contrato congelado). */
+  estadoAnalisisDirectorCreativo: string | null;
   createdAt: string;
   updatedAt: string;
 };

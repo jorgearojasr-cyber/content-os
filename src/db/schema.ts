@@ -573,6 +573,16 @@ export const producciones = pgTable("producciones", {
   // ningún Bloque (que no tiene relación con Producción).
   planEdicionJson: jsonb("plan_edicion_json"),
   fechaPlanificada: text("fecha_planificada"),
+  // PHASE-2-IMPLEMENTACION-1 — infraestructura del Director Creativo IA,
+  // contrato congelado en PHASE-2-DIRECTOR-CREATIVO-SCHEMA. Ninguna
+  // pantalla las consume todavía. `analisisDirectorCreativoJson` es el
+  // análisis completo (resumenGeneral/hallazgos/mejorasPrioritarias/
+  // decisionesDeProduccion, ver `src/lib/director-creativo.ts`); su
+  // vigencia vive deliberadamente afuera, en `estadoAnalisisDirectorCreativo`
+  // ('vigente' | 'desactualizado' | null si nunca se pidió) — nunca se
+  // mezclan en el mismo campo, y ninguno de los dos se recalcula solo.
+  analisisDirectorCreativoJson: jsonb("analisis_director_creativo_json"),
+  estadoAnalisisDirectorCreativo: text("estado_analisis_director_creativo"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

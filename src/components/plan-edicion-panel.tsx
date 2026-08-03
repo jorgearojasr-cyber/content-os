@@ -7,17 +7,6 @@ import { explicarError } from "@/lib/errores";
 import type { PlanEdicion } from "@/lib/ai";
 import type { ResultadoPlanEdicion } from "@/lib/actions";
 
-type ClaveCriterio = Exclude<keyof PlanEdicion["evaluacionFinal"], "recomendaciones">;
-
-const NOMBRE_CRITERIO: Record<ClaveCriterio, string> = {
-  gancho: "Gancho",
-  claridad: "Claridad",
-  retencion: "Retención",
-  ritmo: "Ritmo",
-  valorEducativo: "Valor educativo",
-  potencialViralidad: "Potencial de viralidad",
-};
-
 /** Arma el plan como texto plano legible — sin JSON crudo — para "Copiar
  * todo" y "Descargar .txt". Pensado para leerse en pantalla partida
  * mientras se edita en CapCut/Premiere/DaVinci. */
@@ -53,15 +42,7 @@ function formatearPlanEdicion(plan: PlanEdicion, tituloBloque: string, esConvers
     "── CTA ──",
     `Análisis: ${plan.evaluacionCta.analisis}`,
     `Mejora sugerida: ${plan.evaluacionCta.mejoraSugerida}`,
-    "",
   );
-
-  lineas.push("── EVALUACIÓN FINAL ──");
-  for (const [clave, etiqueta] of Object.entries(NOMBRE_CRITERIO)) {
-    const c = plan.evaluacionFinal[clave as keyof typeof NOMBRE_CRITERIO];
-    lineas.push(`${etiqueta}: ${c.nota}/10 — ${c.comentario}`);
-  }
-  lineas.push("", "Recomendaciones:", ...plan.evaluacionFinal.recomendaciones.map((r) => `- ${r}`));
 
   return lineas.join("\n");
 }
@@ -74,18 +55,6 @@ function descargarTxt(nombreArchivo: string, contenido: string) {
   a.download = nombreArchivo;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function Nota({ etiqueta, nota, comentario }: { etiqueta: string; nota: number; comentario: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface-2 p-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[12.5px] font-medium text-text">{etiqueta}</p>
-        <p className="font-display text-[15px] text-accent">{nota}/10</p>
-      </div>
-      <p className="mt-1 text-[12.5px] text-text-muted">{comentario}</p>
-    </div>
-  );
 }
 
 /**
@@ -222,9 +191,11 @@ export function PlanEdicionPanel({
           escena por escena, en ese orden. Todo lo demás (B-roll, SFX,
           Música, Color, Animaciones, Pausas, CTA) pasa a un bloque de
           "Referencia" más chico y silencioso, para consultar cuando haga
-          falta — no para leer secuencialmente. La Evaluación final cierra,
-          como un resumen de cómo quedó. Mismos datos, mismo botón de
-          Regenerar; solo cambia el peso y el orden. */}
+          falta — no para leer secuencialmente. Mismos datos, mismo botón de
+          Regenerar; solo cambia el peso y el orden. La "Evaluación final"
+          (Gancho/Claridad/Retención/...) se retiró en PHASE-2-IMPLEMENTACION-1
+          — duplicaba el juicio que el Director Creativo IA ya hace en
+          Revisión; ese veredicto se leerá acá en una fase posterior. */}
       <div className="space-y-5">
         <section className="rounded-xl border border-accent/30 bg-accent-soft p-4">
           <p className="text-[11.5px] font-medium uppercase tracking-wide text-accent">Empezá por acá</p>
@@ -314,23 +285,6 @@ export function PlanEdicionPanel({
               <p className="mt-0.5 text-accent">{plan.evaluacionCta.mejoraSugerida}</p>
             </div>
           </div>
-        </section>
-
-        <section>
-          <p className="mb-2 text-[12.5px] font-semibold uppercase tracking-wide text-text-muted">
-            Evaluación final
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {Object.entries(NOMBRE_CRITERIO).map(([clave, etiqueta]) => {
-              const c = plan.evaluacionFinal[clave as keyof typeof NOMBRE_CRITERIO];
-              return <Nota key={clave} etiqueta={etiqueta} nota={c.nota} comentario={c.comentario} />;
-            })}
-          </div>
-          <ul className="mt-3 space-y-1 text-[13px] text-text">
-            {plan.evaluacionFinal.recomendaciones.map((r, i) => (
-              <li key={i}>• {r}</li>
-            ))}
-          </ul>
         </section>
       </div>
 

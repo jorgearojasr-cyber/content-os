@@ -262,11 +262,6 @@ const PorEscenaEdicionSchema = z.object({
     .describe("La instrucción concreta del editor para esta escena, ej. 'corta en seco al decir X', 'congela el cuadro aquí'"),
 });
 
-const EvaluacionCriterioSchema = z.object({
-  nota: z.number().describe("Nota de 1 a 10"),
-  comentario: z.string(),
-});
-
 const PlanEdicionSchema = z.object({
   ritmoGeneral: z.object({
     recomendacion: z.enum(["Muy dinámico", "Dinámico", "Medio", "Tranquilo"]),
@@ -297,15 +292,13 @@ const PlanEdicionSchema = z.object({
     analisis: z.string().describe("Si el CTA está bien ubicado y por qué"),
     mejoraSugerida: z.string(),
   }),
-  evaluacionFinal: z.object({
-    gancho: EvaluacionCriterioSchema,
-    claridad: EvaluacionCriterioSchema,
-    retencion: EvaluacionCriterioSchema,
-    ritmo: EvaluacionCriterioSchema,
-    valorEducativo: EvaluacionCriterioSchema,
-    potencialViralidad: EvaluacionCriterioSchema,
-    recomendaciones: z.array(z.string()).describe("2-3 recomendaciones concretas de mejora"),
-  }),
+  // `evaluacionFinal` (Gancho/Claridad/Retención/Ritmo/Valor educativo/
+  // Potencial de viralidad) se retiró en PHASE-2-IMPLEMENTACION-1 — duplicaba
+  // casi 1:1 el juicio narrativo que el Director Creativo IA ya hace en
+  // Revisión (`resumenGeneral`/`hallazgos`, ver PHASE-2-DIRECTOR-CREATIVO-SCHEMA,
+  // contrato congelado). Director de Edición pasa a leer ese veredicto en vez
+  // de recalcularlo — la lectura todavía no está implementada (fase de UI),
+  // acá solo se retira el campo duplicado del schema.
 });
 
 export type PlanEdicion = z.infer<typeof PlanEdicionSchema>;
