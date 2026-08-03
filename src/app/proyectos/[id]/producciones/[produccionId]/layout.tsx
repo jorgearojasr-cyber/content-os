@@ -18,7 +18,7 @@ export default async function ProduccionDetalleLayout({
     <div className="space-y-5">
       <div>
         <Link
-          href={`/proyectos/${proyectoId}/produccion`}
+          href={`/producciones?proyecto=${proyectoId}`}
           className="font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted hover:text-accent"
         >
           ← Todas las producciones

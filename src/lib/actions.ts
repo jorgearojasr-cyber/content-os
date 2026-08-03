@@ -1927,31 +1927,45 @@ export async function getPlanos(): Promise<Plano[]> {
   return rows.sort((a, b) => (a.nombre < b.nombre ? -1 : 1));
 }
 
-/** Todas las Producciones (videos) de un Proyecto, con sus métricas reales
- * calculadas desde sus escenas — para la pantalla de listado. */
-export async function getProducciones(proyectoId: string): Promise<ProduccionConMetricas[]> {
-  const rows = await db.select().from(producciones).where(eq(producciones.proyectoId, proyectoId));
-  rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  if (rows.length === 0) return [];
+/** Todas las Producciones (videos) de CUALQUIER Marca, con sus métricas
+ * reales calculadas desde sus escenas y el nombre de su Marca ya resuelto
+ * — MIGRATION-4C.2: pantalla única global (/producciones), mismo patrón
+ * que Biblioteca en MIGRATION-4B. `terminada` = todas sus escenas ya están
+ * PUBLICADA (una Producción sin escenas nunca cuenta como terminada). */
+export async function getTodasLasProducciones(): Promise<
+  (ProduccionConMetricas & { proyectoNombre: string; terminada: boolean })[]
+> {
+  const todasProducciones = await db.select().from(producciones);
+  if (todasProducciones.length === 0) return [];
 
-  const escenas = await db
-    .select({ produccionId: storyboardEscenas.produccionId, duracionSegundos: storyboardEscenas.duracionSegundos })
+  const todasEscenas = await db
+    .select({
+      produccionId: storyboardEscenas.produccionId,
+      duracionSegundos: storyboardEscenas.duracionSegundos,
+      estadoProduccion: storyboardEscenas.estadoProduccion,
+    })
     .from(storyboardEscenas)
     .where(
       inArray(
         storyboardEscenas.produccionId,
-        rows.map((p) => p.id),
+        todasProducciones.map((p) => p.id),
       ),
     );
 
-  return rows.map((p) => {
-    const propias = escenas.filter((e) => e.produccionId === p.id);
-    return {
-      ...p,
-      totalEscenas: propias.length,
-      duracionCalculadaSegundos: propias.reduce((acc, e) => acc + e.duracionSegundos, 0),
-    };
-  });
+  const nombrePorProyecto = new Map((await db.select().from(proyectos)).map((p) => [p.id, p.nombre]));
+
+  return todasProducciones
+    .map((p) => {
+      const propias = todasEscenas.filter((e) => e.produccionId === p.id);
+      return {
+        ...p,
+        totalEscenas: propias.length,
+        duracionCalculadaSegundos: propias.reduce((acc, e) => acc + e.duracionSegundos, 0),
+        proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "",
+        terminada: propias.length > 0 && propias.every((e) => e.estadoProduccion === "PUBLICADA"),
+      };
+    })
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export type ProduccionEnCurso = ProduccionConMetricas & { proyectoNombre: string };
@@ -2005,16 +2019,21 @@ export async function getProduccion(produccionId: string): Promise<Produccion | 
   return rows[0] ?? null;
 }
 
-/** Crea una Producción nueva con solo el Título — el resto de los campos
- * del CBD (formato, idea central, objetivos, contexto, recursos globales)
- * quedan vacíos, editables después. Mismo criterio minimalista que
- * `crearEscenaEnBlanco`: bocetar primero, completar después. */
-export async function crearProduccion(proyectoId: string, formData: FormData) {
+/** Crea una Producción nueva con solo el Título y la Marca — el resto de
+ * los campos del CBD (formato, idea central, objetivos, contexto, recursos
+ * globales) quedan vacíos, editables después. Mismo criterio minimalista
+ * que `crearEscenaEnBlanco`: bocetar primero, completar después.
+ * MIGRATION-4C.2: la Marca la elige el formulario, no la ruta desde la que
+ * se entra — `producciones.proyectoId` es NOT NULL, así que a diferencia
+ * de Prompts/Documentos no hay opción "global", es un campo obligatorio. */
+export async function crearProduccion(formData: FormData) {
   const titulo = String(formData.get("titulo") ?? "").trim();
+  const proyectoId = String(formData.get("proyectoId") ?? "").trim();
   if (!titulo) throw new Error("La producción necesita un título.");
+  if (!proyectoId) throw new Error("Elegí a qué Marca pertenece esta producción.");
 
   await db.insert(producciones).values({ id: randomUUID(), proyectoId, titulo });
-  revalidatePath(`/proyectos/${proyectoId}/produccion`);
+  revalidatePath("/producciones");
 }
 
 /** Entidad real de la Biblioteca (id + nombre) — lo que necesita la UI del

@@ -44,13 +44,18 @@ export function BibliotecaGlobalLista({
   bloques,
   proyectos,
   personajePorId,
+  marcaIdPreseleccionada = null,
 }: {
   vista: Vista;
   bloques: BloqueGlobal[];
   proyectos: Proyecto[];
   personajePorId: Record<string, PersonajeResumen>;
+  /** Si se entra desde una Marca (ej. `/biblioteca?proyecto=<id>`, único
+   * punto de entrada desde que MIGRATION-4C.2 retiró el listado por Marca),
+   * preselecciona esa Marca en el filtro — el usuario puede cambiarla. */
+  marcaIdPreseleccionada?: string | null;
 }) {
-  const [filtro, setFiltro] = useState<string>("");
+  const [filtro, setFiltro] = useState<string>(marcaIdPreseleccionada ?? "");
 
   const bloquesFiltrados = filtro ? bloques.filter((b) => b.proyectoId === filtro) : bloques;
 
@@ -58,7 +63,10 @@ export function BibliotecaGlobalLista({
     <div>
       <div className="mb-4 flex gap-1 overflow-x-auto rounded-[10px] border border-border bg-surface p-1">
         {TABS.map((tab) => {
-          const href = tab.value === "activos" ? "/biblioteca" : `/biblioteca?vista=${tab.value}`;
+          const query = new URLSearchParams();
+          if (tab.value !== "activos") query.set("vista", tab.value);
+          if (marcaIdPreseleccionada) query.set("proyecto", marcaIdPreseleccionada);
+          const href = query.toString() ? `/biblioteca?${query.toString()}` : "/biblioteca";
           const active = vista === tab.value;
           return (
             <Link

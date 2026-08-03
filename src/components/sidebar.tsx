@@ -16,8 +16,12 @@ const HOY: Leaf = { href: "/", label: "Hoy", icono: "🏠" };
 const MIS_VIDEOS = {
   label: "Mis videos",
   icono: "🎬",
-  href: "/biblioteca",
+  href: "/producciones",
   hijos: [
+    // MIGRATION-4C.2: Producciones se suma acá, consolidada de
+    // /proyectos/[id]/produccion — mismo criterio que Biblioteca en
+    // MIGRATION-4B.
+    { href: "/producciones", label: "Producciones", icono: "🎬" },
     { href: "/biblioteca", label: "Biblioteca", icono: "📖" },
     { href: "/calendario", label: "Calendario", icono: "📅" },
   ] as Leaf[],

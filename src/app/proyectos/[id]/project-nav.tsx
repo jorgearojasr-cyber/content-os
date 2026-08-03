@@ -8,12 +8,19 @@ import { usePathname } from "next/navigation";
  * ahora son pantallas únicas (/prompts, /conocimiento) con selector de
  * Alcance, así que la Marca deja de ser la única forma de llegar a su
  * contenido con alcance específico. Ver el excepción #2 de MIGRATION-4A que
- * este pase resuelve. */
+ * este pase resuelve.
+ *
+ * MIGRATION-4C.2: mismo criterio para Producción y Biblioteca. Producción
+ * tenía una creación activa atada a esta pestaña (`crearProduccion` vía
+ * `.bind(proyectoId)`) — se consolidó en /producciones con selector de
+ * Marca en el formulario. Biblioteca no tenía creación activa (`createBloque`
+ * está muerto, confirmado en MIGRATION-4C-AUDIT), pero igual se consolidó
+ * en /biblioteca para no dejar un listado redundante; su edición
+ * (`/proyectos/[id]/biblioteca/[bloqueId]/editar`) sigue viviendo dentro
+ * de la Marca, eso no es una pestaña, es la pantalla de edición en sí. */
 const TABS = [
   { slug: "crear", label: "Crear", icono: "✍️" },
   { slug: "identidad", label: "Identidad", icono: "🪪" },
-  { slug: "produccion", label: "Producción", icono: "🎬" },
-  { slug: "biblioteca", label: "Biblioteca", icono: "📖" },
   { slug: "activos", label: "Activos", icono: "🖼️" },
   { slug: "configuracion", label: "Configuración", icono: "⚙️" },
 ] as const;

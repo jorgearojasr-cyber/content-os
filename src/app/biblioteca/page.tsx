@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function BibliotecaGlobalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string }>;
+  searchParams: Promise<{ vista?: string; proyecto?: string }>;
 }) {
-  const { vista: vistaParam } = await searchParams;
+  const { vista: vistaParam, proyecto: marcaIdPreseleccionada } = await searchParams;
   const vista: Vista = vistaParam === "archivados" || vistaParam === "papelera" ? vistaParam : "activos";
 
   const [bloques, proyectos, todosPersonajes] = await Promise.all([
@@ -54,6 +54,7 @@ export default async function BibliotecaGlobalPage({
         bloques={bloques}
         proyectos={proyectos}
         personajePorId={personajePorId}
+        marcaIdPreseleccionada={marcaIdPreseleccionada ?? null}
       />
     </main>
   );

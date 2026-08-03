@@ -14,6 +14,7 @@ const RUTAS_CON_SIDEBAR = new Set([
   "/conocimiento",
   "/personajes",
   "/biblioteca",
+  "/producciones",
 ]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
