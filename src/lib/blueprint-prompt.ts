@@ -138,15 +138,47 @@ ${FORMATO_CBD}`;
 }
 
 /**
+ * Parte 6 (MIGRATION — Prompt Oficial siempre devuelve Markdown crudo):
+ * instrucción final, fija y SIEMPRE presente, para que la respuesta de
+ * ChatGPT venga en un único bloque de código Markdown listo para copiar y
+ * pegar de vuelta en el importador — sin que el usuario tenga que
+ * acordarse de pedirlo. No depende de la idea, la Marca ni la Biblioteca;
+ * va al final de cualquier prompt que arme `construirPrompt`, siempre. */
+function construirBloqueMarkdownObligatorio(): string {
+  return `---
+
+## IMPORTANTE
+
+El resultado de este prompt será importado automáticamente por Content OS.
+
+Responde únicamente con un único bloque de código Markdown.
+
+Comienza exactamente así:
+
+\`\`\`markdown
+# Creative Blueprint v1
+\`\`\`
+
+No escribas ninguna explicación antes ni después del bloque.
+
+Conserva literalmente toda la sintaxis Markdown (#, ##, ###, listas, tablas y bloques de código).
+
+No renderices el documento.
+
+Entrégalo como texto Markdown puro listo para copiar y pegar.`;
+}
+
+/**
  * El prompt completo que el usuario copia y pega en ChatGPT (usado por
  * `ContextoParaChatGPT`) — compuesto en partes explícitas y componibles
  * (UX-MIGRATION-2.4, Biblioteca disponible agregada en UX-MIGRATION-2.5):
  * Idea del usuario, Contexto de Marca, Bloque estratégico (vacío hoy),
  * Biblioteca disponible (vacío si el Proyecto no tiene Locaciones ni
- * Planos) y Núcleo CBD. Reorganización puramente interna de CÓMO se arma
- * el prompt — con `locaciones`/`planos` vacíos (el default), el texto es
- * byte-a-byte idéntico al de antes de UX-MIGRATION-2.5 (verificado con un
- * test dedicado, ver `blueprint-prompt.test.ts`). Cuando
+ * Planos), Núcleo CBD y, siempre al final, el bloque Markdown obligatorio.
+ * Reorganización puramente interna de CÓMO se arma el prompt — con
+ * `locaciones`/`planos` vacíos (el default), el texto hasta el Núcleo CBD
+ * es byte-a-byte idéntico al de antes de UX-MIGRATION-2.5 (verificado con
+ * un test dedicado, ver `blueprint-prompt.test.ts`). Cuando
  * `construirBloqueEstrategico` empiece a devolver contenido real, aparece
  * automáticamente antes de la Biblioteca disponible, después del
  * separador "---". */
@@ -161,6 +193,7 @@ export function construirPrompt(
   const bloqueEstrategico = construirBloqueEstrategico(idea, contexto);
   const bloqueBiblioteca = construirBloqueBiblioteca(locaciones, planos);
   const nucleoCBD = construirNucleoCBD();
+  const bloqueMarkdownObligatorio = construirBloqueMarkdownObligatorio();
 
   return `${bloqueIdea}
 
@@ -168,5 +201,7 @@ ${bloqueContextoDeMarca}
 
 ${bloqueEstrategico}---
 
-${bloqueBiblioteca}${nucleoCBD}`;
+${bloqueBiblioteca}${nucleoCBD}
+
+${bloqueMarkdownObligatorio}`;
 }

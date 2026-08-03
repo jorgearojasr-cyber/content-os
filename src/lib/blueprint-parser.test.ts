@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsearBlueprint } from "./blueprint-parser";
+import { parsearBlueprint, tieneEstructuraDeBlueprint } from "./blueprint-parser";
 import type { BibliotecaConocida } from "./blueprint-parser";
 
 const BIBLIOTECA: BibliotecaConocida = {
@@ -613,5 +613,68 @@ Plano: Plano inventado
     expect(resultado.advertencias.length).toBeGreaterThanOrEqual(4);
     expect(resultado.advertencias.some((a) => a.includes("MARCA_INEXISTENTE"))).toBe(true);
     expect(resultado.advertencias.some((a) => a.includes("Alguien Desconocido"))).toBe(true);
+  });
+});
+
+// MIGRATION — Prompt Oficial siempre Markdown crudo: el Prompt Oficial
+// ahora le pide SIEMPRE a ChatGPT que responda dentro de un único bloque
+// de código Markdown — así que lo normal es que el usuario pegue la
+// respuesta completa, cerca de código incluida.
+describe("parsearBlueprint / tieneEstructuraDeBlueprint — cerca de código Markdown (```markdown ... ```)", () => {
+  const CBD_MINIMO = `# Creative Blueprint v1
+
+## Producción
+
+Título: Video de prueba
+
+## Escenas
+
+### Escena 1
+
+Tipo: Gancho
+Objetivo narrativo: Probar.
+`;
+
+  it("parsearBlueprint entiende el CBD envuelto en \`\`\`markdown ... \`\`\`, igual que sin envolver", () => {
+    const envuelto = `\`\`\`markdown\n${CBD_MINIMO}\`\`\``;
+    const sinEnvolver = parsearBlueprint(CBD_MINIMO, BIBLIOTECA);
+    const resultado = parsearBlueprint(envuelto, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe(sinEnvolver.produccion?.titulo);
+    expect(resultado.escenas.length).toBe(sinEnvolver.escenas.length);
+  });
+
+  it("también entiende una cerca de código sin la etiqueta 'markdown' (``` a secas)", () => {
+    const envuelto = `\`\`\`\n${CBD_MINIMO}\`\`\``;
+    const resultado = parsearBlueprint(envuelto, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe("Video de prueba");
+  });
+
+  it("tolera líneas en blanco antes de la cerca de apertura y después de la de cierre", () => {
+    const envuelto = `\n\n\`\`\`markdown\n${CBD_MINIMO}\`\`\`\n\n`;
+    const resultado = parsearBlueprint(envuelto, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe("Video de prueba");
+  });
+
+  it("tieneEstructuraDeBlueprint también reconoce el texto envuelto en la cerca", () => {
+    const envuelto = `\`\`\`markdown\n${CBD_MINIMO}\`\`\``;
+    expect(tieneEstructuraDeBlueprint(envuelto)).toBe(true);
+    expect(tieneEstructuraDeBlueprint(CBD_MINIMO)).toBe(true);
+  });
+
+  it("un texto sin cerca de código (caso normal) sigue funcionando exactamente igual", () => {
+    const resultado = parsearBlueprint(CBD_MINIMO, BIBLIOTECA);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.produccion?.titulo).toBe("Video de prueba");
+  });
+
+  it("una cerca de código abierta pero nunca cerrada no se toca (no hay cerca de cierre que quitar)", () => {
+    const sinCierre = `\`\`\`markdown\n${CBD_MINIMO}`;
+    // Sin cierre, la primera línea sigue siendo la cerca de apertura, no el
+    // encabezado de versión — se comporta como cualquier texto sin la
+    // estructura esperada, en vez de fallar de forma confusa.
+    expect(tieneEstructuraDeBlueprint(sinCierre)).toBe(false);
   });
 });

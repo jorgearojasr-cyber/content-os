@@ -394,6 +394,33 @@ const RESULTADO_VACIO: Omit<ResultadoParseoCBD, "version" | "errores"> = {
 
 const PATRON_ENCABEZADO_VERSION = /^creative blueprint v(\d+)(?:\.\d+)?$/i;
 
+/** El Prompt Oficial ahora siempre le pide a ChatGPT que responda con un
+ * único bloque de código Markdown (ver `construirBloqueMarkdownObligatorio`
+ * en blueprint-prompt.ts) — así que lo normal es que el usuario pegue la
+ * respuesta completa, cerca de código incluida (```markdown ... ``` o
+ * ``` ... ```). Le sacamos esa cerca ACÁ, antes de leer la primera línea,
+ * para no obligar al usuario a editarla a mano; si no hay cerca, el texto
+ * vuelve sin tocar. Ojo: esto es solo para lo que lee el parser — el texto
+ * que se guarda como `cbdOriginal` sigue siendo el que pegó el usuario tal
+ * cual (ver `confirmarImportacionBlueprint`), esta función no lo reemplaza
+ * ahí, cada llamada opera sobre su propia copia local. */
+function quitarCercaDeCodigoMarkdown(textoCrudo: string): string {
+  const lineas = textoCrudo.split(/\r?\n/);
+  const indiceInicio = lineas.findIndex((l) => l.trim() !== "");
+  if (indiceInicio === -1) return textoCrudo;
+  if (!/^```\s*[a-zA-Z]*$/.test(lineas[indiceInicio].trim())) return textoCrudo;
+
+  let indiceFin = -1;
+  for (let i = lineas.length - 1; i > indiceInicio; i--) {
+    if (lineas[i].trim() === "") continue;
+    if (lineas[i].trim() === "```") indiceFin = i;
+    break;
+  }
+  if (indiceFin === -1) return textoCrudo;
+
+  return lineas.slice(indiceInicio + 1, indiceFin).join("\n");
+}
+
 /** Señal aislada de "este texto tiene indicio de estructura de Blueprint" —
  * la misma condición exacta que `parsearBlueprint` usa como primer chequeo
  * bloqueante (el encabezado de versión), expuesta sola para poder bifurcar
@@ -403,7 +430,8 @@ const PATRON_ENCABEZADO_VERSION = /^creative blueprint v(\d+)(?:\.\d+)?$/i;
  * como guion en desarrollo (con sus errores mostrados en la revisión), no
  * como idea cruda. La presencia de estructura, aunque sea parcial, siempre
  * gana sobre la ausencia de estructura (UX Migration 1). */
-export function tieneEstructuraDeBlueprint(textoCrudo: string): boolean {
+export function tieneEstructuraDeBlueprint(textoCrudoOriginal: string): boolean {
+  const textoCrudo = quitarCercaDeCodigoMarkdown(textoCrudoOriginal);
   const lineas = textoCrudo.split(/\r?\n/);
   const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");
   const primeraLinea =
@@ -411,8 +439,9 @@ export function tieneEstructuraDeBlueprint(textoCrudo: string): boolean {
   return PATRON_ENCABEZADO_VERSION.test(primeraLinea);
 }
 
-export function parsearBlueprint(textoCrudo: string, biblioteca: BibliotecaConocida): ResultadoParseoCBD {
+export function parsearBlueprint(textoCrudoOriginal: string, biblioteca: BibliotecaConocida): ResultadoParseoCBD {
   const errores: string[] = [];
+  const textoCrudo = quitarCercaDeCodigoMarkdown(textoCrudoOriginal);
   const lineas = textoCrudo.split(/\r?\n/);
 
   const indicePrimeraLinea = lineas.findIndex((l) => l.trim() !== "");

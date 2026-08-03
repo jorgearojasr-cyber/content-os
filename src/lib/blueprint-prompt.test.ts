@@ -132,3 +132,33 @@ describe("construirPrompt — IDENTIDAD_SIN_CONTENIDO sigue funcionando (sin mar
     expect(prompt).toContain("Recursos necesarios: [opcional");
   });
 });
+
+describe("construirPrompt — MIGRATION Prompt Oficial siempre Markdown crudo", () => {
+  const idea = "Un video mostrando cómo armamos el importador de Blueprint";
+  const contexto = "Marca: OBRABIEN.\nTono: cercano, directo.\nPúblico: dueños de PyMEs de construcción.";
+
+  it("siempre incluye la instrucción de responder en un único bloque de código Markdown", () => {
+    const prompt = construirPrompt(idea, contexto);
+    expect(prompt).toContain("## IMPORTANTE");
+    expect(prompt).toContain("El resultado de este prompt será importado automáticamente por Content OS.");
+    expect(prompt).toContain("Responde únicamente con un único bloque de código Markdown.");
+    expect(prompt).toContain("```markdown\n# Creative Blueprint v1\n```");
+    expect(prompt).toContain("No escribas ninguna explicación antes ni después del bloque.");
+  });
+
+  it("la instrucción va al final del prompt, después del Núcleo CBD", () => {
+    const prompt = construirPrompt(idea, contexto);
+    const posNucleo = prompt.indexOf("IMPORTANTE: tu respuesta la va a leer un programa");
+    const posMarkdownObligatorio = prompt.indexOf("## IMPORTANTE");
+    expect(posNucleo).toBeGreaterThan(-1);
+    expect(posMarkdownObligatorio).toBeGreaterThan(posNucleo);
+    expect(prompt.trimEnd().endsWith("Entrégalo como texto Markdown puro listo para copiar y pegar.")).toBe(true);
+  });
+
+  it("aparece sin importar Locaciones/Planos ni si hay Identidad cargada", () => {
+    const conBiblioteca = construirPrompt(idea, contexto, ["Oficina"], ["Primer plano"]);
+    const sinMarca = construirPrompt(idea, IDENTIDAD_SIN_CONTENIDO);
+    expect(conBiblioteca).toContain("## IMPORTANTE");
+    expect(sinMarca).toContain("## IMPORTANTE");
+  });
+});
