@@ -748,7 +748,16 @@ export function RevisionBlueprint({
                         return (
                           <SeccionColapsable
                             titulo="Hallazgos"
-                            tieneContenido
+                            // PHASE-2-IMPLEMENTACION-2.5 (ajuste): `tieneContenido={false}`
+                            // en vez de `true` — SeccionColapsable arranca abierta
+                            // (`abierto = useState(!tieneContenido)`) cuando es false, así
+                            // que cada análisis recién generado se muestra expandido de
+                            // entrada. Si el usuario la colapsa a mano, ese `useState`
+                            // interno del componente lo respeta sin que haga falta nada
+                            // más acá — solo se reinicia a abierta cuando este bloque
+                            // vuelve a montarse (un análisis nuevo, tras "Volver a
+                            // analizar"), nunca por otras interacciones de la pantalla.
+                            tieneContenido={false}
                             resumen={`${analisisDirector.hallazgos.length} hallazgos`}
                           >
                             {listaHallazgos}
