@@ -8,7 +8,13 @@ import {
   getStoryboardEscenas,
   updateStoryboardEscena,
 } from "@/lib/actions";
-import { decisionesDeProduccionParaEscena, hallazgosParaEscena } from "@/lib/director-creativo";
+import {
+  agruparHallazgosPorPrioridad,
+  decisionesDeProduccionParaEscena,
+  decisionParaTipo,
+  hallazgosParaEscena,
+  hallazgosParaGrabar,
+} from "@/lib/director-creativo";
 import { parseAnalisisDirectorCreativo } from "@/lib/types";
 import { CopilotoGrabar } from "../copiloto-grabar";
 
@@ -34,16 +40,22 @@ export default async function CopilotoGrabarPage({
   const boundSave = updateStoryboardEscena.bind(null, proyectoId, produccionId);
   const boundEstado = actualizarEstadoProduccionEscena.bind(null, proyectoId, produccionId);
 
-  // PHASE-2-IMPLEMENTACION-3A: solo lectura del análisis ya generado en
-  // Revisión, filtrado por `numeroEnAnalisisDirector` (nunca `numero`) —
-  // ver `director-creativo.ts`. Copiloto no genera ni recalcula nada.
+  // PHASE-2-IMPLEMENTACION-3A/3B: solo lectura del análisis ya generado en
+  // Revisión, filtrado por `numeroEnAnalisisDirector` (nunca `numero`) y
+  // clasificado únicamente con las funciones puras de `director-creativo.ts`
+  // (regla congelada en PHASE-2-COPILOTO-UX-DESIGN) — Copiloto no genera ni
+  // recalcula nada, y no vuelve a implementar la clasificación acá.
   const analisisDirector = parseAnalisisDirectorCreativo(produccion.analisisDirectorCreativoJson);
   const hallazgosEscena = analisisDirector
-    ? hallazgosParaEscena(analisisDirector, escena.numeroEnAnalisisDirector)
+    ? hallazgosParaGrabar(hallazgosParaEscena(analisisDirector, escena.numeroEnAnalisisDirector))
     : [];
+  const hallazgosAgrupados = agruparHallazgosPorPrioridad(hallazgosEscena);
   const decisionesEscena = analisisDirector
     ? decisionesDeProduccionParaEscena(analisisDirector, escena.numeroEnAnalisisDirector)
     : [];
+  const decisionPersonaje = decisionParaTipo(decisionesEscena, "Personaje");
+  const decisionLocacion = decisionParaTipo(decisionesEscena, "Locación");
+  const decisionRecurso = decisionParaTipo(decisionesEscena, "Recurso");
 
   return (
     <CopilotoGrabar
@@ -55,8 +67,10 @@ export default async function CopilotoGrabarPage({
       locaciones={locaciones}
       personajes={personajes}
       formato={produccion.formato}
-      hallazgosDirector={hallazgosEscena}
-      decisionesDeProduccionDirector={decisionesEscena}
+      hallazgosAgrupados={hallazgosAgrupados}
+      decisionPersonaje={decisionPersonaje}
+      decisionLocacion={decisionLocacion}
+      decisionRecurso={decisionRecurso}
       onSave={boundSave}
       onEstadoChange={boundEstado}
     />

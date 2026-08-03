@@ -18,6 +18,8 @@ export function SeccionColapsable({
   resumen,
   progreso,
   estado,
+  abierto,
+  onAbiertoChange,
   children,
 }: {
   titulo: string;
@@ -34,16 +36,32 @@ export function SeccionColapsable({
    * (ej. las secciones de entrenamiento de Identidad/Personaje). Si no se
    * pasa, se usa el comportamiento anterior (✓ si `tieneContenido`). */
   estado?: EstadoBloque;
+  /** Par controlado/no-controlado (PHASE-2-IMPLEMENTACION-3B), mismo
+   * criterio que un `<input>`: si se pasa `abierto`, el padre decide
+   * abierto/cerrado (y debe manejar `onAbiertoChange`) — pensado para
+   * deep-links externos que necesitan revelar un campo de acá adentro (ej.
+   * Copiloto). Si no se pasa, la sección sigue siendo no-controlada, con
+   * el mismo comportamiento interno de siempre. */
+  abierto?: boolean;
+  onAbiertoChange?: (abierto: boolean) => void;
   children: ReactNode;
 }) {
-  const [abierto, setAbierto] = useState(!tieneContenido);
+  const [abiertoInterno, setAbiertoInterno] = useState(!tieneContenido);
+  const esControlada = abierto !== undefined;
+  const abiertoActual = esControlada ? abierto : abiertoInterno;
+
+  function alternar() {
+    const siguiente = !abiertoActual;
+    if (esControlada) onAbiertoChange?.(siguiente);
+    else setAbiertoInterno(siguiente);
+  }
 
   return (
     <div className="rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
       <button
         type="button"
-        onClick={() => setAbierto((v) => !v)}
-        aria-expanded={abierto}
+        onClick={alternar}
+        aria-expanded={abiertoActual}
         className="-m-1.5 flex w-[calc(100%+0.75rem)] cursor-pointer items-start justify-between gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-surface-2"
       >
         <div className="min-w-0">
@@ -71,7 +89,7 @@ export function SeccionColapsable({
               </span>
             ) : null}
           </div>
-          {!abierto && resumen ? (
+          {!abiertoActual && resumen ? (
             <p className="mt-0.5 truncate text-[13px] text-text-muted">{resumen}</p>
           ) : subtitulo ? (
             <p className="mt-1 text-sm text-text-muted">{subtitulo}</p>
@@ -80,7 +98,7 @@ export function SeccionColapsable({
         <svg
           viewBox="0 0 20 20"
           fill="none"
-          className={`mt-1 h-5 w-5 shrink-0 text-text-muted transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
+          className={`mt-1 h-5 w-5 shrink-0 text-text-muted transition-transform duration-200 ${abiertoActual ? "rotate-180" : ""}`}
           aria-hidden
         >
           <path
@@ -95,7 +113,7 @@ export function SeccionColapsable({
 
       <div
         className="overflow-hidden transition-[max-height] duration-300 ease-out"
-        style={{ maxHeight: abierto ? "10000px" : "0px" }}
+        style={{ maxHeight: abiertoActual ? "10000px" : "0px" }}
       >
         <div className="pt-4">{children}</div>
       </div>

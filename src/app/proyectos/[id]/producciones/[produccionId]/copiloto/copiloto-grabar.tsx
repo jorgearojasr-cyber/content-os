@@ -10,7 +10,7 @@ import { explicarError } from "@/lib/errores";
 import { emocionSugeridaParaTipo, movimientoSugeridoParaPlano } from "@/lib/decision-engine";
 import { promptImagenSugerido, promptVideoSugerido } from "@/lib/escena-prompt-compiler";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
-import type { AnalisisDirectorCreativo } from "@/lib/director-creativo";
+import type { AnalisisDirectorCreativo, HallazgosAgrupadosPorPrioridad } from "@/lib/director-creativo";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
 
@@ -35,13 +35,42 @@ function formatoDuracion(segundos: number) {
  * no un control editable (los controles reales viven detrás de "Ver
  * detalles"). ✔ si está resuelto, ⚠ si falta — UX-MIGRATION-4B: cada fila
  * responde únicamente "¿qué necesito preparar?", nunca se mezcla con la
- * edición. */
-function FilaChecklist({ resuelto, etiqueta, valor }: { resuelto: boolean; etiqueta: string; valor: string }) {
+ * edición.
+ *
+ * `nota` (PHASE-2-IMPLEMENTACION-3B, diseño congelado en PHASE-2-COPILOTO-
+ * UX-DESIGN): cuando el Director Creativo tiene algo que decir sobre este
+ * mismo campo, se adjunta acá — nunca en una tarjeta aparte. Es la regla
+ * congelada "un único lugar de resolución por recomendación". */
+function FilaChecklist({
+  resuelto,
+  etiqueta,
+  valor,
+  nota,
+}: {
+  resuelto: boolean;
+  etiqueta: string;
+  valor: string;
+  nota?: { texto: string; etiquetaAccion: string; onAccion: () => void };
+}) {
   return (
-    <p className={`flex items-center gap-1.5 text-[14px] ${resuelto ? "text-text" : "text-accent"}`}>
-      <span aria-hidden>{resuelto ? "✔" : "⚠"}</span>
-      {resuelto ? valor : `Falta ${etiqueta}`}
-    </p>
+    <div>
+      <p className={`flex items-center gap-1.5 text-[14px] ${resuelto ? "text-text" : "text-accent"}`}>
+        <span aria-hidden>{resuelto ? "✔" : "⚠"}</span>
+        {resuelto ? valor : `Falta ${etiqueta}`}
+      </p>
+      {nota ? (
+        <p className="ml-5 mt-0.5 border-l-2 border-l-accent-soft pl-2 text-[12px] text-text-muted">
+          {nota.texto}{" "}
+          <button
+            type="button"
+            onClick={nota.onAccion}
+            className="font-medium text-accent-hover underline hover:no-underline"
+          >
+            {nota.etiquetaAccion}
+          </button>
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -74,41 +103,92 @@ function RecomendacionPlano({ planoNombre, recomendacionBase }: { planoNombre: s
   );
 }
 
-/** PHASE-2-IMPLEMENTACION-3A: solo lectura del análisis del Director
- * Creativo ya filtrado para esta escena por `numeroEnAnalisisDirector`
- * (nunca recalcula ni vuelve a llamar a ninguna IA). Mismo tratamiento
- * visual (borde izquierdo acento) que su tarjeta en Revisión — misma
- * identidad del Director en toda la app. No se muestra nada si el
- * análisis no dice nada sobre esta escena en particular. */
-function OpinionDirectorCreativo({
-  hallazgos,
-  decisiones,
+type DestinoHallazgo = { id: string; requiereDetalles: boolean; etiqueta: string };
+
+/** A qué campo de ESTA pantalla conduce cada hallazgo, según su categoría
+ * (PHASE-2-IMPLEMENTACION-3B). Esto es routing de UI — no una
+ * clasificación del análisis; la clasificación Alta/Media/Baja y
+ * Grabar/Editar vive únicamente en `director-creativo.ts`. Duración apunta
+ * al campo numérico dentro de "Ver detalles"; el resto de categorías
+ * narrativas (Gancho/Ritmo/CTA/Claridad/Otro) apunta al Guion, que ya está
+ * siempre a la vista. */
+function destinoHallazgo(categoria: AnalisisDirectorCreativo["hallazgos"][number]["categoria"]): DestinoHallazgo {
+  if (categoria === "Duración") {
+    return { id: "campo-duracion", requiereDetalles: true, etiqueta: "Ir a Duración ↓" };
+  }
+  return { id: "campo-guion", requiereDetalles: false, etiqueta: "Ver en el guion ↑" };
+}
+
+function TarjetaHallazgo({
+  hallazgo,
+  destacado,
+  onIrA,
 }: {
-  hallazgos: AnalisisDirectorCreativo["hallazgos"];
-  decisiones: AnalisisDirectorCreativo["decisionesDeProduccion"];
+  hallazgo: AnalisisDirectorCreativo["hallazgos"][number];
+  destacado: boolean;
+  onIrA: (id: string, requiereDetalles: boolean) => void;
 }) {
-  if (hallazgos.length === 0 && decisiones.length === 0) return null;
+  const destino = destinoHallazgo(hallazgo.categoria);
+  return (
+    <div className="flex gap-2">
+      <span aria-hidden className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${destacado ? "bg-danger" : "bg-accent"}`} />
+      <div className="min-w-0">
+        <p className={`text-[13.5px] text-text ${destacado ? "font-semibold" : "font-normal"}`}>{hallazgo.titulo}</p>
+        <p className="mt-0.5 text-[12.5px] text-text-muted">{hallazgo.porQué}</p>
+        <p className="mt-1 text-[12.5px] text-text">💡 {hallazgo.sugerencia}</p>
+        <button
+          type="button"
+          onClick={() => onIrA(destino.id, destino.requiereDetalles)}
+          className="mt-1.5 text-[11.5px] font-medium text-accent-hover underline hover:no-underline"
+        >
+          {destino.etiqueta}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** PHASE-2-IMPLEMENTACION-3B (diseño congelado en PHASE-2-COPILOTO-UX-
+ * DESIGN): solo lectura de los hallazgos ya filtrados por escena y
+ * clasificados por prioridad en `director-creativo.ts` — Alta siempre
+ * visible, Media visible con menor peso, Baja detrás de "Ver N sugerencias
+ * menores". Ya no muestra `decisionesDeProduccion` (regla congelada: un
+ * único lugar de resolución por recomendación — esas decisiones ahora
+ * viven en el checklist, ver `FilaChecklist`). No implementa ninguna
+ * clasificación acá, solo consume `hallazgosAgrupados` ya armado. */
+function OpinionDirectorCreativo({
+  hallazgosAgrupados,
+  onIrA,
+}: {
+  hallazgosAgrupados: HallazgosAgrupadosPorPrioridad;
+  onIrA: (id: string, requiereDetalles: boolean) => void;
+}) {
+  const { alta, media, baja } = hallazgosAgrupados;
+  if (alta.length === 0 && media.length === 0 && baja.length === 0) return null;
 
   return (
     <div className="rounded-xl border-y border-r border-border border-l-4 border-l-accent bg-surface p-3.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Director Creativo</p>
       <div className="mt-2 space-y-3">
-        {hallazgos.map((h, i) => (
-          <div key={`hallazgo-${i}`}>
-            <p className="text-[14.5px] font-medium text-text">{h.titulo}</p>
-            <p className="mt-0.5 text-[13px] text-text-muted">{h.porQué}</p>
-            <p className="mt-1 text-[13px] text-text">💡 {h.sugerencia}</p>
-          </div>
+        {alta.map((h, i) => (
+          <TarjetaHallazgo key={`alta-${i}`} hallazgo={h} destacado onIrA={onIrA} />
         ))}
-        {decisiones.map((d, i) => (
-          <div key={`decision-${i}`}>
-            <p className="text-[14.5px] font-medium text-text">
-              {d.tipo}: {d.necesidad}
-            </p>
-            <p className="mt-0.5 text-[13px] text-text-muted">{d.porQué}</p>
-          </div>
+        {media.map((h, i) => (
+          <TarjetaHallazgo key={`media-${i}`} hallazgo={h} destacado={false} onIrA={onIrA} />
         ))}
       </div>
+      {baja.length > 0 ? (
+        <details className="mt-3">
+          <summary className="inline-block cursor-pointer rounded-md border border-dashed border-border px-2 py-1 text-[11.5px] text-text-muted marker:content-none [&::-webkit-details-marker]:hidden">
+            Ver {baja.length} sugerencia{baja.length > 1 ? "s" : ""} menor{baja.length > 1 ? "es" : ""} ▾
+          </summary>
+          <div className="mt-2.5 space-y-3 border-t border-border pt-3">
+            {baja.map((h, i) => (
+              <TarjetaHallazgo key={`baja-${i}`} hallazgo={h} destacado={false} onIrA={onIrA} />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -134,8 +214,10 @@ export function CopilotoGrabar({
   locaciones,
   personajes,
   formato,
-  hallazgosDirector,
-  decisionesDeProduccionDirector,
+  hallazgosAgrupados,
+  decisionPersonaje,
+  decisionLocacion,
+  decisionRecurso,
   onSave,
   onEstadoChange,
 }: {
@@ -147,8 +229,10 @@ export function CopilotoGrabar({
   locaciones: Activo[];
   personajes: Personaje[];
   formato: string;
-  hallazgosDirector: AnalisisDirectorCreativo["hallazgos"];
-  decisionesDeProduccionDirector: AnalisisDirectorCreativo["decisionesDeProduccion"];
+  hallazgosAgrupados: HallazgosAgrupadosPorPrioridad;
+  decisionPersonaje: AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null;
+  decisionLocacion: AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null;
+  decisionRecurso: AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null;
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
 }) {
@@ -168,6 +252,34 @@ export function CopilotoGrabar({
   );
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState("");
+
+  // PHASE-2-IMPLEMENTACION-3B: deep-link de una recomendación del Director
+  // a su destino real en ESTA pantalla — mismo criterio de scroll+resaltado
+  // que ya existe en Revisión (`irAPendienteDeDecision`), adaptado acá para
+  // poder apuntar también a un campo dentro de "Ver detalles". `SeccionColapsable`
+  // pasa a modo controlado solo para esta instancia (par abierto/onAbiertoChange)
+  // — irA() la abre directamente, un simple setState en un manejador de
+  // evento, nada de efectos ni refs durante el render.
+  const [resaltado, setResaltado] = useState<string | null>(null);
+  const [detallesAbiertos, setDetallesAbiertos] = useState(false);
+
+  function irA(idDestino: string, requiereVerDetalles: boolean) {
+    if (requiereVerDetalles) setDetallesAbiertos(true);
+    const demora = requiereVerDetalles ? 350 : 0;
+    setTimeout(() => {
+      const el = document.getElementById(idDestino);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setResaltado(idDestino);
+      setTimeout(() => setResaltado((actual) => (actual === idDestino ? null : actual)), 2200);
+    }, demora);
+  }
+
+  function clasesResaltado(idDestino: string) {
+    return resaltado === idDestino
+      ? "-m-1.5 rounded-lg p-1.5 ring-2 ring-accent transition-shadow duration-300"
+      : "-m-1.5 rounded-lg p-1.5 ring-2 ring-transparent transition-shadow duration-300";
+  }
 
   const indice = escenas.findIndex((e) => e.id === escena.id);
   const planoActual = planos.find((p) => p.id === escena.planoId);
@@ -285,8 +397,10 @@ export function CopilotoGrabar({
           <input key={id} type="hidden" name="personajeIds" value={id} />
         ))}
 
-        {/* 2. Qué debes decir — el libreto, no un textarea de formulario. */}
-        <Card>
+        {/* 2. Qué debes decir — el libreto, no un textarea de formulario.
+            id="campo-guion": destino de deep-link de los hallazgos
+            narrativos del Director (PHASE-2-IMPLEMENTACION-3B). */}
+        <Card id="campo-guion" className={clasesResaltado("campo-guion")}>
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Guion</p>
           <textarea
             id="textoHablado"
@@ -297,7 +411,10 @@ export function CopilotoGrabar({
           />
         </Card>
 
-        {/* 3. Qué necesitas preparar — checklist resumido, no tres selects. */}
+        {/* 3. Qué necesitas preparar — checklist resumido, no tres selects.
+            Cada fila incluye la nota del Director sobre ese mismo campo
+            cuando existe (PHASE-2-IMPLEMENTACION-3B) — un único lugar de
+            resolución, nunca una tarjeta aparte hablando del mismo problema. */}
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Antes de grabar</p>
           <div className="mt-2 space-y-1.5">
@@ -306,6 +423,15 @@ export function CopilotoGrabar({
               resuelto={!!locacionActual}
               etiqueta="elegir locación"
               valor={locacionActual?.nombre ?? ""}
+              nota={
+                decisionLocacion
+                  ? {
+                      texto: decisionLocacion.porQué,
+                      etiquetaAccion: "Elegir ahora →",
+                      onAccion: () => irA("campo-locacion", true),
+                    }
+                  : undefined
+              }
             />
             {personajes.length > 0 ? (
               <FilaChecklist
@@ -315,6 +441,15 @@ export function CopilotoGrabar({
                   .map((id) => personajes.find((p) => p.id === id)?.nombre)
                   .filter(Boolean)
                   .join(", ")}
+                nota={
+                  decisionPersonaje
+                    ? {
+                        texto: decisionPersonaje.porQué,
+                        etiquetaAccion: "Elegir ahora →",
+                        onAccion: () => irA("campo-personajes", true),
+                      }
+                    : undefined
+                }
               />
             ) : null}
             <FilaChecklist
@@ -322,12 +457,30 @@ export function CopilotoGrabar({
               etiqueta="estimar duración"
               valor={`Duración estimada: ${formatoDuracion(escena.duracionSegundos)}`}
             />
+            {decisionRecurso ? (
+              <div>
+                <p className="flex items-center gap-1.5 text-[14px] text-accent">
+                  <span aria-hidden>🎬</span>
+                  Recurso sugerido: {decisionRecurso.necesidad}
+                </p>
+                <p className="ml-5 mt-0.5 border-l-2 border-l-accent-soft pl-2 text-[12px] text-text-muted">
+                  {decisionRecurso.porQué}{" "}
+                  <button
+                    type="button"
+                    onClick={() => irA("campo-recursos", true)}
+                    className="font-medium text-accent-hover underline hover:no-underline"
+                  >
+                    Ver recursos necesarios →
+                  </button>
+                </p>
+              </div>
+            ) : null}
           </div>
         </Card>
 
         {/* Opinión del Director Creativo para ESTA escena (PHASE-2-
             IMPLEMENTACION-3A) — solo lectura, ya generada en Revisión. */}
-        <OpinionDirectorCreativo hallazgos={hallazgosDirector} decisiones={decisionesDeProduccionDirector} />
+        <OpinionDirectorCreativo hallazgosAgrupados={hallazgosAgrupados} onIrA={irA} />
 
         {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA), ver RecomendacionPlano. */}
         {recomendacionBase && planoActual ? (
@@ -411,7 +564,12 @@ export function CopilotoGrabar({
             controles reales de edición de Plano/Locación/Personajes que el
             checklist de arriba solo resume. Un único "Ver detalles", no
             tres acordeones separados (eso ya se sentía como formulario). */}
-        <SeccionColapsable titulo="Ver detalles" tieneContenido={true}>
+        <SeccionColapsable
+          titulo="Ver detalles"
+          tieneContenido={true}
+          abierto={detallesAbiertos}
+          onAbiertoChange={setDetallesAbiertos}
+        >
           <Label>¿En qué etapa está?</Label>
           <EstadoProduccionSelect escenaId={escena.id} estado={escena.estadoProduccion} onChange={onEstadoChange} />
 
@@ -429,22 +587,26 @@ export function CopilotoGrabar({
               </option>
             ))}
           </select>
-          <Label htmlFor="locacionId">Locación</Label>
-          <select
-            id="locacionId"
-            name="locacionId"
-            defaultValue={escena.locacionId ?? ""}
-            className="w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text"
-          >
-            <option value="">Todavía no elegiste</option>
-            {locaciones.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
+          {/* id="campo-locacion": destino de deep-link de la fila
+              "elegir locación" del checklist (PHASE-2-IMPLEMENTACION-3B). */}
+          <div id="campo-locacion" className={clasesResaltado("campo-locacion")}>
+            <Label htmlFor="locacionId">Locación</Label>
+            <select
+              id="locacionId"
+              name="locacionId"
+              defaultValue={escena.locacionId ?? ""}
+              className="w-full rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-[14.5px] text-text"
+            >
+              <option value="">Todavía no elegiste</option>
+              {locaciones.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
           {personajes.length > 0 ? (
-            <>
+            <div id="campo-personajes" className={clasesResaltado("campo-personajes")}>
               <Label>Personajes</Label>
               <div className="space-y-1 rounded-lg border border-border bg-surface px-3 py-2">
                 {personajes.map((p) => (
@@ -458,7 +620,7 @@ export function CopilotoGrabar({
                   </label>
                 ))}
               </div>
-            </>
+            </div>
           ) : null}
           <Label htmlFor="movimientoCamara">Movimiento de cámara</Label>
           <Input
@@ -474,8 +636,12 @@ export function CopilotoGrabar({
           {movimientoEsSugerencia ? (
             <p className="mt-1 text-[12px] text-text-muted">💡 Sugerido según el plano — editable.</p>
           ) : null}
-          <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
-          <Textarea id="recursosNecesarios" name="recursosNecesarios" defaultValue={escena.recursosNecesarios} />
+          {/* id="campo-recursos": destino de deep-link de "Recurso sugerido"
+              (PHASE-2-IMPLEMENTACION-3B). */}
+          <div id="campo-recursos" className={clasesResaltado("campo-recursos")}>
+            <Label htmlFor="recursosNecesarios">Recursos necesarios</Label>
+            <Textarea id="recursosNecesarios" name="recursosNecesarios" defaultValue={escena.recursosNecesarios} />
+          </div>
 
           <Label>Tipo de escena</Label>
           <div className="flex flex-wrap gap-1.5">
@@ -518,14 +684,18 @@ export function CopilotoGrabar({
           ) : null}
           <Label htmlFor="valorEspectador">Valor para el espectador</Label>
           <Input id="valorEspectador" name="valorEspectador" defaultValue={escena.valorEspectador} />
-          <Label htmlFor="duracionSegundos">¿Cuánto dura? (segundos)</Label>
-          <Input
-            id="duracionSegundos"
-            name="duracionSegundos"
-            type="number"
-            min={0}
-            defaultValue={escena.duracionSegundos}
-          />
+          {/* id="campo-duracion": destino de deep-link de los hallazgos
+              categoría Duración (PHASE-2-IMPLEMENTACION-3B). */}
+          <div id="campo-duracion" className={clasesResaltado("campo-duracion")}>
+            <Label htmlFor="duracionSegundos">¿Cuánto dura? (segundos)</Label>
+            <Input
+              id="duracionSegundos"
+              name="duracionSegundos"
+              type="number"
+              min={0}
+              defaultValue={escena.duracionSegundos}
+            />
+          </div>
 
           <Label htmlFor="textoPantalla">Texto en pantalla</Label>
           <Textarea id="textoPantalla" name="textoPantalla" defaultValue={escena.textoPantalla} />

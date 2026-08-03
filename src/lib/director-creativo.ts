@@ -345,3 +345,68 @@ export function decisionesDeProduccionParaEscena(
   if (numeroEnAnalisisDirector === null) return [];
   return analisis.decisionesDeProduccion.filter((d) => d.escena === numeroEnAnalisisDirector);
 }
+
+/**
+ * PHASE-2-IMPLEMENTACION-3B (diseño congelado en PHASE-2-COPILOTO-UX-
+ * DESIGN): "Repetición" y "Transición" comparan una escena con otra por
+ * definición — solo son evaluables con el storyboard completo armado, es
+ * decir en Editar. El resto de categorías son evaluables mirando una sola
+ * escena, es decir en Grabar. Regla congelada: esta clasificación vive
+ * únicamente acá — ningún componente de UI vuelve a decidir qué hallazgo
+ * va en qué pantalla.
+ */
+const CATEGORIAS_ALCANCE_COMPLETO: ReadonlyArray<AnalisisDirectorCreativo["hallazgos"][number]["categoria"]> = [
+  "Repetición",
+  "Transición",
+];
+
+/** Hallazgos para Grabar — nunca incluye Repetición/Transición (ver
+ * `hallazgosParaEditar`). Se usa junto con `hallazgosParaEscena` (compone:
+ * el orden entre ambos filtros no cambia el resultado). */
+export function hallazgosParaGrabar(
+  hallazgos: AnalisisDirectorCreativo["hallazgos"],
+): AnalisisDirectorCreativo["hallazgos"] {
+  return hallazgos.filter((h) => !CATEGORIAS_ALCANCE_COMPLETO.includes(h.categoria));
+}
+
+/** Hallazgos para Editar — únicamente Repetición y Transición. Nunca se
+ * filtra por escena: son sobre la relación entre escenas del storyboard
+ * completo, no sobre una escena aislada. */
+export function hallazgosParaEditar(
+  hallazgos: AnalisisDirectorCreativo["hallazgos"],
+): AnalisisDirectorCreativo["hallazgos"] {
+  return hallazgos.filter((h) => CATEGORIAS_ALCANCE_COMPLETO.includes(h.categoria));
+}
+
+export type HallazgosAgrupadosPorPrioridad = {
+  alta: AnalisisDirectorCreativo["hallazgos"];
+  media: AnalisisDirectorCreativo["hallazgos"];
+  baja: AnalisisDirectorCreativo["hallazgos"];
+};
+
+/** Agrupa por prioridad para la jerarquía visual aprobada: Alta siempre
+ * visible, Media visible con menor peso, Baja detrás de "Ver N sugerencias
+ * menores". Regla congelada: ningún componente de UI vuelve a ordenar o
+ * agrupar por prioridad — solo consume este resultado ya clasificado. */
+export function agruparHallazgosPorPrioridad(
+  hallazgos: AnalisisDirectorCreativo["hallazgos"],
+): HallazgosAgrupadosPorPrioridad {
+  return {
+    alta: hallazgos.filter((h) => h.prioridad === "Alta"),
+    media: hallazgos.filter((h) => h.prioridad === "Media"),
+    baja: hallazgos.filter((h) => h.prioridad === "Baja"),
+  };
+}
+
+/** Encuentra la decisión de producción de un tipo puntual (Personaje/
+ * Locación/Recurso) para adjuntarla a la fila del checklist correspondiente
+ * — nunca una segunda tarjeta hablando del mismo campo (regla congelada de
+ * PHASE-2-COPILOTO-UX-DESIGN: un único lugar de resolución por
+ * recomendación). Si hubiera más de una del mismo tipo, se usa la primera —
+ * el prompt le pide al Director una sola decisión por campo y escena. */
+export function decisionParaTipo(
+  decisiones: AnalisisDirectorCreativo["decisionesDeProduccion"],
+  tipo: AnalisisDirectorCreativo["decisionesDeProduccion"][number]["tipo"],
+): AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null {
+  return decisiones.find((d) => d.tipo === tipo) ?? null;
+}
