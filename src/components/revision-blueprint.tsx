@@ -117,6 +117,10 @@ export function RevisionBlueprint({
   const [textoRespuestaDirector, setTextoRespuestaDirector] = useState("");
   const [errorDirector, setErrorDirector] = useState("");
   const [promptDirectorCopiado, setPromptDirectorCopiado] = useState(false);
+  // PHASE-2-IMPLEMENTACION-2.5 — solo UX: qué tarjeta de "Antes de
+  // continuar" resaltar brevemente cuando el usuario llega desde una
+  // decisionDeProduccion. Puramente visual, se apaga solo.
+  const [pendienteResaltada, setPendienteResaltada] = useState<string | null>(null);
 
   function volverAPegar() {
     setAnalisisProyecto(null);
@@ -231,6 +235,33 @@ export function RevisionBlueprint({
     if (!bloque) return;
     bloque.scrollIntoView({ behavior: "smooth", block: "start" });
     bloque.querySelector<HTMLElement>("input, button")?.focus();
+  }
+
+  // PHASE-2-IMPLEMENTACION-2.5 — conecta una `decisionDeProduccion` con la
+  // tarjeta real donde esa decisión se resuelve, sin duplicar la lógica de
+  // resolución: reutiliza `pendientesConsolidados`, ya calculado, filtrando
+  // por tipo. "Recurso" no tiene una tarjeta de resolución equivalente (no
+  // es una entidad resolvible, ver `blueprint-import-shared.tsx`), así que
+  // no hay destino al que llevar — el botón simplemente no se muestra en
+  // ese caso. Si el campo ya se resolvió (auto-resuelto o decidido), tampoco
+  // aparece en `pendientesConsolidados` y por lo tanto no hay botón —
+  // nunca lleva a una tarjeta que ya no existe.
+  function idPendientePara(tipo: "Personaje" | "Locación" | "Recurso"): string | null {
+    const tipoInterno = tipo === "Locación" ? "locacion" : tipo === "Personaje" ? "personaje" : null;
+    if (!tipoInterno) return null;
+    const item = pendientesConsolidados.find((p) => p.tipo === tipoInterno);
+    if (!item) return null;
+    return `pendiente-${tipoInterno}-${normalizarTexto(item.campo.nombre)}`;
+  }
+
+  function irAPendienteDeDecision(tipo: "Personaje" | "Locación" | "Recurso") {
+    const id = idPendientePara(tipo);
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPendienteResaltada(id);
+    setTimeout(() => setPendienteResaltada((actual) => (actual === id ? null : actual)), 2200);
   }
 
   // Serializa lo único que realmente se puede editar en esta pantalla
@@ -590,7 +621,13 @@ export function RevisionBlueprint({
               </SeccionColapsable>
             ) : null}
 
-            <div className="rounded-xl border border-border bg-surface p-3.5">
+            {/* PHASE-2-IMPLEMENTACION-2.5: borde izquierdo ámbar (mismo lenguaje
+                visual que Decision Engine para "esto es una opinión/sugerencia,
+                no un dato fijo" — ver principios-de-diseno.md #4) en vez del
+                borde parejo de las demás tarjetas de esta pantalla, para que
+                se sienta distinta desde el primer vistazo, sin tocar ningún
+                texto. */}
+            <div id="director-creativo" className="rounded-xl border-y border-r border-border border-l-4 border-l-accent bg-surface p-3.5">
               {/* El formulario de copiar/pegar tiene prioridad sobre el análisis
                   ya existente — "Volver a analizar" debe poder reabrirlo aunque
                   ya haya un `analisisDirector` en memoria (se reemplaza recién
@@ -677,27 +714,56 @@ export function RevisionBlueprint({
                     </p>
                   </div>
                   {analisisDirector.hallazgos.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">Hallazgos</p>
-                      {analisisDirector.hallazgos.map((h, i) => (
-                        <div key={i} className="rounded-lg border border-border bg-surface-2 p-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10.5px] text-accent">
-                              {h.categoria}
-                            </span>
-                            <span className="text-[10.5px] text-text-muted">
-                              {h.prioridad}
-                              {h.escenas.length > 0
-                                ? ` — Escena${h.escenas.length > 1 ? "s" : ""} ${h.escenas.join(", ")}`
-                                : ""}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[13px] font-medium text-text">{h.titulo}</p>
-                          <p className="mt-0.5 text-[12.5px] text-text-muted">{h.porQué}</p>
-                          <p className="mt-1 text-[12.5px] text-text">💡 {h.sugerencia}</p>
+                    (() => {
+                      const listaHallazgos = (
+                        <div className="space-y-2">
+                          {analisisDirector.hallazgos.map((h, i) => (
+                            <div key={i} className="rounded-lg border border-border bg-surface-2 p-2.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10.5px] text-accent">
+                                  {h.categoria}
+                                </span>
+                                <span className="text-[10.5px] text-text-muted">
+                                  {h.prioridad}
+                                  {h.escenas.length > 0
+                                    ? ` — Escena${h.escenas.length > 1 ? "s" : ""} ${h.escenas.join(", ")}`
+                                    : ""}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[13px] font-medium text-text">{h.titulo}</p>
+                              <p className="mt-0.5 text-[12.5px] text-text-muted">{h.porQué}</p>
+                              <p className="mt-1 text-[12.5px] text-text">💡 {h.sugerencia}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      );
+                      // PHASE-2-IMPLEMENTACION-2.5: con pocos hallazgos, la
+                      // etiqueta plana ya alcanza (Principio de foco mínimo —
+                      // no esconder lo que ya es corto). Con muchos, se
+                      // reutiliza el mismo SeccionColapsable que ya usa esta
+                      // pantalla para Producción/Contexto/Recursos globales —
+                      // mismo patrón, sin tocar el contenido de adentro.
+                      const UMBRAL_COLAPSAR_HALLAZGOS = 3;
+                      if (analisisDirector.hallazgos.length > UMBRAL_COLAPSAR_HALLAZGOS) {
+                        return (
+                          <SeccionColapsable
+                            titulo="Hallazgos"
+                            tieneContenido
+                            resumen={`${analisisDirector.hallazgos.length} hallazgos`}
+                          >
+                            {listaHallazgos}
+                          </SeccionColapsable>
+                        );
+                      }
+                      return (
+                        <div className="space-y-2">
+                          <p className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">
+                            Hallazgos
+                          </p>
+                          {listaHallazgos}
+                        </div>
+                      );
+                    })()
                   ) : null}
                   {analisisDirector.mejorasPrioritarias.length > 0 ? (
                     <div>
@@ -716,7 +782,9 @@ export function RevisionBlueprint({
                       <p className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">
                         Decisiones de producción
                       </p>
-                      {analisisDirector.decisionesDeProduccion.map((d, i) => (
+                      {analisisDirector.decisionesDeProduccion.map((d, i) => {
+                        const idDestino = idPendientePara(d.tipo);
+                        return (
                         <div key={i} className="rounded-lg border border-border bg-surface-2 p-2.5">
                           <p className="text-[12.5px] font-medium text-text">
                             Escena {d.escena} — {d.tipo}: {d.necesidad}
@@ -732,8 +800,18 @@ export function RevisionBlueprint({
                             </ul>
                           ) : null}
                           <p className="mt-1 text-[12.5px] text-text-muted">Si ninguna sirve: {d.siNingunaEncaja}</p>
+                          {idDestino ? (
+                            <button
+                              type="button"
+                              onClick={() => irAPendienteDeDecision(d.tipo)}
+                              className="mt-1.5 text-[12.5px] text-accent underline hover:no-underline"
+                            >
+                              Ir a resolver esta decisión ↓
+                            </button>
+                          ) : null}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -754,8 +832,18 @@ export function RevisionBlueprint({
               <div id="antes-de-continuar" className="rounded-xl border border-accent/30 bg-accent-soft p-3">
                 <p className="mb-2 text-[13px] font-medium text-text">Antes de continuar</p>
                 <div className="space-y-3">
-                  {pendientesConsolidados.map(({ tipo, campo, ocurrencias }) => (
-                    <div key={`${tipo}:${normalizarTexto(campo.nombre)}`}>
+                  {pendientesConsolidados.map(({ tipo, campo, ocurrencias }) => {
+                    const idTarjeta = `pendiente-${tipo}-${normalizarTexto(campo.nombre)}`;
+                    return (
+                    <div
+                      key={idTarjeta}
+                      id={idTarjeta}
+                      className={
+                        pendienteResaltada === idTarjeta
+                          ? "-m-1.5 rounded-lg p-1.5 ring-2 ring-accent transition-shadow duration-300"
+                          : "-m-1.5 rounded-lg p-1.5 ring-2 ring-transparent transition-shadow duration-300"
+                      }
+                    >
                       <span className="text-[11.5px] text-text-muted">
                         {ETIQUETA_TIPO_PENDIENTE[tipo]}
                         {ocurrencias > 1 ? ` (aparece en ${ocurrencias} escenas)` : ""}:{" "}
@@ -773,7 +861,8 @@ export function RevisionBlueprint({
                         onDecidir={(v) => decidirPorNombre(tipo, campo.nombre, v)}
                       />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -842,6 +931,24 @@ export function RevisionBlueprint({
       {etapa === "revision" ? (
         <div className="sticky bottom-0 border-t border-border bg-bg/95 px-4 py-3 backdrop-blur sm:px-8">
           <div className="mx-auto max-w-[720px]">
+            {/* PHASE-2-IMPLEMENTACION-2.5: no reemplaza el banner principal de
+                la tarjeta del Director (arriba) — solo evita que, si el
+                usuario ya bajó hasta acá, llegue a "Crear video" sin haber
+                visto que el análisis quedó desactualizado. */}
+            {analisisDirector && estadoAnalisisDirectorActual === "desactualizado" ? (
+              <p className="mb-2 text-[12.5px] text-danger">
+                💬 El análisis del Director Creativo quedó desactualizado.{" "}
+                <button
+                  type="button"
+                  onClick={() =>
+                    document.getElementById("director-creativo")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="underline hover:no-underline"
+                >
+                  Ver análisis ↑
+                </button>
+              </p>
+            ) : null}
             {pendientesConsolidados.length > 0 ? (
               <p className="mb-2 text-[12.5px] text-text-muted">
                 Faltan {pendientesConsolidados.length}{" "}
