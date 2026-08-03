@@ -317,3 +317,31 @@ export function parsearAnalisisDirectorCreativo(textoCrudo: string): ResultadoPa
 
   return { ok: true, analisis: resultado.data };
 }
+
+/**
+ * PHASE-2-IMPLEMENTACION-3A: Copiloto necesita relacionar `hallazgos` y
+ * `decisionesDeProduccion` con la escena actual sin recalcular nada — el
+ * análisis ya existe, solo se filtra. La relación es SIEMPRE contra
+ * `numeroEnAnalisisDirector` (el índice inmutable con el que nació la
+ * escena en `confirmarImportacionBlueprint`), NUNCA contra
+ * `StoryboardEscena.numero` (mutable: se reescribe al reordenar/duplicar/
+ * eliminar). Ver el comentario de esa columna en `schema.ts` para el porqué.
+ * `null` (escena que nació fuera de esa importación — en blanco o
+ * duplicada) siempre devuelve lista vacía: el Director nunca la vio.
+ */
+export function hallazgosParaEscena(
+  analisis: AnalisisDirectorCreativo,
+  numeroEnAnalisisDirector: number | null,
+): AnalisisDirectorCreativo["hallazgos"] {
+  if (numeroEnAnalisisDirector === null) return [];
+  return analisis.hallazgos.filter((h) => h.escenas.includes(numeroEnAnalisisDirector));
+}
+
+/** Mismo criterio que `hallazgosParaEscena` — ver ese doc-comment. */
+export function decisionesDeProduccionParaEscena(
+  analisis: AnalisisDirectorCreativo,
+  numeroEnAnalisisDirector: number | null,
+): AnalisisDirectorCreativo["decisionesDeProduccion"] {
+  if (numeroEnAnalisisDirector === null) return [];
+  return analisis.decisionesDeProduccion.filter((d) => d.escena === numeroEnAnalisisDirector);
+}

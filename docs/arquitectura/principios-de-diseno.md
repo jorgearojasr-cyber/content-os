@@ -54,14 +54,42 @@ esto en `Input` (`src/components/ui.tsx`, prop `sugerido`): borde y fondo
 cuanto el usuario toca el campo — el color deja de aplicar el instante en
 que el dato pasa a ser del usuario.
 
+## 5. Toda referencia emitida por una IA debe permanecer estable aunque la organización visual cambie posteriormente
+
+"Toda referencia emitida por una IA debe permanecer estable aunque la
+organización visual cambie posteriormente. Si un identificador visible
+para el usuario es mutable, el sistema debe traducirlo internamente a una
+referencia inmutable sin exigir que la IA conozca dicha referencia."
+
+Un análisis de IA que referencia una escena, un bloque o cualquier entidad
+por su posición o etiqueta visible queda roto en cuanto el usuario
+reorganiza esa posición — reordenar, mover o renumerar es una acción
+legítima y frecuente, nunca debería invalidar un juicio que no tiene nada
+que ver con el contenido evaluado. La solución nunca es pedirle a la IA
+que use un identificador estable (a menudo no existe todavía en el
+momento en que la IA responde, y un id es más frágil que un número ante
+una copia/pegado manual) — es que Content OS traduzca esa referencia
+posicional a algo inmutable una sola vez, en el único instante en que
+ambos coinciden con certeza, y la use para siempre después en lugar del
+valor visible mutable. (Hallazgo original:
+`PHASE-2-IMPLEMENTACION-3A`: `hallazgos[].escenas` y
+`decisionesDeProduccion[].escena` del Director Creativo IA referencian
+posición, y `StoryboardEscena.numero` se reescribe al reordenar — resuelto
+con `StoryboardEscena.numeroEnAnalisisDirector`, un índice congelado una
+única vez en `confirmarImportacionBlueprint` y nunca vuelto a tocar. Ver
+`src/lib/director-creativo.ts` — `hallazgosParaEscena`/
+`decisionesDeProduccionParaEscena`.)
+
 ## Cómo aplicar estos principios
 
-Antes de agregar un campo, una sugerencia o una pantalla nueva, revisar los
-cuatro:
+Antes de agregar un campo, una sugerencia o una pantalla nueva, revisar
+los cinco:
 1. ¿Quién es el dueño de este dato?
 2. ¿Alguna decisión automática queda oculta?
 3. ¿Este juicio ya se calculó en otro lugar?
 4. ¿Se puede distinguir el origen del dato sin leer nada?
+5. ¿Alguna referencia de una IA depende de un identificador que puede
+   cambiar de posición o etiqueta más adelante?
 
 Si la respuesta obliga a romper alguno, la desviación debe quedar
 explícita y justificada en el pedido de la funcionalidad — no asumida en

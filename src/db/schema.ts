@@ -636,6 +636,16 @@ export const storyboardEscenas = pgTable("storyboard_escenas", {
     .references(() => producciones.id, { onDelete: "cascade" }),
   numero: integer("numero").notNull().default(0),
   orden: integer("orden").notNull().default(0),
+  // Índice inmutable (PHASE-2-IMPLEMENTACION-3A): el `numero` que tenía
+  // esta escena al nacer en `confirmarImportacionBlueprint` — es lo mismo
+  // que vio el Director Creativo IA al analizar (mismo orden, mismo
+  // índice+1). A diferencia de `numero`, nunca se reescribe (mover/
+  // reordenar/duplicar/eliminar no lo tocan) — es la referencia interna
+  // estable para vincular `hallazgos`/`decisionesDeProduccion` con la
+  // escena real, sin depender de la posición visible que sí cambia.
+  // `null` en escenas que nacieron fuera de esa importación (en blanco o
+  // duplicadas): el Director nunca las analizó.
+  numeroEnAnalisisDirector: integer("numero_en_analisis_director"),
   duracionSegundos: integer("duracion_segundos").notNull().default(0),
   // Una de TIPOS_ESCENA_STORYBOARD (types.ts): GANCHO | PROBLEMA |
   // DESCUBRIMIENTO | SOLUCION | CTA | BROLL | TRANSICION | OTRA.

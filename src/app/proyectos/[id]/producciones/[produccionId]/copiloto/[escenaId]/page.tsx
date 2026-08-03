@@ -8,6 +8,8 @@ import {
   getStoryboardEscenas,
   updateStoryboardEscena,
 } from "@/lib/actions";
+import { decisionesDeProduccionParaEscena, hallazgosParaEscena } from "@/lib/director-creativo";
+import { parseAnalisisDirectorCreativo } from "@/lib/types";
 import { CopilotoGrabar } from "../copiloto-grabar";
 
 export default async function CopilotoGrabarPage({
@@ -32,6 +34,17 @@ export default async function CopilotoGrabarPage({
   const boundSave = updateStoryboardEscena.bind(null, proyectoId, produccionId);
   const boundEstado = actualizarEstadoProduccionEscena.bind(null, proyectoId, produccionId);
 
+  // PHASE-2-IMPLEMENTACION-3A: solo lectura del análisis ya generado en
+  // Revisión, filtrado por `numeroEnAnalisisDirector` (nunca `numero`) —
+  // ver `director-creativo.ts`. Copiloto no genera ni recalcula nada.
+  const analisisDirector = parseAnalisisDirectorCreativo(produccion.analisisDirectorCreativoJson);
+  const hallazgosEscena = analisisDirector
+    ? hallazgosParaEscena(analisisDirector, escena.numeroEnAnalisisDirector)
+    : [];
+  const decisionesEscena = analisisDirector
+    ? decisionesDeProduccionParaEscena(analisisDirector, escena.numeroEnAnalisisDirector)
+    : [];
+
   return (
     <CopilotoGrabar
       proyectoId={proyectoId}
@@ -42,6 +55,8 @@ export default async function CopilotoGrabarPage({
       locaciones={locaciones}
       personajes={personajes}
       formato={produccion.formato}
+      hallazgosDirector={hallazgosEscena}
+      decisionesDeProduccionDirector={decisionesEscena}
       onSave={boundSave}
       onEstadoChange={boundEstado}
     />

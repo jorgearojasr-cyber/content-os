@@ -10,6 +10,7 @@ import { explicarError } from "@/lib/errores";
 import { emocionSugeridaParaTipo, movimientoSugeridoParaPlano } from "@/lib/decision-engine";
 import { promptImagenSugerido, promptVideoSugerido } from "@/lib/escena-prompt-compiler";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
+import type { AnalisisDirectorCreativo } from "@/lib/director-creativo";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
 
@@ -73,6 +74,45 @@ function RecomendacionPlano({ planoNombre, recomendacionBase }: { planoNombre: s
   );
 }
 
+/** PHASE-2-IMPLEMENTACION-3A: solo lectura del análisis del Director
+ * Creativo ya filtrado para esta escena por `numeroEnAnalisisDirector`
+ * (nunca recalcula ni vuelve a llamar a ninguna IA). Mismo tratamiento
+ * visual (borde izquierdo acento) que su tarjeta en Revisión — misma
+ * identidad del Director en toda la app. No se muestra nada si el
+ * análisis no dice nada sobre esta escena en particular. */
+function OpinionDirectorCreativo({
+  hallazgos,
+  decisiones,
+}: {
+  hallazgos: AnalisisDirectorCreativo["hallazgos"];
+  decisiones: AnalisisDirectorCreativo["decisionesDeProduccion"];
+}) {
+  if (hallazgos.length === 0 && decisiones.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border-y border-r border-border border-l-4 border-l-accent bg-surface p-3.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Director Creativo</p>
+      <div className="mt-2 space-y-3">
+        {hallazgos.map((h, i) => (
+          <div key={`hallazgo-${i}`}>
+            <p className="text-[14.5px] font-medium text-text">{h.titulo}</p>
+            <p className="mt-0.5 text-[13px] text-text-muted">{h.porQué}</p>
+            <p className="mt-1 text-[13px] text-text">💡 {h.sugerencia}</p>
+          </div>
+        ))}
+        {decisiones.map((d, i) => (
+          <div key={`decision-${i}`}>
+            <p className="text-[14.5px] font-medium text-text">
+              {d.tipo}: {d.necesidad}
+            </p>
+            <p className="mt-0.5 text-[13px] text-text-muted">{d.porQué}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Pantalla de grabación del Copiloto — reorganizada en UX-MIGRATION-4B
  * para dejar de leerse como una ficha técnica y empezar a comportarse
@@ -94,6 +134,8 @@ export function CopilotoGrabar({
   locaciones,
   personajes,
   formato,
+  hallazgosDirector,
+  decisionesDeProduccionDirector,
   onSave,
   onEstadoChange,
 }: {
@@ -105,6 +147,8 @@ export function CopilotoGrabar({
   locaciones: Activo[];
   personajes: Personaje[];
   formato: string;
+  hallazgosDirector: AnalisisDirectorCreativo["hallazgos"];
+  decisionesDeProduccionDirector: AnalisisDirectorCreativo["decisionesDeProduccion"];
   onSave: (escenaId: string, formData: FormData) => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
 }) {
@@ -280,6 +324,10 @@ export function CopilotoGrabar({
             />
           </div>
         </Card>
+
+        {/* Opinión del Director Creativo para ESTA escena (PHASE-2-
+            IMPLEMENTACION-3A) — solo lectura, ya generada en Revisión. */}
+        <OpinionDirectorCreativo hallazgos={hallazgosDirector} decisiones={decisionesDeProduccionDirector} />
 
         {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA), ver RecomendacionPlano. */}
         {recomendacionBase && planoActual ? (

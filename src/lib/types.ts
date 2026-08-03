@@ -701,8 +701,10 @@ export function parsePlanEdicion(json: unknown): PlanEdicion | null {
 
 /** Adapta `analisisDirectorCreativoJson` (columna `jsonb`, nullable) al tipo
  * `AnalisisDirectorCreativo`; `null` si todavía no se pidió ningún análisis
- * o el valor no tiene forma de objeto. Ninguna pantalla la usa todavía
- * (PHASE-2-IMPLEMENTACION-1 es solo infraestructura). */
+ * o el valor no tiene forma de objeto. Usado en Revisión (donde se genera)
+ * y en Copiloto (PHASE-2-IMPLEMENTACION-3A, solo lectura — ver
+ * `hallazgosParaEscena`/`decisionesDeProduccionParaEscena` en
+ * `director-creativo.ts`). */
 export function parseAnalisisDirectorCreativo(json: unknown): AnalisisDirectorCreativo | null {
   return json && typeof json === "object" ? (json as AnalisisDirectorCreativo) : null;
 }
@@ -1117,6 +1119,14 @@ export type StoryboardEscena = {
   produccionId: string;
   numero: number;
   orden: number;
+  /** Índice inmutable con el que nació la escena (PHASE-2-IMPLEMENTACION-3A)
+   * — nunca se reescribe. Es la referencia estable para vincular el
+   * análisis del Director Creativo (`hallazgos[].escenas`,
+   * `decisionesDeProduccion[].escena`) con esta escena; `numero` es
+   * mutable (cambia al reordenar) y NUNCA debe usarse para ese vínculo.
+   * `null` = la escena nació fuera de la importación original (en blanco
+   * o duplicada) y el Director nunca la analizó. */
+  numeroEnAnalisisDirector: number | null;
   duracionSegundos: number;
   /** Una de TIPOS_ESCENA_STORYBOARD. */
   tipoEscena: string;

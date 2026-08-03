@@ -78,6 +78,7 @@ function escenaVacia(overrides: Partial<StoryboardEscenaConPersonajes> = {}): St
     produccionId: "produccion-1",
     numero: 1,
     orden: 1,
+    numeroEnAnalisisDirector: null,
     duracionSegundos: 0,
     tipoEscena: "GANCHO",
     objetivoNarrativo: "",

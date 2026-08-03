@@ -2344,6 +2344,9 @@ export async function confirmarImportacionBlueprint(
       produccionId,
       numero: i + 1,
       orden: i + 1,
+      // Se asigna una única vez acá — nunca se vuelve a tocar (ver
+      // comentario de la columna en schema.ts).
+      numeroEnAnalisisDirector: i + 1,
       // Fix 2 (post UX-MIGRATION-4): la estimación por palabras/pausas/tipo
       // solo reemplaza la ausencia de dato — una Duración estimada
       // explícita en el CBD nunca se toca (ver estimacion-duracion.ts).
