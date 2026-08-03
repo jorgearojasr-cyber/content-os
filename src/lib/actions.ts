@@ -2268,6 +2268,16 @@ export type DatosImportacionBlueprint = {
   contexto: string | null;
   recursosGlobales: RecursosGlobalesCBD | null;
   escenas: EscenaResuelta[];
+  /** Análisis del Director Creativo IA (PHASE-2-IMPLEMENTACION-2), ya
+   * generado y validado en Revisión antes de "Crear video" — `null`/
+   * `undefined` si el usuario no pidió opinión. La Producción todavía no
+   * existe mientras se está en Revisión, así que este dato viaja en el
+   * mismo viaje que `cbdOriginal` y recién se persiste acá, junto con su
+   * `estadoAnalisisDirectorCreativo` tal como quedó en Revisión (puede
+   * llegar "desactualizado" si el usuario editó algo después de analizar
+   * y no volvió a pedir opinión — se persiste honesto, no se "arregla"). */
+  analisisDirectorCreativoJson?: unknown;
+  estadoAnalisisDirectorCreativo?: string | null;
 };
 
 /** Crea la Producción + todas sus escenas (con Personajes vía tabla
@@ -2283,7 +2293,8 @@ export async function confirmarImportacionBlueprint(
   textoCrudo: string,
   datos: DatosImportacionBlueprint,
 ): Promise<{ produccionId: string }> {
-  const { produccion, contexto, recursosGlobales, escenas } = datos;
+  const { produccion, contexto, recursosGlobales, escenas, analisisDirectorCreativoJson, estadoAnalisisDirectorCreativo } =
+    datos;
 
   if (!produccion.titulo.trim()) throw new Error("El Blueprint no tiene Título de Producción.");
   if (escenas.length === 0) throw new Error("El Blueprint no tiene escenas para importar.");
@@ -2320,6 +2331,8 @@ export async function confirmarImportacionBlueprint(
     outro: recursosGlobales?.outro ?? "",
     notas: produccion.notas,
     cbdOriginal: textoCrudo,
+    analisisDirectorCreativoJson: analisisDirectorCreativoJson ?? null,
+    estadoAnalisisDirectorCreativo: estadoAnalisisDirectorCreativo ?? null,
   });
 
   for (let i = 0; i < escenas.length; i++) {
