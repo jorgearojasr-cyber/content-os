@@ -36,24 +36,28 @@ type Modo = "campo" | "resolucion-marca" | "contexto-chatgpt" | "pegar-resultado
 
 /**
  * Pantalla "Hoy" (UX Migration 1, rediseñada en CONTENT OS V2 — SPRINT 8
- * "Dashboard Hoy") — entrada única a Content OS. Ahora responde primero
+ * "Dashboard Hoy") — entrada única a Content OS. Responde primero
  * "¿qué hago ahora?" (agenda de Grabar/Editar/Publicar + "Reanudar
- * Producción", ver `agendaHoy`) y el campo de idea/importar Producción
- * queda debajo, siempre disponible pero ya no protagonista — sigue siendo
- * el único punto de entrada de creación, solo se movió. Si no hay nada
- * pendiente, la agenda no se renderiza y la pantalla es exactamente el
- * campo de idea de siempre. Al confirmar el campo, `tieneEstructuraDeBlueprint()` decide el camino:
- * con estructura de CBD → Mecanismo B (el importador ya existente, en su
- * modo controlado); sin estructura → "Contexto para ChatGPT", construido
- * sobre la Marca activa. Si no hay Marca resuelta todavía (cero o
- * ambigüedad), se resuelve en el lugar con `ResolucionMarca` antes de
- * seguir — nunca una sustitución automática.
+ * Producción", ver `agendaHoy`), y debajo el punto de entrada de creación.
+ * Si no hay nada pendiente, la agenda no se renderiza.
  *
- * Paso 3 (UX Migration 1.2): el resultado que ChatGPT devuelve se pega
- * DENTRO de este mismo componente (`modo === "pegar-resultado"`), no
- * navegando de vuelta a `modo === "campo"` — la Marca ya elegida en Paso 1
- * viaja como `proyectoPreResuelto` para que el importador no la vuelva a
- * preguntar.
+ * Decisión de producto "Modo de compatibilidad": el flujo OFICIAL de
+ * creación es ChatGPT → CreatorOS Production Package (.cpp.json) →
+ * Importar Producción — es lo primero que se ve en `modo === "campo"`. El
+ * importador de guiones pegados en Markdown (Blueprint) NO se eliminó —
+ * sigue funcionando exactamente igual (`tieneEstructuraDeBlueprint()`,
+ * "Contexto para ChatGPT", `modo === "pegar-resultado"`, `RevisionBlueprint`)
+ * — pero se reclasificó como compatibilidad con contenido histórico: vive
+ * detrás del disclosure `modoCompatibilidadAbierto`, cerrado por defecto
+ * salvo que `ideaInicial` ya traiga texto (ej. "Convertir en contenido"
+ * desde Ideas). Se retiraría recién cuando deje de usarse durante la fase
+ * de validación — no antes, y no en este cambio.
+ *
+ * Paso 3 (UX Migration 1.2, dentro del Modo de compatibilidad): el
+ * resultado que ChatGPT devuelve se pega DENTRO de este mismo componente
+ * (`modo === "pegar-resultado"`), no navegando de vuelta a
+ * `modo === "campo"` — la Marca ya elegida en Paso 1 viaja como
+ * `proyectoPreResuelto` para que el importador no la vuelva a preguntar.
  */
 export function HoyScreen({
   proyectos,
@@ -114,6 +118,15 @@ export function HoyScreen({
     datos: DatosImportacionCPP,
   ) => Promise<{ produccionId: string }>;
 }) {
+  // CONTENT OS V2 — decisión "Modo de compatibilidad": el flujo oficial de
+  // creación es ChatGPT → CreatorOS Production Package (.cpp.json) →
+  // Importar Producción, siempre visible arriba. El campo de idea/pegar
+  // Markdown (Blueprint) sigue funcionando exactamente igual que antes —
+  // ninguna lógica de acá para abajo cambió — pero pasa a vivir detrás de
+  // este disclosure, para no competir visualmente con la vía oficial. Se
+  // abre solo si `ideaInicial` ya trae texto (ej. "Convertir en contenido"
+  // desde Ideas), para que ese prellenado siga siendo visible de entrada.
+  const [modoCompatibilidadAbierto, setModoCompatibilidadAbierto] = useState(Boolean(ideaInicial));
   const [texto, setTexto] = useState(ideaInicial);
   const [marcaActivaId, setMarcaActivaId] = useState<string | null>(
     marcaInicialId && proyectos.some((p) => p.id === marcaInicialId)
@@ -306,67 +319,97 @@ export function HoyScreen({
       ) : null}
 
       {modo === "campo" ? (
-        <div className="space-y-3">
-          <div className="text-center">
+        <div className="space-y-8">
+          {/* Flujo oficial (decisión de producto: ChatGPT → CreatorOS
+              Production Package → Importar Producción) — siempre lo
+              primero que se ve en Hoy. */}
+          <div className="space-y-3 text-center">
             <h1 className="font-display text-[26px] font-normal tracking-wide text-text sm:text-[30px]">
-              ¿Qué video querés hacer hoy?
+              Importar Producción
             </h1>
-            <p className="mt-2 text-[14px] text-text-muted">
-              Contame la idea, o pegá el guion si ya lo armaste con ChatGPT.
+            <p className="text-[14px] text-text-muted">
+              Armá el guion en ChatGPT, exportalo como CreatorOS Production Package (.cpp.json) y subilo acá.
             </p>
+            <div className="flex justify-center">
+              <input
+                ref={inputArchivoCppRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleArchivoCpp}
+              />
+              <Button
+                type="button"
+                onClick={() => inputArchivoCppRef.current?.click()}
+                disabled={!marcaActivaId}
+                title={marcaActivaId ? undefined : "Elegí primero una Marca para importar una Producción."}
+              >
+                Importar Producción (.cpp.json)
+              </Button>
+            </div>
+            {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
           </div>
-          <Textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Escribí tu idea, o pegá acá tu guion..."
-            className="min-h-[160px] text-[14.5px]"
-          />
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant={escuchando ? "primary" : "secondary"}
-              onClick={alternarMicrofono}
-              disabled={!microfonoSoportado}
-              title={
-                microfonoSoportado
-                  ? undefined
-                  : "Tu navegador no soporta dictado por voz — podés escribir tu idea igual."
-              }
-              className="gap-2"
-            >
-              <span className={escuchando ? "inline-block animate-pulse" : "inline-block"} aria-hidden>
-                🎤
-              </span>
-              {escuchando ? "Escuchando…" : "Hablar mi idea"}
-            </Button>
-          </div>
-          {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
-          <div className="flex justify-center">
-            <Button type="button" onClick={handleContinuar} disabled={generando || !texto.trim()}>
-              {generando ? "Un momento…" : "Continuar"}
-            </Button>
-          </div>
-          <div className="flex justify-center">
-            <input
-              ref={inputArchivoCppRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={handleArchivoCpp}
-            />
+
+          {/* Modo de compatibilidad: el importador de guiones pegados en
+              Markdown (Blueprint) sigue funcionando exactamente igual que
+              siempre — solo dejó de ser lo primero que se ve, para no
+              competir con la vía oficial de arriba. Se mantiene para
+              compatibilidad con contenido histórico, hasta que deje de
+              usarse durante la fase de validación. */}
+          <div className="border-t border-border pt-5">
             <button
               type="button"
-              onClick={() => inputArchivoCppRef.current?.click()}
-              disabled={!marcaActivaId}
-              title={marcaActivaId ? undefined : "Elegí primero una Marca para importar una Producción."}
-              className="text-[12px] text-text-muted underline hover:text-text disabled:opacity-50 disabled:no-underline"
+              onClick={() => setModoCompatibilidadAbierto((v) => !v)}
+              className="mx-auto block text-center text-[12px] text-text-muted underline hover:text-text"
             >
-              Importar Producción
+              {modoCompatibilidadAbierto ? "Ocultar" : "¿Ya tenés un guion pegado de ChatGPT?"} — Modo de
+              compatibilidad
             </button>
+
+            {modoCompatibilidadAbierto ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-center font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted">
+                  Modo de compatibilidad — guion en Markdown
+                </p>
+                <Textarea
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  placeholder="Escribí tu idea, o pegá acá tu guion..."
+                  className="min-h-[160px] text-[14.5px]"
+                />
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant={escuchando ? "primary" : "secondary"}
+                    onClick={alternarMicrofono}
+                    disabled={!microfonoSoportado}
+                    title={
+                      microfonoSoportado
+                        ? undefined
+                        : "Tu navegador no soporta dictado por voz — podés escribir tu idea igual."
+                    }
+                    className="gap-2"
+                  >
+                    <span className={escuchando ? "inline-block animate-pulse" : "inline-block"} aria-hidden>
+                      🎤
+                    </span>
+                    {escuchando ? "Escuchando…" : "Hablar mi idea"}
+                  </Button>
+                </div>
+                <div className="flex justify-center">
+                  <Button type="button" variant="secondary" onClick={handleContinuar} disabled={generando || !texto.trim()}>
+                    {generando ? "Un momento…" : "Continuar"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : modo === "resolucion-marca" ? (
         <div className="space-y-4">
+          <p className="text-center font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted">
+            Modo de compatibilidad
+          </p>
           <ResolucionMarca
             nombreDeclarado=""
             proyectosDisponibles={proyectos}
@@ -383,7 +426,9 @@ export function HoyScreen({
       ) : modo === "pegar-resultado" ? (
         <div className="space-y-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent">Paso 3 de 3</p>
+            <p className="font-mono text-[10px] uppercase tracking-[1.5px] text-accent">
+              Modo de compatibilidad — Paso 3 de 3
+            </p>
             <p className="mt-1 font-display text-lg font-normal tracking-wide text-text">
               Pegá aquí la respuesta completa de ChatGPT
             </p>
@@ -404,14 +449,19 @@ export function HoyScreen({
           </div>
         </div>
       ) : (
-        <ContextoParaChatGPT
-          idea={texto.trim()}
-          contexto={contextoGenerado}
-          locaciones={biblioteca.locaciones}
-          planos={biblioteca.planos}
-          onVolver={volverAlCampo}
-          onContinuar={irAPegarResultado}
-        />
+        <div className="space-y-3">
+          <p className="text-center font-mono text-[10px] uppercase tracking-[1.5px] text-text-muted">
+            Modo de compatibilidad
+          </p>
+          <ContextoParaChatGPT
+            idea={texto.trim()}
+            contexto={contextoGenerado}
+            locaciones={biblioteca.locaciones}
+            planos={biblioteca.planos}
+            onVolver={volverAlCampo}
+            onContinuar={irAPegarResultado}
+          />
+        </div>
       )}
 
       {textoParaImportar ? (
