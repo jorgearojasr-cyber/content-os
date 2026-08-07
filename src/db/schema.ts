@@ -583,6 +583,34 @@ export const producciones = pgTable("producciones", {
   // mezclan en el mismo campo, y ninguno de los dos se recalcula solo.
   analisisDirectorCreativoJson: jsonb("analisis_director_creativo_json"),
   estadoAnalisisDirectorCreativo: text("estado_analisis_director_creativo"),
+  // CONTENT OS V2 — SPRINT 3: importador de CreatorOS Production Package
+  // (CPP), ver CREATOROS_PACKAGE_V1_SPEC.md y RFC-002. Mismo criterio que
+  // `cbdOriginal`: el JSON crudo se guarda tal cual llegó, sin modificar,
+  // para futuras reimportaciones y para no perder campos que una versión
+  // futura del importador todavía no interpreta (RFC-002, sección 6).
+  // `null` = Producción que no vino de un CPP (creada a mano o vía CBD).
+  cppOriginal: text("cpp_original"),
+  // `packageId` del paquete importado — única señal disponible para
+  // detectar reimportación (el contrato nunca expone ids internos, ver
+  // CREATOROS_PACKAGE_V1_SPEC.md sección 1). `null` si no vino de un CPP.
+  cppPackageId: text("cpp_package_id"),
+  // `creatorOSPackage` tal cual venía en el paquete (ej. "1.0") — informativo.
+  cppVersion: text("cpp_version"),
+  // Imagen de portada de la Producción para el Dashboard (Sprint 3,
+  // corrección 3 del CPP) — NUNCA la Miniatura (`cppMiniaturaJson` abajo,
+  // entidad independiente desde el Sprint 1). Son dos conceptos distintos:
+  // esta es la portada de la Producción como tal; la Miniatura es del
+  // video final. URL, igual criterio que `recursos[].valor` del contrato.
+  coverImage: text("cover_image"),
+  // Las secciones `recursos`/`miniatura`/`publicacion`/`metadata` del CPP
+  // se guardan tal cual llegaron — mismo criterio de "columna jsonb en vez
+  // de tabla nueva" ya usado en todo este archivo (ver `planEdicionJson`,
+  // `analisisDirectorCreativoJson`). `null` = el paquete no traía esa
+  // sección (todas son opcionales en el contrato).
+  cppRecursosJson: jsonb("cpp_recursos_json"),
+  cppMiniaturaJson: jsonb("cpp_miniatura_json"),
+  cppPublicacionJson: jsonb("cpp_publicacion_json"),
+  cppMetadataJson: jsonb("cpp_metadata_json"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`now()`),

@@ -20,23 +20,31 @@ export default async function CopilotoCierrePage({
   const boundCerrar = cerrarYPublicarProduccion.bind(null, proyectoId, produccionId);
 
   return (
-    <Card>
-      <SectionTitle subtitle="El video ya está grabado y editado. Cuando lo publiques, decile a Content OS cuándo — es solo para tu propio registro, no publica nada por vos.">
-        Listo para publicar
-      </SectionTitle>
-      <form action={boundCerrar} className="space-y-3">
-        <Label htmlFor="fechaPlanificada">Fecha de publicación (opcional)</Label>
-        <Input
-          id="fechaPlanificada"
-          name="fechaPlanificada"
-          type="date"
-          defaultValue={produccion.fechaPlanificada ?? ""}
-          className="max-w-[220px]"
-        />
-        <div>
-          <Button type="submit">Publicar</Button>
-        </div>
-      </form>
-    </Card>
+    <div className="space-y-4">
+      <SectionTitle subtitle="El video ya está grabado y editado.">Qué falta para publicar</SectionTitle>
+      <Card>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Estado</p>
+        <p className="mt-1 text-[15px] text-text">🟢 Listo para publicar</p>
+      </Card>
+
+      <Card>
+        <SectionTitle subtitle="Decile a Content OS cuándo lo publicás — es solo para tu propio registro, no publica nada por vos.">
+          ¿Ya está terminado?
+        </SectionTitle>
+        <form action={boundCerrar} className="space-y-3">
+          <Label htmlFor="fechaPlanificada">Fecha de publicación (opcional)</Label>
+          <Input
+            id="fechaPlanificada"
+            name="fechaPlanificada"
+            type="date"
+            defaultValue={produccion.fechaPlanificada ?? ""}
+            className="max-w-[220px]"
+          />
+          <div>
+            <Button type="submit">Marcar como publicado</Button>
+          </div>
+        </form>
+      </Card>
+    </div>
   );
 }

@@ -1,13 +1,16 @@
 import {
   analizarBlueprint,
   analizarBlueprintSinProyecto,
+  analizarCreatorOSPackage,
   confirmarImportacionBlueprint,
+  confirmarImportacionCPP,
+  confirmarReemplazoCPP,
   crearLocacionDesdeImportador,
   crearPersonajeDesdeImportador,
   crearProyectoDesdeImportador,
   generarContextoParaChatGPT,
+  getAgendaHoy,
   getBibliotecaParaPrompt,
-  getProduccionesEnCurso,
   getProyectos,
 } from "@/lib/actions";
 import { HoyScreen } from "@/components/hoy-screen";
@@ -22,16 +25,16 @@ export default async function RootPage({
 }: {
   searchParams: Promise<{ idea?: string; marca?: string }>;
 }) {
-  const [{ idea, marca }, proyectos, produccionesEnCurso] = await Promise.all([
+  const [{ idea, marca }, proyectos, agendaHoy] = await Promise.all([
     searchParams,
     getProyectos(),
-    getProduccionesEnCurso(),
+    getAgendaHoy(),
   ]);
 
   return (
     <HoyScreen
       proyectos={proyectos.map((p) => ({ id: p.id, nombre: p.nombre }))}
-      produccionesEnCurso={produccionesEnCurso}
+      agendaHoy={agendaHoy}
       ideaInicial={idea ?? ""}
       marcaInicialId={marca ?? null}
       onAnalizarProyecto={analizarBlueprintSinProyecto}
@@ -42,6 +45,9 @@ export default async function RootPage({
       onCrearLocacion={crearLocacionDesdeImportador}
       onGenerarContexto={generarContextoParaChatGPT}
       onGenerarBiblioteca={getBibliotecaParaPrompt}
+      onAnalizarCPP={analizarCreatorOSPackage}
+      onConfirmarCPP={confirmarImportacionCPP}
+      onReemplazarCPP={confirmarReemplazoCPP}
     />
   );
 }

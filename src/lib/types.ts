@@ -1094,6 +1094,18 @@ export type Produccion = {
    * opinión. Vive deliberadamente separada de `analisisDirectorCreativoJson`
    * — nunca se mezclan (contrato congelado). */
   estadoAnalisisDirectorCreativo: string | null;
+  /** CONTENT OS V2 — SPRINT 3: importador de CreatorOS Production Package.
+   * `null` = Producción que no vino de un CPP. Ver `src/lib/creator-os-package.ts`. */
+  cppOriginal: string | null;
+  /** Única señal para detectar reimportación — el contrato nunca expone ids internos. */
+  cppPackageId: string | null;
+  cppVersion: string | null;
+  /** Portada de la Producción en el Dashboard — nunca la Miniatura (campo distinto, abajo). */
+  coverImage: string | null;
+  cppRecursosJson: unknown;
+  cppMiniaturaJson: unknown;
+  cppPublicacionJson: unknown;
+  cppMetadataJson: unknown;
   createdAt: string;
   updatedAt: string;
 };

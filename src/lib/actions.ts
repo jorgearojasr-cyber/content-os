@@ -21,6 +21,7 @@ import {
   storyboardEscenas,
   storyboardEscenasPersonajes,
 } from "@/db/schema";
+import { resolverFaseCopiloto } from "./estado-produccion";
 import { compileIdentity } from "./identity-compiler";
 import type { PosicionLogo } from "./identity-compiler";
 import { completarProyecto, explicarRecomendacionEscena, generarPersonaje, generarPlanEdicion, revisarEscena } from "./ai";
@@ -74,6 +75,8 @@ import type {
 } from "./types";
 import { parsearBlueprint } from "./blueprint-parser";
 import type { BibliotecaConocida, ProduccionCBD, RecursosGlobalesCBD, ResultadoParseoCBD } from "./blueprint-parser";
+import { parsearCreatorOSPackage } from "./creator-os-package";
+import type { CreatorOSProductionPackage } from "./creator-os-package";
 import { estimarDuracionSegundos } from "./estimacion-duracion";
 
 const PAPELERA_RETENCION_DIAS = 7;
@@ -1968,21 +1971,40 @@ export async function getTodasLasProducciones(): Promise<
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
-export type ProduccionEnCurso = ProduccionConMetricas & { proyectoNombre: string };
+export type ItemAgendaHoy = {
+  produccionId: string;
+  proyectoId: string;
+  titulo: string;
+  tipo: "grabar" | "editar" | "publicar";
+  accion: string;
+  href: string;
+  updatedAt: string;
+};
 
-/** Producciones de CUALQUIER Marca que todavía no terminaron — tienen al
- * menos una escena y no todas están en PUBLICADA. Para las 2-3 tarjetas de
- * "en curso" de la pantalla Hoy (UX Migration 1) — a diferencia de
- * `getProducciones`, no está scoped a un proyecto. No es la vista completa
- * de "Mis videos" (UX Migration 5), solo lo mínimo para retomar trabajo. */
-export async function getProduccionesEnCurso(limite = 3): Promise<ProduccionEnCurso[]> {
+/** Dashboard Hoy (CONTENT OS V2 — SPRINT 8): responde una sola pregunta,
+ * "¿qué hago ahora?" — una lista de acciones concretas (nunca estados
+ * genéricos), de CUALQUIER Marca, en el mismo orden de prioridad que ya
+ * usa el Copiloto de cada Producción (`resolverFaseCopiloto`): grabar
+ * antes que editar, editar antes que publicar. Una Producción sin nada
+ * pendiente (fase "vacio" o "publicado") no genera ningún ítem.
+ *
+ * `reanudar`: la Producción abierta o utilizada más recientemente entre
+ * TODAS las de la lista, sin importar su tipo de acción (corrección del
+ * Sprint 8 — ya no prioriza por tipo) — usa `producciones.updatedAt` como
+ * proxy de "más reciente", que es lo único que ya se actualiza hoy con
+ * cualquier trabajo real sobre la Producción (no hay un registro de
+ * "última vez que se abrió" separado, y este Sprint pide no agregar
+ * funciones nuevas). */
+export async function getAgendaHoy(): Promise<{ items: ItemAgendaHoy[]; reanudar: ItemAgendaHoy | null }> {
   const todasProducciones = await db.select().from(producciones);
-  if (todasProducciones.length === 0) return [];
+  if (todasProducciones.length === 0) return { items: [], reanudar: null };
 
   const todasEscenas = await db
     .select({
+      id: storyboardEscenas.id,
       produccionId: storyboardEscenas.produccionId,
-      duracionSegundos: storyboardEscenas.duracionSegundos,
+      numero: storyboardEscenas.numero,
+      orden: storyboardEscenas.orden,
       estadoProduccion: storyboardEscenas.estadoProduccion,
     })
     .from(storyboardEscenas)
@@ -1993,24 +2015,55 @@ export async function getProduccionesEnCurso(limite = 3): Promise<ProduccionEnCu
       ),
     );
 
-  const nombrePorProyecto = new Map((await db.select().from(proyectos)).map((p) => [p.id, p.nombre]));
+  const items: ItemAgendaHoy[] = [];
+  for (const p of todasProducciones) {
+    const propias = todasEscenas.filter((e) => e.produccionId === p.id).sort((a, b) => a.orden - b.orden);
+    const fase = resolverFaseCopiloto(propias);
+    const base = `/proyectos/${p.proyectoId}/producciones/${p.id}`;
 
-  return todasProducciones
-    .map((p) => {
-      const propias = todasEscenas.filter((e) => e.produccionId === p.id);
-      const terminada = propias.length > 0 && propias.every((e) => e.estadoProduccion === "PUBLICADA");
-      return {
-        ...p,
-        totalEscenas: propias.length,
-        duracionCalculadaSegundos: propias.reduce((acc, e) => acc + e.duracionSegundos, 0),
-        proyectoNombre: nombrePorProyecto.get(p.proyectoId) ?? "",
-        terminada,
-      };
-    })
-    .filter((p) => p.totalEscenas > 0 && !p.terminada)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .slice(0, limite)
-    .map(({ terminada: _terminada, ...resto }) => resto);
+    if (fase.fase === "grabar") {
+      const escena = propias.find((e) => e.id === fase.escenaId);
+      items.push({
+        produccionId: p.id,
+        proyectoId: p.proyectoId,
+        titulo: p.titulo,
+        tipo: "grabar",
+        accion: escena ? `Escena ${escena.numero}` : "",
+        href: `${base}/copiloto/${fase.escenaId}`,
+        updatedAt: p.updatedAt,
+      });
+    } else if (fase.fase === "editar") {
+      items.push({
+        produccionId: p.id,
+        proyectoId: p.proyectoId,
+        titulo: p.titulo,
+        tipo: "editar",
+        accion: "",
+        href: `${base}/copiloto/editar`,
+        updatedAt: p.updatedAt,
+      });
+    } else if (fase.fase === "cierre") {
+      items.push({
+        produccionId: p.id,
+        proyectoId: p.proyectoId,
+        titulo: p.titulo,
+        tipo: "publicar",
+        accion: "",
+        href: `${base}/copiloto/cierre`,
+        updatedAt: p.updatedAt,
+      });
+    }
+  }
+
+  const ordenTipo: Record<ItemAgendaHoy["tipo"], number> = { grabar: 0, editar: 1, publicar: 2 };
+  items.sort((a, b) => ordenTipo[a.tipo] - ordenTipo[b.tipo] || (a.updatedAt < b.updatedAt ? 1 : -1));
+
+  const reanudar =
+    items.length === 0
+      ? null
+      : [...items].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
+
+  return { items, reanudar };
 }
 
 /** Una Producción puntual — para el header de su pantalla de detalle. */
@@ -2384,6 +2437,279 @@ export async function confirmarImportacionBlueprint(
   return { produccionId };
 }
 
+// ---------------------------------------------------------------------
+// CONTENT OS V2 — SPRINT 3: Importador de CreatorOS Production Package
+// (CPP). Mismo patrón que el importador de Blueprint/CBD de arriba
+// (analizar → revisar/resolver → confirmar), aplicado al contrato JSON
+// definido en CREATOROS_PACKAGE_V1_SPEC.md y RFC-002. Nivel B: el paquete
+// ya lo generó una IA externa, estas funciones nunca llaman a ningún
+// proveedor de IA.
+// ---------------------------------------------------------------------
+
+export type AnalisisCPP = {
+  paquete: CreatorOSProductionPackage;
+  personajesDisponibles: EntidadBiblioteca[];
+  locacionesDisponibles: EntidadBiblioteca[];
+  planosDisponibles: EntidadBiblioteca[];
+  /** Misma Producción ya importada antes con este mismo `packageId` —
+   * solo informativo (RFC-002 sección 8), nunca bloquea el análisis. */
+  produccionDuplicada: { id: string; titulo: string; fecha: string } | null;
+};
+
+/** Analiza un CreatorOS Production Package leído de un archivo `.cpp.json`
+ * — mismo patrón que `analizarBlueprint`: parsea y valida
+ * (`creator-os-package.ts`), carga los "disponibles" de la Biblioteca del
+ * Proyecto para la resolución de nombres libres, y detecta si este mismo
+ * `packageId` ya se importó antes en este Proyecto — sin bloquear nada,
+ * solo para que la pantalla de revisión pueda ofrecer reemplazar. */
+export async function analizarCreatorOSPackage(proyectoId: string, textoCrudo: string): Promise<AnalisisCPP> {
+  const resultado = parsearCreatorOSPackage(textoCrudo);
+  if (!resultado.ok) throw new Error(resultado.error);
+
+  const [personajesTodos, activosProyecto, planosTodos, duplicadas] = await Promise.all([
+    getPersonajes(),
+    getActivos(proyectoId),
+    getPlanos(),
+    db
+      .select({ id: producciones.id, titulo: producciones.titulo, createdAt: producciones.createdAt })
+      .from(producciones)
+      .where(
+        and(eq(producciones.proyectoId, proyectoId), eq(producciones.cppPackageId, resultado.paquete.packageId)),
+      ),
+  ]);
+
+  return {
+    paquete: resultado.paquete,
+    personajesDisponibles: personajesTodos.map((p) => ({ id: p.id, nombre: p.nombre })),
+    locacionesDisponibles: activosProyecto.filter((a) => a.tipo === "foto").map((a) => ({ id: a.id, nombre: a.nombre })),
+    planosDisponibles: planosTodos.map((p) => ({ id: p.id, nombre: p.nombre })),
+    produccionDuplicada: duplicadas[0]
+      ? { id: duplicadas[0].id, titulo: duplicadas[0].titulo, fecha: duplicadas[0].createdAt }
+      : null,
+  };
+}
+
+export type EscenaResueltaCPP = {
+  numero: number;
+  tipo: string;
+  objetivoNarrativo: string;
+  textoHablado: string;
+  textoPantalla: string;
+  duracionEstimada: number | null;
+  personajeIds: string[];
+  locacionId: string | null;
+  planoId: string | null;
+  movimientoCamara: string;
+  recursosNecesarios: string;
+  musica: string;
+  transicion: string;
+  notas: string;
+};
+
+/** Payload de `confirmarImportacionCPP`/`confirmarReemplazoCPP` — el
+ * paquete ya analizado (`AnalisisCPP`) más las decisiones de resolución
+ * que tomó el usuario en la pantalla de revisión, ya aplicadas a cada
+ * escena. `textoCrudo` (parámetro aparte de las funciones, no acá) es el
+ * JSON tal cual se subió — nunca se reconstruye desde estos campos. */
+export type DatosImportacionCPP = {
+  produccion: {
+    titulo: string;
+    formato: string;
+    ideaCentral: string;
+    objetivoGeneral: string;
+    objetivoEspectador: string;
+    publicoObjetivo: string;
+    duracionEstimada: number | null;
+    contexto: string;
+    notas: string;
+    coverImage: string | null;
+    musicaPrincipal: string;
+    intro: string;
+    outro: string;
+  };
+  escenas: EscenaResueltaCPP[];
+  packageId: string;
+  version: string;
+  recursosJson: unknown;
+  miniaturaJson: unknown;
+  publicacionJson: unknown;
+  metadataJson: unknown;
+};
+
+/** Inserta las escenas de un CPP ya resuelto para una Producción — pieza
+ * compartida entre `confirmarImportacionCPP` (Producción nueva) y
+ * `confirmarReemplazoCPP` (reemplazo total de una ya existente), para no
+ * duplicar la lógica de inserción entre ambas. Ordena por `numero` del
+ * paquete antes de asignar la posición interna (1..N sin huecos) — el
+ * contrato no exige que las escenas lleguen en orden dentro del array
+ * JSON. `numeroEnAnalisisDirector` queda `null`: estas escenas nacieron
+ * del CPP, el Director Creativo IA nunca las analizó
+ * (PHASE-2-IMPLEMENTACION-3A). `tipo` es un enum abierto en el contrato
+ * (CREATOROS_PACKAGE_V1_SPEC.md regla 6) — si no coincide con ninguno de
+ * TIPOS_ESCENA_STORYBOARD cae en "OTRA", nunca rechaza la importación por
+ * un valor de tipo desconocido. */
+async function insertarEscenasCPP(proyectoId: string, produccionId: string, escenas: EscenaResueltaCPP[]) {
+  const ordenadas = [...escenas].sort((a, b) => a.numero - b.numero);
+
+  for (let i = 0; i < ordenadas.length; i++) {
+    const e = ordenadas[i];
+    const escenaId = randomUUID();
+    const tipoNormalizado = e.tipo.trim().toUpperCase();
+    const tipoEscena = TIPOS_ESCENA_STORYBOARD.includes(tipoNormalizado as TipoEscenaStoryboard)
+      ? (tipoNormalizado as TipoEscenaStoryboard)
+      : "OTRA";
+
+    await db.insert(storyboardEscenas).values({
+      id: escenaId,
+      proyectoId,
+      produccionId,
+      numero: i + 1,
+      orden: i + 1,
+      duracionSegundos: e.duracionEstimada ?? estimarDuracionSegundos(e.textoHablado, tipoEscena),
+      tipoEscena,
+      objetivoNarrativo: e.objetivoNarrativo,
+      locacionId: e.locacionId,
+      planoId: e.planoId,
+      movimientoCamara: e.movimientoCamara,
+      textoHablado: e.textoHablado,
+      textoPantalla: e.textoPantalla,
+      recursosNecesarios: e.recursosNecesarios,
+      musica: e.musica,
+      transicion: e.transicion,
+      notas: e.notas,
+    });
+
+    const personajeIdsUnicos = [...new Set(e.personajeIds)];
+    if (personajeIdsUnicos.length > 0) {
+      await db
+        .insert(storyboardEscenasPersonajes)
+        .values(personajeIdsUnicos.map((personajeId) => ({ id: randomUUID(), escenaId, personajeId })));
+    }
+  }
+}
+
+/** Crea la Producción + sus escenas a partir de un CreatorOS Production
+ * Package ya revisado por el usuario — mismo patrón que
+ * `confirmarImportacionBlueprint`. Revalida las reglas bloqueantes
+ * server-side también, nunca confía en que el cliente ya las revisó.
+ * `textoCrudo` es el JSON original tal cual llegó — se guarda completo en
+ * `cppOriginal` (RFC-002 sección 6, "no perder campos que el importador
+ * todavía no interpreta"), nunca se reconstruye desde `datos`. */
+export async function confirmarImportacionCPP(
+  proyectoId: string,
+  textoCrudo: string,
+  datos: DatosImportacionCPP,
+): Promise<{ produccionId: string }> {
+  if (!datos.produccion.titulo.trim()) throw new Error("El paquete no tiene título de Producción.");
+  if (datos.escenas.length === 0) throw new Error("El paquete no tiene escenas.");
+  for (const e of datos.escenas) {
+    if (!e.objetivoNarrativo.trim()) throw new Error(`La escena ${e.numero} no tiene objetivo narrativo.`);
+  }
+
+  const produccionId = randomUUID();
+  await db.insert(producciones).values({
+    id: produccionId,
+    proyectoId,
+    titulo: datos.produccion.titulo,
+    formato: datos.produccion.formato,
+    ideaCentral: datos.produccion.ideaCentral,
+    objetivoGeneral: datos.produccion.objetivoGeneral,
+    objetivoEspectador: datos.produccion.objetivoEspectador,
+    publicoObjetivo: datos.produccion.publicoObjetivo,
+    duracionEstimadaSegundos: datos.produccion.duracionEstimada,
+    contexto: datos.produccion.contexto,
+    musicaPrincipal: datos.produccion.musicaPrincipal,
+    intro: datos.produccion.intro,
+    outro: datos.produccion.outro,
+    notas: datos.produccion.notas,
+    coverImage: datos.produccion.coverImage,
+    cppOriginal: textoCrudo,
+    cppPackageId: datos.packageId,
+    cppVersion: datos.version,
+    cppRecursosJson: datos.recursosJson ?? null,
+    cppMiniaturaJson: datos.miniaturaJson ?? null,
+    cppPublicacionJson: datos.publicacionJson ?? null,
+    cppMetadataJson: datos.metadataJson ?? null,
+  });
+
+  await insertarEscenasCPP(proyectoId, produccionId, datos.escenas);
+
+  revalidatePath(`/proyectos/${proyectoId}/producciones`);
+  return { produccionId };
+}
+
+/** Reemplaza el contenido de una Producción ya creada por un CPP con el
+ * mismo `packageId` (RFC-002 secciones 8-9) — reemplazo SIEMPRE total,
+ * nunca un merge campo por campo (mismo criterio ya establecido para el
+ * Director Creativo IA: "regenerar reemplaza completo"). Bloqueado si
+ * alguna escena ya tiene trabajo real (grabación/edición) — ahí la única
+ * opción para el usuario es importar como Producción nueva, nunca se
+ * permite un reemplazo silencioso que borre trabajo hecho. */
+export async function confirmarReemplazoCPP(
+  proyectoId: string,
+  produccionId: string,
+  textoCrudo: string,
+  datos: DatosImportacionCPP,
+): Promise<{ produccionId: string }> {
+  if (!datos.produccion.titulo.trim()) throw new Error("El paquete no tiene título de Producción.");
+  if (datos.escenas.length === 0) throw new Error("El paquete no tiene escenas.");
+  for (const e of datos.escenas) {
+    if (!e.objetivoNarrativo.trim()) throw new Error(`La escena ${e.numero} no tiene objetivo narrativo.`);
+  }
+
+  const [produccionExistente] = await db
+    .select({ id: producciones.id })
+    .from(producciones)
+    .where(and(eq(producciones.id, produccionId), eq(producciones.proyectoId, proyectoId)));
+  if (!produccionExistente) throw new Error("La Producción a reemplazar ya no existe.");
+
+  const escenasActuales = await db
+    .select({ estadoProduccion: storyboardEscenas.estadoProduccion })
+    .from(storyboardEscenas)
+    .where(eq(storyboardEscenas.produccionId, produccionId));
+  if (escenasActuales.some((e) => e.estadoProduccion !== "BORRADOR")) {
+    throw new Error(
+      "Esta Producción ya tiene escenas grabadas o editadas — no se puede reemplazar automáticamente. Importá el paquete como una Producción nueva en su lugar.",
+    );
+  }
+
+  await db.delete(storyboardEscenas).where(eq(storyboardEscenas.produccionId, produccionId));
+
+  await db
+    .update(producciones)
+    .set({
+      titulo: datos.produccion.titulo,
+      formato: datos.produccion.formato,
+      ideaCentral: datos.produccion.ideaCentral,
+      objetivoGeneral: datos.produccion.objetivoGeneral,
+      objetivoEspectador: datos.produccion.objetivoEspectador,
+      publicoObjetivo: datos.produccion.publicoObjetivo,
+      duracionEstimadaSegundos: datos.produccion.duracionEstimada,
+      contexto: datos.produccion.contexto,
+      musicaPrincipal: datos.produccion.musicaPrincipal,
+      intro: datos.produccion.intro,
+      outro: datos.produccion.outro,
+      notas: datos.produccion.notas,
+      coverImage: datos.produccion.coverImage,
+      cppOriginal: textoCrudo,
+      cppPackageId: datos.packageId,
+      cppVersion: datos.version,
+      cppRecursosJson: datos.recursosJson ?? null,
+      cppMiniaturaJson: datos.miniaturaJson ?? null,
+      cppPublicacionJson: datos.publicacionJson ?? null,
+      cppMetadataJson: datos.metadataJson ?? null,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(producciones.id, produccionId));
+
+  await insertarEscenasCPP(proyectoId, produccionId, datos.escenas);
+
+  revalidatePath(`/proyectos/${proyectoId}/producciones`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
+  return { produccionId };
+}
+
 /** Todas las escenas del storyboard de una Producción, en orden, hidratadas
  * con sus Personajes relacionados (tabla puente). */
 export async function getStoryboardEscenas(produccionId: string): Promise<StoryboardEscenaConPersonajes[]> {
@@ -2429,6 +2755,7 @@ export async function crearEscenaEnBlanco(proyectoId: string, produccionId: stri
   });
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Guarda todos los campos editables del panel lateral de una escena,
@@ -2476,6 +2803,7 @@ export async function updateStoryboardEscena(
   }
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Cambia solo el estado de producción — usado por el dropdown de estado
@@ -2492,6 +2820,7 @@ export async function actualizarEstadoProduccionEscena(
     .where(and(eq(storyboardEscenas.id, escenaId), eq(storyboardEscenas.produccionId, produccionId)));
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Recalcula `orden` y `numero` de todo el storyboard según el orden
@@ -2542,6 +2871,7 @@ export async function moverEscenaStoryboard(
   await renumerarStoryboard(produccionId);
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Persiste el nuevo orden completo tras un arrastre (Fase 3.3) — recibe
@@ -2557,6 +2887,7 @@ export async function reordenarEscenasStoryboard(proyectoId: string, produccionI
   }
 
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Duplica una escena completa (incluidos sus Personajes) justo después
@@ -2617,6 +2948,7 @@ export async function duplicarEscenaStoryboard(proyectoId: string, produccionId:
 
   await renumerarStoryboard(produccionId);
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /** Elimina una escena — la tabla puente se limpia sola por cascade. Deja
@@ -2628,6 +2960,7 @@ export async function eliminarEscenaStoryboard(proyectoId: string, produccionId:
 
   await renumerarStoryboard(produccionId);
   revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}`);
+  revalidatePath(`/proyectos/${proyectoId}/producciones/${produccionId}/escenas`);
 }
 
 /**

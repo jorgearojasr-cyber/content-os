@@ -53,11 +53,9 @@ export default async function CopilotoEditarPage({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <SectionTitle subtitle="Ya grabaste todas las escenas de esta producción. Ahora vamos a editar el video completo.">
-          Terminaste de grabar
-        </SectionTitle>
-      </Card>
+      <SectionTitle subtitle="Ya grabaste todas las escenas de esta producción — esto es lo que falta antes de publicar.">
+        Qué falta para publicar
+      </SectionTitle>
 
       {hallazgosEditar.length > 0 ? (
         <div className="rounded-xl border-y border-r border-border border-l-4 border-l-info bg-surface p-3.5">
@@ -85,7 +83,7 @@ export default async function CopilotoEditarPage({
 
       <Card>
         <SectionTitle subtitle="Cuando termines de montar el video en tu editor (CapCut, Premiere, DaVinci), marcá la producción como editada para pasar al cierre.">
-          ¿Ya terminaste de editar?
+          ¿Ya está terminado?
         </SectionTitle>
         <form action={boundMarcarEditada}>
           <Button type="submit">Marcar video como editado</Button>

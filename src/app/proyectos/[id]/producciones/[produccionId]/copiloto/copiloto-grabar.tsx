@@ -370,7 +370,7 @@ export function CopilotoGrabar({
             </option>
           ))}
         </select>
-        <Link href={base} className="hover:text-accent">
+        <Link href={`${base}/escenas`} className="hover:text-accent">
           Ver todas las escenas
         </Link>
       </div>

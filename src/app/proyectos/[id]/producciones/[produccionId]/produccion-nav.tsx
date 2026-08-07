@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { slug: "", label: "Escenas" },
-  { slug: "copiloto", label: "Copiloto" },
+  { slug: "", label: "Producción" },
+  { slug: "escenas", label: "Escenas" },
+  { slug: "copiloto", label: "Rodaje" },
 ] as const;
 
 export function ProduccionNav({ proyectoId, produccionId }: { proyectoId: string; produccionId: string }) {
@@ -19,7 +20,7 @@ export function ProduccionNav({ proyectoId, produccionId }: { proyectoId: string
         const active = tab.slug ? pathname?.startsWith(href) : pathname === base;
         return (
           <Link
-            key={tab.slug || "escenas"}
+            key={tab.slug || "dashboard"}
             href={href}
             className={`flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-center text-[13.5px] transition-colors ${
               active
