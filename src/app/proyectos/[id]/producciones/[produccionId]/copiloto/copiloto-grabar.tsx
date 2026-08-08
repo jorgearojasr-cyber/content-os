@@ -496,10 +496,6 @@ export function CopilotoGrabar({
           </div>
         </Card>
 
-        {/* Opinión del Director Creativo para ESTA escena (PHASE-2-
-            IMPLEMENTACION-3A) — solo lectura, ya generada en Revisión. */}
-        <OpinionDirectorCreativo hallazgosAgrupados={hallazgosAgrupados} onIrA={irA} />
-
         {/* 4. Cómo recomiendo grabarla — Nivel 1 (sin IA), ver RecomendacionPlano. */}
         {recomendacionBase && planoActual ? (
           <Card>
@@ -510,84 +506,90 @@ export function CopilotoGrabar({
           </Card>
         ) : null}
 
-        {/* 5. ¿Necesitas IA para esta escena? — se pregunta primero; los
-            prompts nunca aparecen vacíos sin que el usuario haya elegido
-            "Necesito IA". Los campos quedan siempre montados (igual que
-            `SeccionColapsable`) para que el <form> nunca pierda su valor
-            al alternar la elección — solo cambia si son visibles. */}
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">¿Cómo crearás esta escena?</p>
-          <div className="mt-2 space-y-1.5">
-            <label className="flex items-center gap-2 text-[14.5px] text-text">
-              <input
-                type="radio"
-                name="modoCreacion"
-                checked={modoCreacion === "manual"}
-                onChange={() => setModoCreacion("manual")}
-              />
-              La grabaré yo.
-            </label>
-            <label className="flex items-center gap-2 text-[14.5px] text-text">
-              <input
-                type="radio"
-                name="modoCreacion"
-                checked={modoCreacion === "ia"}
-                onChange={() => setModoCreacion("ia")}
-              />
-              Necesito IA.
-            </label>
-          </div>
-          <div
-            className="overflow-hidden transition-[max-height] duration-300 ease-out"
-            style={{ maxHeight: modoCreacion === "ia" ? "1000px" : "0px" }}
-          >
-            <div className="mt-4 space-y-1 border-t border-border pt-4">
-              <Label htmlFor="promptIa">Generar prompt de imagen</Label>
-              <Textarea
-                id="promptIa"
-                name="promptIa"
-                value={promptIa}
-                onChange={(e) => {
-                  setPromptIa(e.target.value);
-                  setPromptIaEsSugerencia(false);
-                }}
-                sugerido={promptIaEsSugerencia}
-              />
-              {promptIaEsSugerencia ? (
-                <p className="mt-1 text-[12px] text-text-muted">
-                  💡 Borrador armado con los datos de la escena — editable.
-                </p>
-              ) : null}
-              <Label htmlFor="promptVideoIa">Generar prompt de video</Label>
-              <Textarea
-                id="promptVideoIa"
-                name="promptVideoIa"
-                value={promptVideoIa}
-                onChange={(e) => {
-                  setPromptVideoIa(e.target.value);
-                  setPromptVideoIaEsSugerencia(false);
-                }}
-                sugerido={promptVideoIaEsSugerencia}
-              />
-              {promptVideoIaEsSugerencia ? (
-                <p className="mt-1 text-[12px] text-text-muted">
-                  💡 Borrador armado con los datos de la escena — editable.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </Card>
-
-        {/* Todo lo que no responde ninguna de las 5 preguntas — incluye los
-            controles reales de edición de Plano/Locación/Personajes que el
-            checklist de arriba solo resume. Un único "Ver detalles", no
-            tres acordeones separados (eso ya se sentía como formulario). */}
+        {/* SPRINT_EXECUTION_3: "mantener únicamente objetivo, guion,
+            checklist, recomendación y el botón final" — todo lo demás
+            (Director Creativo, IA, controles de edición completos) pasa a
+            "Ver detalles", colapsado por defecto. Nada se eliminó: mismos
+            campos, mismo <form>, mismos handlers — solo dejan de competir
+            por atención en la vista principal. */}
         <SeccionColapsable
           titulo="Ver detalles"
           tieneContenido={true}
           abierto={detallesAbiertos}
           onAbiertoChange={setDetallesAbiertos}
         >
+          {/* Opinión del Director Creativo para ESTA escena (PHASE-2-
+              IMPLEMENTACION-3A) — solo lectura, ya generada en Revisión. */}
+          <OpinionDirectorCreativo hallazgosAgrupados={hallazgosAgrupados} onIrA={irA} />
+
+          {/* ¿Necesitas IA para esta escena? — los prompts nunca aparecen
+              vacíos sin que el usuario haya elegido "Necesito IA". Los
+              campos quedan siempre montados para que el <form> nunca
+              pierda su valor al alternar la elección — solo cambia si son
+              visibles. */}
+          <div className="mb-4 rounded-xl border border-border p-3.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">¿Cómo crearás esta escena?</p>
+            <div className="mt-2 space-y-1.5">
+              <label className="flex items-center gap-2 text-[14.5px] text-text">
+                <input
+                  type="radio"
+                  name="modoCreacion"
+                  checked={modoCreacion === "manual"}
+                  onChange={() => setModoCreacion("manual")}
+                />
+                La grabaré yo.
+              </label>
+              <label className="flex items-center gap-2 text-[14.5px] text-text">
+                <input
+                  type="radio"
+                  name="modoCreacion"
+                  checked={modoCreacion === "ia"}
+                  onChange={() => setModoCreacion("ia")}
+                />
+                Necesito IA.
+              </label>
+            </div>
+            <div
+              className="overflow-hidden transition-[max-height] duration-300 ease-out"
+              style={{ maxHeight: modoCreacion === "ia" ? "1000px" : "0px" }}
+            >
+              <div className="mt-4 space-y-1 border-t border-border pt-4">
+                <Label htmlFor="promptIa">Generar prompt de imagen</Label>
+                <Textarea
+                  id="promptIa"
+                  name="promptIa"
+                  value={promptIa}
+                  onChange={(e) => {
+                    setPromptIa(e.target.value);
+                    setPromptIaEsSugerencia(false);
+                  }}
+                  sugerido={promptIaEsSugerencia}
+                />
+                {promptIaEsSugerencia ? (
+                  <p className="mt-1 text-[12px] text-text-muted">
+                    💡 Borrador armado con los datos de la escena — editable.
+                  </p>
+                ) : null}
+                <Label htmlFor="promptVideoIa">Generar prompt de video</Label>
+                <Textarea
+                  id="promptVideoIa"
+                  name="promptVideoIa"
+                  value={promptVideoIa}
+                  onChange={(e) => {
+                    setPromptVideoIa(e.target.value);
+                    setPromptVideoIaEsSugerencia(false);
+                  }}
+                  sugerido={promptVideoIaEsSugerencia}
+                />
+                {promptVideoIaEsSugerencia ? (
+                  <p className="mt-1 text-[12px] text-text-muted">
+                    💡 Borrador armado con los datos de la escena — editable.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
           <Label>¿En qué etapa está?</Label>
           <EstadoProduccionSelect escenaId={escena.id} estado={escena.estadoProduccion} onChange={onEstadoChange} />
 

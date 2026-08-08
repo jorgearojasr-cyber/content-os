@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getProduccion, getStoryboardEscenas } from "@/lib/actions";
 import { Card, Chip, Empty, LinkButton, SectionTitle } from "@/components/ui";
+import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { ESTADOS_PRODUCCION_ESCENA } from "@/lib/types";
 import { ESTADO_PRODUCCION_INFO, resolverFaseCopiloto } from "@/lib/estado-produccion";
 import type { CreatorOSProductionPackage } from "@/lib/creator-os-package";
@@ -77,84 +78,91 @@ export default async function ProduccionDashboardPage({
         </div>
       </Card>
 
-      <Card>
-        <SectionTitle>Estado general</SectionTitle>
-        <p className="text-[13px] text-text-muted">{estadoGeneral(escenas.length, desglose)}</p>
-        <p className="mt-1 text-[13px] text-text-muted">
-          {escenas.length} escena{escenas.length === 1 ? "" : "s"} · {formatoDuracion(duracionTotal)}
-        </p>
-      </Card>
-
-      <Card>
-        <SectionTitle>Progreso</SectionTitle>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${porcentaje}%` }} />
-        </div>
-        <p className="mt-1.5 text-[12px] text-text-muted">{porcentaje}% publicado</p>
-        <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
-          {ESTADOS_PRODUCCION_ESCENA.map((estado) => (
-            <span key={estado} className={`text-[12px] ${ESTADO_PRODUCCION_INFO[estado].clase}`}>
-              {ESTADO_PRODUCCION_INFO[estado].icono} {ESTADO_PRODUCCION_INFO[estado].etiqueta}: {desglose[estado]}
-            </span>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <SectionTitle>Escenas</SectionTitle>
-        {escenas.length === 0 ? (
-          <Empty title="Todavía no hay escenas">Agregalas desde la pestaña Escenas.</Empty>
+      {/* SPRINT_EXECUTION_3: "cada pantalla responde una sola pregunta" —
+          acá la pregunta es "¿qué hago ahora?", así que la Próxima acción
+          pasa a ser el centro visual de la pantalla, sin tener que
+          recorrer Estado/Progreso/Miniatura/resumen para llegar a ella. */}
+      <div className="rounded-2xl border border-accent/30 bg-accent-soft p-6 text-center">
+        {proximaAccion.href ? (
+          <LinkButton href={proximaAccion.href}>{proximaAccion.etiqueta}</LinkButton>
         ) : (
-          <div className="space-y-1.5">
-            {escenas.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
-                <span className="text-[12.5px] text-text">
-                  #{e.numero} · {e.objetivoNarrativo || "Sin objetivo definido"}
+          <p className="text-[14px] text-text">{proximaAccion.etiqueta}</p>
+        )}
+      </div>
+
+      <SeccionColapsable titulo="Ver detalles" tieneContenido={true}>
+        <div className="space-y-4">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Estado general</p>
+            <p className="mt-1 text-[13px] text-text-muted">{estadoGeneral(escenas.length, desglose)}</p>
+            <p className="mt-1 text-[13px] text-text-muted">
+              {escenas.length} escena{escenas.length === 1 ? "" : "s"} · {formatoDuracion(duracionTotal)}
+            </p>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Progreso</p>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-2">
+              <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${porcentaje}%` }} />
+            </div>
+            <p className="mt-1.5 text-[12px] text-text-muted">{porcentaje}% publicado</p>
+            <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
+              {ESTADOS_PRODUCCION_ESCENA.map((estado) => (
+                <span key={estado} className={`text-[12px] ${ESTADO_PRODUCCION_INFO[estado].clase}`}>
+                  {ESTADO_PRODUCCION_INFO[estado].icono} {ESTADO_PRODUCCION_INFO[estado].etiqueta}: {desglose[estado]}
                 </span>
-                <span className={`shrink-0 text-[12px] ${ESTADO_PRODUCCION_INFO[e.estadoProduccion].clase}`}>
-                  {ESTADO_PRODUCCION_INFO[e.estadoProduccion].icono} {ESTADO_PRODUCCION_INFO[e.estadoProduccion].etiqueta}
-                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Escenas</p>
+            {escenas.length === 0 ? (
+              <Empty title="Todavía no hay escenas">Agregalas desde la pestaña Escenas.</Empty>
+            ) : (
+              <div className="mt-2 space-y-1.5">
+                {escenas.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                    <span className="text-[12.5px] text-text">
+                      #{e.numero} · {e.objetivoNarrativo || "Sin objetivo definido"}
+                    </span>
+                    <span className={`shrink-0 text-[12px] ${ESTADO_PRODUCCION_INFO[e.estadoProduccion].clase}`}>
+                      {ESTADO_PRODUCCION_INFO[e.estadoProduccion].icono} {ESTADO_PRODUCCION_INFO[e.estadoProduccion].etiqueta}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+            <div className="mt-3">
+              <LinkButton href={`${base}/escenas`} variant="secondary">
+                Ver todas las escenas
+              </LinkButton>
+            </div>
           </div>
-        )}
-        <div className="mt-3">
-          <LinkButton href={`${base}/escenas`} variant="secondary">
-            Ver todas las escenas
-          </LinkButton>
-        </div>
-      </Card>
 
-      <Card>
-        <SectionTitle>Miniatura</SectionTitle>
-        {produccion.coverImage ? (
-          <img
-            src={produccion.coverImage}
-            alt={`Portada de ${produccion.titulo}`}
-            className="h-40 w-full rounded-lg object-cover"
-          />
-        ) : miniaturaCpp ? (
-          <div className="rounded-xl border border-border bg-surface-2 p-3 text-[13px] text-text">
-            <p>{miniaturaCpp.descripcion}</p>
-            {miniaturaCpp.textoEnMiniatura ? (
-              <p className="mt-1 text-text-muted">Texto: “{miniaturaCpp.textoEnMiniatura}”</p>
-            ) : null}
+          <div className="border-t border-border pt-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Miniatura</p>
+            <div className="mt-2">
+              {produccion.coverImage ? (
+                <img
+                  src={produccion.coverImage}
+                  alt={`Portada de ${produccion.titulo}`}
+                  className="h-40 w-full rounded-lg object-cover"
+                />
+              ) : miniaturaCpp ? (
+                <div className="rounded-xl border border-border bg-surface-2 p-3 text-[13px] text-text">
+                  <p>{miniaturaCpp.descripcion}</p>
+                  {miniaturaCpp.textoEnMiniatura ? (
+                    <p className="mt-1 text-text-muted">Texto: “{miniaturaCpp.textoEnMiniatura}”</p>
+                  ) : null}
+                </div>
+              ) : (
+                <Empty title="Todavía no hay miniatura">Esta Producción no tiene una portada definida.</Empty>
+              )}
+            </div>
           </div>
-        ) : (
-          <Empty title="Todavía no hay miniatura">Esta Producción no tiene una portada definida.</Empty>
-        )}
-      </Card>
-
-      <Card>
-        <SectionTitle>Próxima acción</SectionTitle>
-        <div className="rounded-xl border border-accent/30 bg-accent-soft p-4">
-          {proximaAccion.href ? (
-            <LinkButton href={proximaAccion.href}>{proximaAccion.etiqueta}</LinkButton>
-          ) : (
-            <p className="text-[14px] text-text">{proximaAccion.etiqueta}</p>
-          )}
         </div>
-      </Card>
+      </SeccionColapsable>
     </div>
   );
 }

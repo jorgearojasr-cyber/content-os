@@ -287,16 +287,20 @@ export function ProduccionEscenas({
                   arrastradaId === escena.id ? "opacity-40 shadow-lg" : ""
                 } ${destinoId === escena.id && arrastradaId && arrastradaId !== escena.id ? "ring-2 ring-accent" : ""}`}
               >
-                {/* Encabezado tipo "hoja de rodaje": número grande + tipo,
-                    estado y menú a la derecha — igual que una claqueta. */}
-                <div className="flex items-start justify-between gap-2 border-b border-border pb-3">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-2xl font-normal tracking-wide text-text">
+                {/* SPRINT_EXECUTION_3: "cada tarjeta responde una sola
+                    pregunta" (¿qué tengo que grabar?) — número, tipo,
+                    objetivo, plano/locación/personajes/duración en una
+                    línea y el botón, sin fichas ni recuadros vacíos.
+                    Estado y menú (⋮) se mantienen: son controles, no
+                    información secundaria. */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <span className="font-display text-xl font-normal tracking-wide text-text">
                       #{escena.numero}
                     </span>
                     <Chip variant={tipoLabel ? "default" : "neutral"}>{tipoLabel ?? "Sin tipo"}</Chip>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     <EstadoProduccionSelect
                       escenaId={escena.id}
                       estado={escena.estadoProduccion}
@@ -317,59 +321,35 @@ export function ProduccionEscenas({
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                  {/* Referencia visual — la foto real de la Locación (Activo
-                      tipo="foto"), distinta del Plano (que es solo el tipo
-                      de encuadre en texto, no una imagen). */}
-                  <div className="shrink-0 sm:w-32">
-                    {locacion?.valor ? (
-                      <img
-                        src={locacion.valor}
-                        alt={`Referencia visual: ${locacion.nombre}`}
-                        className="h-24 w-full rounded-lg object-cover sm:h-32"
-                      />
-                    ) : (
-                      <div className="flex h-24 w-full items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-text-muted sm:h-32">
-                        Sin referencia visual
-                      </div>
-                    )}
-                  </div>
+                {locacion?.valor ? (
+                  <img
+                    src={locacion.valor}
+                    alt={`Referencia visual: ${locacion.nombre}`}
+                    className="mt-2 h-16 w-full rounded-lg object-cover"
+                  />
+                ) : null}
 
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="text-[15px] text-text">
-                      {escena.objetivoNarrativo || "Sin objetivo narrativo todavía"}
-                    </p>
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-text-muted sm:grid-cols-4">
-                      <div>
-                        <dt className="text-[10.5px] uppercase tracking-wide">Plano</dt>
-                        <dd className="text-text">{planoNombre ?? "No especificado en el CPP"}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10.5px] uppercase tracking-wide">Duración</dt>
-                        <dd className="text-text">
-                          {escena.duracionSegundos === 0
-                            ? "Pendiente"
-                            : `${formatoTiempo(t.inicio)}–${formatoTiempo(t.fin)} (${escena.duracionSegundos}s)`}
-                        </dd>
-                      </div>
-                      {locacionNombre ? (
-                        <div>
-                          <dt className="text-[10.5px] uppercase tracking-wide">Locación</dt>
-                          <dd className="text-text">{locacionNombre}</dd>
-                        </div>
-                      ) : null}
-                      {personajesLabel ? (
-                        <div>
-                          <dt className="text-[10.5px] uppercase tracking-wide">Personajes</dt>
-                          <dd className="text-text">{personajesLabel}</dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                  </div>
-                </div>
+                <p className="mt-1.5 line-clamp-2 text-[14px] text-text">
+                  {escena.objetivoNarrativo || "Sin objetivo narrativo todavía"}
+                </p>
 
-                <div className="mt-3 border-t border-border pt-3">
-                  <Button type="button" variant="secondary" onClick={() => abrirEnCopiloto(escena.id)}>
+                <p className="mt-1 truncate text-[12px] text-text-muted">
+                  🎥 {planoNombre ?? "No especificado en el CPP"}
+                  {locacionNombre ? ` · 📍 ${locacionNombre}` : ""}
+                  {personajesLabel ? ` · ${personajesLabel}` : ""}
+                  {" · ⏱ "}
+                  {escena.duracionSegundos === 0
+                    ? "Pendiente"
+                    : `${formatoTiempo(t.inicio)}–${formatoTiempo(t.fin)} (${escena.duracionSegundos}s)`}
+                </p>
+
+                <div className="mt-2.5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-3 py-1.5 text-[12.5px]"
+                    onClick={() => abrirEnCopiloto(escena.id)}
+                  >
                     {etiquetaAccionPrincipal(escena.estadoProduccion)}
                   </Button>
                 </div>
