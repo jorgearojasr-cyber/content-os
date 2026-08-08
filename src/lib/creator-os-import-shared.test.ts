@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  agruparPendientesCpp,
-  construirRevisionCpp,
-  faltanDecisionesCpp,
-  type EscenaCppEnRevision,
-} from "./creator-os-import-shared";
+import { construirRevisionCpp } from "./creator-os-import-shared";
 import type { EscenaCPP } from "./creator-os-package";
-import { resolverCampo } from "./blueprint-import-shared";
 
 function escenaCpp(overrides: Partial<EscenaCPP> = {}): EscenaCPP {
   return {
@@ -41,7 +35,7 @@ describe("construirRevisionCpp — adapta EscenaCPP al motor de resolución exis
     expect(revision[0].personajes).toEqual([]);
   });
 
-  it("un nombre sin ninguna candidata en la Biblioteca queda pendiente (mismo motivo que Blueprint)", () => {
+  it("un nombre sin ninguna candidata en la Biblioteca queda sin vincular — nunca bloquea (SPRING_REFACTOR_1)", () => {
     const revision = construirRevisionCpp(
       [escenaCpp({ personajes: ["Alguien Nuevo"] })],
       [],
@@ -52,57 +46,6 @@ describe("construirRevisionCpp — adapta EscenaCPP al motor de resolución exis
     expect(campo.resuelto).toBe(false);
     if (campo.resuelto) throw new Error("unreachable");
     expect(campo.decision).toBeUndefined();
-  });
-});
-
-describe("faltanDecisionesCpp", () => {
-  it("true mientras quede un campo genuinamente pendiente", () => {
-    const escenas: EscenaCppEnRevision[] = construirRevisionCpp(
-      [escenaCpp({ locacion: "Estudio Nuevo" })],
-      [],
-      [],
-      [],
-    );
-    expect(faltanDecisionesCpp(escenas)).toBe(true);
-  });
-
-  it("false una vez que todo está resuelto, auto-resuelto o decidido explícitamente", () => {
-    const escenas: EscenaCppEnRevision[] = [
-      {
-        escena: escenaCpp(),
-        personajes: [{ resuelto: true, id: "p1", nombre: "Ana" }],
-        locacion: null,
-        plano: null,
-      },
-    ];
-    expect(faltanDecisionesCpp(escenas)).toBe(false);
-  });
-});
-
-describe("agruparPendientesCpp — consolida el mismo nombre repetido en varias escenas", () => {
-  it("el mismo Personaje pendiente en 2 escenas produce una sola tarjeta", () => {
-    const escenas = construirRevisionCpp(
-      [escenaCpp({ numero: 1, personajes: ["Don José"] }), escenaCpp({ numero: 2, personajes: ["Don José"] })],
-      [],
-      [],
-      [],
-    );
-    const pendientes = agruparPendientesCpp(escenas);
-    expect(pendientes).toHaveLength(1);
-    expect(pendientes[0]).toMatchObject({ tipo: "personaje", ocurrencias: 2 });
-  });
-
-  it("excluye lo ya resuelto/auto-resuelto/decidido — coherente con el mismo criterio de Blueprint", () => {
-    const yaDecidido = resolverCampo("Piso", []);
-    if (yaDecidido.resuelto) throw new Error("unreachable");
-    const escenas: EscenaCppEnRevision[] = [
-      {
-        escena: escenaCpp(),
-        personajes: [],
-        locacion: { resuelto: true, id: "l1", nombre: "Oficina" },
-        plano: { ...yaDecidido, decision: null },
-      },
-    ];
-    expect(agruparPendientesCpp(escenas)).toEqual([]);
+    expect(campo.nombre).toBe("Alguien Nuevo");
   });
 });

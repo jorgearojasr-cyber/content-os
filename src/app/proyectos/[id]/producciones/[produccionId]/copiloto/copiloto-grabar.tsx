@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { SeccionColapsable } from "@/components/seccion-colapsable";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
@@ -10,6 +10,7 @@ import { explicarError } from "@/lib/errores";
 import { emocionSugeridaParaTipo, movimientoSugeridoParaPlano } from "@/lib/decision-engine";
 import { promptImagenSugerido, promptVideoSugerido } from "@/lib/escena-prompt-compiler";
 import { recomendacionBaseParaPlano } from "@/lib/recomendaciones-audiovisuales";
+import { buscarEscenaOriginalCpp } from "@/lib/creator-os-package";
 import type { AnalisisDirectorCreativo, HallazgosAgrupadosPorPrioridad } from "@/lib/director-creativo";
 import { TIPOS_ESCENA_STORYBOARD } from "@/lib/types";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
@@ -214,6 +215,7 @@ export function CopilotoGrabar({
   locaciones,
   personajes,
   formato,
+  cppOriginal,
   hallazgosAgrupados,
   decisionPersonaje,
   decisionLocacion,
@@ -229,6 +231,7 @@ export function CopilotoGrabar({
   locaciones: Activo[];
   personajes: Personaje[];
   formato: string;
+  cppOriginal: string | null;
   hallazgosAgrupados: HallazgosAgrupadosPorPrioridad;
   decisionPersonaje: AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null;
   decisionLocacion: AnalisisDirectorCreativo["decisionesDeProduccion"][number] | null;
@@ -285,6 +288,20 @@ export function CopilotoGrabar({
   const planoActual = planos.find((p) => p.id === escena.planoId);
   const locacionActual = locaciones.find((a) => a.id === escena.locacionId);
   const recomendacionBase = planoActual ? recomendacionBaseParaPlano(planoActual.nombre) : null;
+
+  // SPRINT_EXECUTION_2: respaldo de solo lectura para "Antes de grabar" —
+  // si Plano/Locación/Personajes no tienen vínculo de Biblioteca, cae al
+  // nombre crudo que declaró el CPP original, nunca a "Falta elegir X".
+  const escenaCpp = useMemo(
+    () => buscarEscenaOriginalCpp(cppOriginal, escena.numeroEnAnalisisDirector),
+    [cppOriginal, escena.numeroEnAnalisisDirector],
+  );
+  const planoNombreParaChecklist = planoActual?.nombre ?? escenaCpp?.plano ?? "";
+  const locacionNombreParaChecklist = locacionActual?.nombre ?? escenaCpp?.locacion ?? "";
+  const personajesNombresParaChecklist =
+    personajeIds.length > 0
+      ? personajeIds.map((id) => personajes.find((p) => p.id === id)?.nombre).filter(Boolean).join(", ")
+      : (escenaCpp?.personajes ?? []).join(", ");
 
   // Decision Engine — Movimiento de cámara (Automático): el plano ya
   // resuelto es señal suficientemente fuerte como para pre-llenar sin
@@ -418,11 +435,15 @@ export function CopilotoGrabar({
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Antes de grabar</p>
           <div className="mt-2 space-y-1.5">
-            <FilaChecklist resuelto={!!planoActual} etiqueta="elegir plano" valor={planoActual?.nombre ?? ""} />
             <FilaChecklist
-              resuelto={!!locacionActual}
+              resuelto={!!planoActual || !!escenaCpp?.plano}
+              etiqueta="elegir plano"
+              valor={planoNombreParaChecklist}
+            />
+            <FilaChecklist
+              resuelto={!!locacionActual || !!escenaCpp?.locacion}
               etiqueta="elegir locación"
-              valor={locacionActual?.nombre ?? ""}
+              valor={locacionNombreParaChecklist}
               nota={
                 decisionLocacion
                   ? {
@@ -435,12 +456,9 @@ export function CopilotoGrabar({
             />
             {personajes.length > 0 ? (
               <FilaChecklist
-                resuelto={personajeIds.length > 0}
+                resuelto={personajeIds.length > 0 || !!escenaCpp?.personajes?.length}
                 etiqueta="elegir personajes"
-                valor={personajeIds
-                  .map((id) => personajes.find((p) => p.id === id)?.nombre)
-                  .filter(Boolean)
-                  .join(", ")}
+                valor={personajesNombresParaChecklist}
                 nota={
                   decisionPersonaje
                     ? {

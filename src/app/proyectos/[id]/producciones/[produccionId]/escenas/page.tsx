@@ -47,6 +47,7 @@ export default async function ProduccionEscenasPage({
       planos={planos}
       locaciones={locaciones}
       personajes={personajes}
+      cppOriginal={produccion.cppOriginal}
       onCrear={boundCrear}
       onEstadoChange={boundEstado}
       onMover={boundMover}

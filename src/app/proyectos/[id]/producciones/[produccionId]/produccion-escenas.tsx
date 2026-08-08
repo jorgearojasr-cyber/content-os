@@ -1,12 +1,13 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Button, Card, Chip, Empty } from "@/components/ui";
 import { EstadoProduccionSelect } from "@/components/estado-produccion-badge";
 import { ActionMenu, ActionMenuItem } from "@/components/action-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { explicarError } from "@/lib/errores";
+import { buscarEscenaOriginalCpp } from "@/lib/creator-os-package";
 import type { Activo, Personaje, Plano, StoryboardEscenaConPersonajes } from "@/lib/types";
 
 const ETIQUETAS_TIPO_ESCENA: Record<string, string> = {
@@ -46,14 +47,23 @@ function etiquetaAccionPrincipal(estado: string) {
   }
 }
 
-/** Indicador compacto de Personajes para la tarjeta — sigue siendo una
- * vista de escaneo rápido, no lista todos los nombres a partir de 3. */
-function etiquetaPersonajes(personajeIds: string[], personajes: Personaje[]) {
-  if (personajeIds.length === 0) return null;
-  const nombres = personajeIds.map((id) => personajes.find((p) => p.id === id)?.nombre || "Sin nombre");
+/** Formato compacto de nombres de Personajes — sigue siendo una vista de
+ * escaneo rápido, no lista todos los nombres a partir de 3. Recibe nombres
+ * ya resueltos (de la Biblioteca o crudos del CPP, SPRINT_EXECUTION_2) para
+ * poder reutilizarse en ambos casos. */
+function formatoPersonajes(nombres: string[]) {
+  if (nombres.length === 0) return null;
   if (nombres.length === 1) return `👤 ${nombres[0]}`;
   if (nombres.length === 2) return `👥 ${nombres[0]} · ${nombres[1]}`;
   return `👥 ${nombres[0]} +${nombres.length - 1}`;
+}
+
+/** Indicador compacto de Personajes para la tarjeta, a partir de vínculos
+ * reales de Biblioteca. */
+function etiquetaPersonajes(personajeIds: string[], personajes: Personaje[]) {
+  if (personajeIds.length === 0) return null;
+  const nombres = personajeIds.map((id) => personajes.find((p) => p.id === id)?.nombre || "Sin nombre");
+  return formatoPersonajes(nombres);
 }
 
 /** Calcula, para cada escena en orden, el rango de tiempo que ocupa —
@@ -72,6 +82,7 @@ export function ProduccionEscenas({
   planos,
   locaciones,
   personajes,
+  cppOriginal,
   onCrear,
   onEstadoChange,
   onMover,
@@ -83,6 +94,7 @@ export function ProduccionEscenas({
   planos: Plano[];
   locaciones: Activo[];
   personajes: Personaje[];
+  cppOriginal: string | null;
   onCrear: () => Promise<void>;
   onEstadoChange: (escenaId: string, estado: string) => Promise<void>;
   onMover: (escenaId: string, direccion: "arriba" | "abajo") => Promise<void>;
@@ -113,6 +125,18 @@ export function ProduccionEscenas({
 
   const tiempos = calcularTiempos(escenas);
   const quedanEscenasPorGrabar = escenas.some((e) => e.estadoProduccion === "BORRADOR");
+
+  // SPRINT_EXECUTION_2: respaldo de solo lectura para cuando una escena no
+  // tiene Plano/Locación/Personajes vinculados en la Biblioteca — busca el
+  // texto original que declaró el CPP usando la posición inmutable
+  // (`numeroEnAnalisisDirector`), nunca el `numero` visible actual.
+  const escenasCppPorId = useMemo(() => {
+    const mapa = new Map<string, ReturnType<typeof buscarEscenaOriginalCpp>>();
+    for (const escena of escenas) {
+      mapa.set(escena.id, buscarEscenaOriginalCpp(cppOriginal, escena.numeroEnAnalisisDirector));
+    }
+    return mapa;
+  }, [escenas, cppOriginal]);
 
   // UX-MIGRATION-5: tocar una tarjeta lleva a Copiloto para esa escena —
   // el Storyboard deja de ser una segunda forma de editar contenido
@@ -229,7 +253,15 @@ export function ProduccionEscenas({
             const esPrimera = index === 0;
             const esUltima = index === escenas.length - 1;
             const tipoLabel = ETIQUETAS_TIPO_ESCENA[escena.tipoEscena];
-            const personajesLabel = etiquetaPersonajes(escena.personajeIds, personajes);
+            // SPRINT_EXECUTION_2: si no hay vínculo de Biblioteca, cae al
+            // nombre crudo que declaró el CPP — nunca a "Sin definir/Sin
+            // vincular/Pendiente".
+            const escenaCpp = escenasCppPorId.get(escena.id) ?? null;
+            const planoNombre = plano?.nombre ?? escenaCpp?.plano ?? null;
+            const locacionNombre = locacion?.nombre ?? escenaCpp?.locacion ?? null;
+            const personajesLabel =
+              etiquetaPersonajes(escena.personajeIds, personajes) ??
+              (escenaCpp?.personajes?.length ? formatoPersonajes(escenaCpp.personajes) : null);
             return (
               <Card
                 key={escena.id}
@@ -310,7 +342,7 @@ export function ProduccionEscenas({
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-text-muted sm:grid-cols-4">
                       <div>
                         <dt className="text-[10.5px] uppercase tracking-wide">Plano</dt>
-                        <dd className="text-text">{plano?.nombre ?? "Sin definir"}</dd>
+                        <dd className="text-text">{planoNombre ?? "No especificado en el CPP"}</dd>
                       </div>
                       <div>
                         <dt className="text-[10.5px] uppercase tracking-wide">Duración</dt>
@@ -320,10 +352,10 @@ export function ProduccionEscenas({
                             : `${formatoTiempo(t.inicio)}–${formatoTiempo(t.fin)} (${escena.duracionSegundos}s)`}
                         </dd>
                       </div>
-                      {locacion ? (
+                      {locacionNombre ? (
                         <div>
                           <dt className="text-[10.5px] uppercase tracking-wide">Locación</dt>
-                          <dd className="text-text">{locacion.nombre}</dd>
+                          <dd className="text-text">{locacionNombre}</dd>
                         </div>
                       ) : null}
                       {personajesLabel ? (

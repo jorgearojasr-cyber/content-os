@@ -2565,6 +2565,12 @@ async function insertarEscenasCPP(proyectoId: string, produccionId: string, esce
       produccionId,
       numero: i + 1,
       orden: i + 1,
+      // SPRINT_EXECUTION_2: mismo campo que usa el Director Creativo para
+      // referenciar la posición original e inmutable de una escena — acá se
+      // guarda el número original del paquete CPP, para poder ubicar la
+      // escena de vuelta en `cppOriginal` sin importar cuánto se reordene el
+      // storyboard después.
+      numeroEnAnalisisDirector: e.numero,
       duracionSegundos: e.duracionEstimada ?? estimarDuracionSegundos(e.textoHablado, tipoEscena),
       tipoEscena,
       objetivoNarrativo: e.objetivoNarrativo,

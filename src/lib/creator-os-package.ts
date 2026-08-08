@@ -187,3 +187,31 @@ export function parsearCreatorOSPackage(textoCrudo: string): ResultadoParseoCPP 
 
   return { ok: true, paquete: resultado.data };
 }
+
+/** SPRINT_EXECUTION_2: busca, dentro de un CreatorOS Production Package
+ * ya guardado (`producciones.cppOriginal`), la escena que tenía este
+ * número ORIGINAL del paquete — el mismo valor que se guarda en
+ * `numeroEnAnalisisDirector` al importar, nunca el `numero` visible
+ * actual (ese cambia con cada reordenamiento/duplicación/eliminación).
+ * Es un respaldo de solo lectura para cuando una escena no tiene
+ * Personaje/Locación/Plano vinculado en la Biblioteca: nunca lanza — si
+ * el texto no es un CPP válido o la escena ya no está, devuelve `null` en
+ * vez de romper la pantalla que lo llama. */
+export function buscarEscenaOriginalCpp(
+  cppOriginal: string | null,
+  numeroOriginal: number | null,
+): EscenaCPP | null {
+  if (!cppOriginal || numeroOriginal === null) return null;
+  try {
+    const json: unknown = JSON.parse(cppOriginal);
+    if (json === null || typeof json !== "object" || !("escenas" in json)) return null;
+    const escenas = (json as { escenas: unknown }).escenas;
+    if (!Array.isArray(escenas)) return null;
+    const encontrada = escenas.find(
+      (e): e is EscenaCPP => typeof e === "object" && e !== null && (e as EscenaCPP).numero === numeroOriginal,
+    );
+    return encontrada ?? null;
+  } catch {
+    return null;
+  }
+}

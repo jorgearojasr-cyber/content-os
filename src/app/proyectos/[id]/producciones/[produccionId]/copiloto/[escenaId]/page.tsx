@@ -67,6 +67,7 @@ export default async function CopilotoGrabarPage({
       locaciones={locaciones}
       personajes={personajes}
       formato={produccion.formato}
+      cppOriginal={produccion.cppOriginal}
       hallazgosAgrupados={hallazgosAgrupados}
       decisionPersonaje={decisionPersonaje}
       decisionLocacion={decisionLocacion}

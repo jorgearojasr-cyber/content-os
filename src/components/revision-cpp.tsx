@@ -5,34 +5,24 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { explicarError } from "@/lib/errores";
 import type { AnalisisCPP, DatosImportacionCPP, EntidadBiblioteca } from "@/lib/actions";
-import {
-  SelectorResolucion,
-  type TipoCampoPendiente,
-} from "@/lib/blueprint-import-shared";
-import {
-  agruparPendientesCpp,
-  construirRevisionCpp,
-  faltanDecisionesCpp,
-  type EscenaCppEnRevision,
-} from "@/lib/creator-os-import-shared";
-
-const ETIQUETA_TIPO_PENDIENTE: Record<TipoCampoPendiente, string> = {
-  plano: "Plano",
-  locacion: "Locación",
-  personaje: "Personaje",
-};
+import { construirRevisionCpp, type EscenaCppEnRevision } from "@/lib/creator-os-import-shared";
 
 type DecisionDuplicado = "reemplazar" | "nueva";
 
 /**
- * Pantalla de revisión de un CreatorOS Production Package (CPP) — CONTENT
- * OS V2, SPRINT 3. Mismo patrón que `RevisionBlueprint` (analizar → cada
- * nombre libre se resuelve con `SelectorResolucion`, el motor de
- * similitud ya existente → confirmar), aplicado al contrato JSON en vez
- * del CBD en Markdown — con una diferencia deliberada (Sprint 4): al
- * confirmar aterriza en el Dashboard de la Producción, no en el Copiloto.
- * Nunca pega texto: recibe el
- * contenido ya leído de un archivo `.cpp.json` (Sprint 3, corrección 1).
+ * Pantalla de revisión de un CreatorOS Production Package (CPP).
+ *
+ * SPRING_REFACTOR_1 (resolución opcional, no implementa RevisionBlueprint):
+ * la importación NUNCA se bloquea por Personaje/Locación/Plano sin
+ * vincular — el CPP es suficiente para ejecutar una Producción por sí
+ * solo. `construirRevisionCpp` sigue vinculando en silencio cuando hay
+ * una coincidencia exacta o fuerte contra la Biblioteca (reutiliza lo que
+ * ya existe, sin preguntar); cuando no hay coincidencia, el campo queda
+ * simplemente sin vincular — nunca se le pide al usuario resolverlo, y
+ * nunca se crea una entidad nueva en su lugar. La pantalla solo confirma
+ * lo que trae el paquete, con los nombres tal como los escribió CreatorOS.
+ * Nunca pega texto: recibe el contenido ya leído de un archivo
+ * `.cpp.json` (Sprint 3, corrección 1).
  */
 export function RevisionCpp({
   textoInicial,
@@ -41,8 +31,6 @@ export function RevisionCpp({
   onAnalizar,
   onConfirmar,
   onReemplazar,
-  onCrearPersonaje,
-  onCrearLocacion,
 }: {
   textoInicial: string;
   proyecto: EntidadBiblioteca;
@@ -59,8 +47,6 @@ export function RevisionCpp({
     textoCrudo: string,
     datos: DatosImportacionCPP,
   ) => Promise<{ produccionId: string }>;
-  onCrearPersonaje: (nombre: string) => Promise<{ id: string }>;
-  onCrearLocacion: (proyectoId: string, nombre: string) => Promise<{ id: string }>;
 }) {
   const router = useRouter();
   const [cargando, setCargando] = useState(true);
@@ -103,20 +89,7 @@ export function RevisionCpp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pendientesConsolidados = agruparPendientesCpp(escenasRevision);
-
-  async function crearPersonajeInline(nombre: string) {
-    const { id } = await onCrearPersonaje(nombre);
-    return { id };
-  }
-
-  async function crearLocacionInline(nombre: string) {
-    const { id } = await onCrearLocacion(proyecto.id, nombre);
-    return { id };
-  }
-
-  const confirmarDeshabilitado =
-    confirmando || faltanDecisionesCpp(escenasRevision) || decisionDuplicado === null;
+  const confirmarDeshabilitado = confirmando || decisionDuplicado === null;
 
   async function handleConfirmar() {
     if (!analisis || !decisionDuplicado) return;
@@ -258,57 +231,6 @@ export function RevisionCpp({
               ) : null}
             </div>
 
-            {pendientesConsolidados.length > 0 ? (
-              <div className="rounded-xl border border-accent/30 bg-accent-soft p-3">
-                <p className="mb-2 text-[13px] font-medium text-text">Antes de continuar</p>
-                <div className="space-y-3">
-                  {pendientesConsolidados.map(({ tipo, campo, ocurrencias }, i) => (
-                    <div key={`${tipo}-${i}`} className="rounded-lg border border-border bg-surface p-2.5">
-                      <span className="text-[11.5px] text-text-muted">
-                        {ETIQUETA_TIPO_PENDIENTE[tipo]}
-                        {ocurrencias > 1 ? ` (aparece en ${ocurrencias} escenas)` : ""}:{" "}
-                      </span>
-                      <span className="text-[12.5px] font-medium text-text">{campo.nombre}</span>
-                      <div className="mt-1.5">
-                        <SelectorResolucion
-                          campo={campo}
-                          onDecidir={(valor) => {
-                            const decision = valor === "__sin_vincular__" ? null : valor;
-                            setEscenasRevision((actual) =>
-                              actual.map((e) => ({
-                                ...e,
-                                personajes: e.personajes.map((c) =>
-                                  tipo === "personaje" && !c.resuelto && c.nombre === campo.nombre
-                                    ? { ...c, decision }
-                                    : c,
-                                ),
-                                locacion:
-                                  tipo === "locacion" && e.locacion && !e.locacion.resuelto && e.locacion.nombre === campo.nombre
-                                    ? { ...e.locacion, decision }
-                                    : e.locacion,
-                                plano:
-                                  tipo === "plano" && e.plano && !e.plano.resuelto && e.plano.nombre === campo.nombre
-                                    ? { ...e.plano, decision }
-                                    : e.plano,
-                              })),
-                            );
-                          }}
-                          onCrearNuevo={
-                            tipo === "personaje"
-                              ? crearPersonajeInline
-                              : tipo === "locacion"
-                                ? crearLocacionInline
-                                : undefined
-                          }
-                          etiquetaCrearNuevo={tipo === "personaje" ? "nuevo Personaje" : "nueva Locación"}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             <div className="space-y-2">
               <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Escenas</p>
               {escenasRevision.map((e, i) => (
@@ -320,24 +242,14 @@ export function RevisionCpp({
                   {e.escena.textoHablado ? (
                     <p className="mt-1 text-[12.5px] text-text-muted">“{e.escena.textoHablado}”</p>
                   ) : null}
-                  <div className="mt-2 flex flex-wrap gap-3 text-[12px]">
-                    {e.locacion ? (
-                      <span>
-                        📍 <SelectorResolucion campo={e.locacion} soloEstado onDecidir={() => {}} />
-                      </span>
-                    ) : null}
-                    {e.plano ? (
-                      <span>
-                        🎥 <SelectorResolucion campo={e.plano} soloEstado onDecidir={() => {}} />
-                      </span>
-                    ) : null}
-                    {e.personajes.length > 0
-                      ? e.personajes.map((c, j) => (
-                          <span key={j}>
-                            🧑 <SelectorResolucion campo={c} soloEstado onDecidir={() => {}} />
-                          </span>
-                        ))
-                      : null}
+                  {/* Siempre el nombre tal cual lo escribió CreatorOS — vinculado
+                      o no a la Biblioteca, nunca se pregunta acá (SPRING_REFACTOR_1). */}
+                  <div className="mt-2 flex flex-wrap gap-3 text-[12px] text-text-muted">
+                    {e.locacion ? <span>📍 {e.locacion.nombre}</span> : null}
+                    {e.plano ? <span>🎥 {e.plano.nombre}</span> : null}
+                    {e.personajes.map((c, j) => (
+                      <span key={j}>🧑 {c.nombre}</span>
+                    ))}
                   </div>
                 </div>
               ))}

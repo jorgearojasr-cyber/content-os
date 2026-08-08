@@ -489,8 +489,6 @@ export function HoyScreen({
           onAnalizar={onAnalizarCPP}
           onConfirmar={onConfirmarCPP}
           onReemplazar={onReemplazarCPP}
-          onCrearPersonaje={onCrearPersonaje}
-          onCrearLocacion={onCrearLocacion}
         />
       ) : null}
     </main>
